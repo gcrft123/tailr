@@ -16,9 +16,10 @@
 import { spawn } from 'node:child_process';
 import { createServer } from '../src/server/server.js';
 import { readSession, writeSession, clearSession, isAlive } from '../src/server/session.js';
+import { waitForBatch } from '../src/server/watch.js';
 
 const argv = process.argv.slice(2);
-const AGENT = new Set(['status', 'pull', 'progress', 'done', 'fail', 'reset']);
+const AGENT = new Set(['status', 'wait', 'pull', 'progress', 'done', 'fail', 'reset']);
 
 const dashdash = argv.indexOf('--');
 const devCommand = dashdash === -1 ? null : argv.slice(dashdash + 1);
@@ -113,6 +114,26 @@ async function agent(cmd, rest) {
     process.exit(data.run && data.run.phase === 'working' ? 0 : 3);
   }
 
+  if (cmd === 'wait') {
+    // Stays quiet until the reviewer presses Send, then exits. Run it in the
+    // background and its exit is the notification: nobody has to be asked
+    // whether a batch has arrived, and nothing polls in the meantime.
+    const seconds = Number(flag('timeout', 0)) || 0;
+    const r = await waitForBatch(session.port, seconds * 1000);
+    if (r.waiting) {
+      process.stdout.write(JSON.stringify({ waiting: true, run: r.waiting.run }, null, 2) + '\n');
+      process.stderr.write(
+        `\n  A batch of ${r.waiting.run.total} mark(s) is waiting. Lease it with:  tailr pull\n\n`);
+      process.exit(0);
+    }
+    if (r.timedOut) {
+      process.stderr.write(`\n  Nothing sent within ${seconds}s. The session is still up.\n\n`);
+      process.exit(3);
+    }
+    process.stderr.write('\n  The Tailr session ended before a batch was sent.\n\n');
+    process.exit(2);
+  }
+
   if (cmd === 'pull') {
     const wait = args.includes('--wait');
     const deadline = Date.now() + 10 * 60 * 1000;
@@ -162,6 +183,8 @@ function usage() {
 
   From your agent, in the same project directory
     tailr status                  is a batch waiting?
+    tailr wait [--timeout <s>]    block until one is; run it in the background
+                                  and its exit is your notification
     tailr pull [--wait]           lease the pending batch, printed as JSON
     tailr progress <ref>          one mark applied
     tailr done                    the run finished

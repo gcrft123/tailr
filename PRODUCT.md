@@ -81,6 +81,7 @@ Other confirmed behavior:
 
 - Staged markup is scoped **per-origin**, and each mark carries its own route. A batch is session-wide across routes, so a per-route store could not express it. A dev server on a different port is a different origin and does not inherit marks.
 - A mark whose element no longer exists after a reload is **orphaned, never silently re-anchored and never discarded**. It keeps its number and its comment, loses its tether, and is surfaced with the last known address and a snippet of the element as it was. Re-anchoring risks attaching a comment to the wrong element and having the agent act on it; discarding breaks the guarantee that staged markup is never lost.
+- Orphaning is a claim about the element, so it may only be made from the route the mark was made on, and only once that route has had a chance to render. A mark belonging to a page the reviewer has since navigated away from is **not** orphaned — it is unverifiable, and stays staged under its own route until they return to it. A route-shaped hash (`#/orders`) is part of that address; a plain anchor (`#pricing`) is not. Telling the agent an element was lost when the reviewer merely changed pages sends it to ask about marks that are perfectly intact.
 
 ### Explicitly undecided
 

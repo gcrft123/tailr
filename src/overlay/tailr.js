@@ -18,6 +18,9 @@
 
   var ORIGIN_KEY = 'tailr:' + location.origin;
   var LEARN_KEY = 'tailr:learned:' + location.origin;
+  var STORE_V = 2;            // bumped when a stored verdict stops being trustworthy
+  var SETTLE_MS = 1500;       // grace for a route to render before it is judged
+  var enteredAt = Date.now(); // when the current route came on screen
   var EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
   var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   var MAC = /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
@@ -51,6 +54,7 @@
   function save() {
     try {
       localStorage.setItem(ORIGIN_KEY, JSON.stringify({
+        v: STORE_V,
         seq: S.seq,
         marks: S.marks.map(function (m) {
           return {
@@ -73,19 +77,40 @@
       if (!raw) return;
       var d = JSON.parse(raw);
       S.seq = d.seq || 1;
+      // Before the store carried a version, a mark was orphaned for being on
+      // another route — a verdict about where the reviewer was standing, not
+      // about the element. Drop those and let reconcile re-derive them.
+      var trustOrphans = d.v >= STORE_V;
       // Marks the agent already applied are history once the page reloads.
       S.marks = (d.marks || []).filter(function (m) { return m.status !== 'served'; }).map(function (m) {
         if (m.type === 'insert') m.type = 'point';   // the two were merged
-        var hit = m.selector ? safeQuery(m.selector) : null;
-        m.el = (hit && sameElement(m, hit)) ? hit : null;
-        // A mark whose element is gone is orphaned — never re-anchored, never dropped.
-        if (m.selector && !m.el) m.status = 'orphan';
-        else if (m.status === 'orphan') m.status = 'staged';
+        if (m.status === 'orphan' && !trustOrphans) m.status = 'staged';
+        m.el = null;
+        // Only the route on screen can be looked at, and even it may still be
+        // rendering. Adopt an element when one is already there; everything
+        // else is left to reconcile, which counts misses before it declares
+        // anything gone. Orphaning from here would condemn every mark made on
+        // a page the reviewer has since navigated away from.
+        if (m.selector && m.route === routeKey()) {
+          var hit = safeQuery(m.selector);
+          if (hit && sameElement(m, hit)) {
+            m.el = hit;
+            if (m.status === 'orphan') m.status = 'staged';
+          }
+        }
         return m;
       });
     } catch (e) {}
   }
   function safeQuery(sel) { try { return document.querySelector(sel); } catch (e) { return null; } }
+
+  /* Which page a mark belongs to. A hash router changes the view without ever
+     touching the pathname, so a route-shaped hash (#/orders, #!/orders) is part
+     of the address; a plain anchor (#pricing) is not — it is the same page. */
+  function routeKey() {
+    var h = location.hash;
+    return location.pathname + (/^#!?\//.test(h) ? h : '');
+  }
 
   /* Frameworks replace nodes on every render, so a live element reference goes
      stale without the mark being gone. Re-resolve before declaring an orphan,
@@ -97,11 +122,16 @@
     if (m.tag && el.tagName !== m.tag) return false;
     return snippetOf(el) === m.snippet;
   }
+  /* Orphaning is a claim about the element, so it may only be made about the
+     page the mark was made on, once that page has had a chance to render. Off
+     the route, or before it settles, absence is not evidence. */
   function reconcile() {
     var changed = false;
+    var settling = document.readyState === 'loading' || Date.now() - enteredAt < SETTLE_MS;
     S.marks.forEach(function (m) {
       if (!m.selector || m.status === 'served') return;
-      if (m.route !== location.pathname) return;
+      // Not the page this mark was made on — nothing here says anything about it.
+      if (m.route !== routeKey()) return;
       if (m.el && m.el.isConnected) { m.misses = 0; return; }
       var found = safeQuery(m.selector);
       if (found && sameElement(m, found)) {
@@ -109,6 +139,10 @@
         if (m.status === 'orphan') { m.status = 'staged'; changed = true; }
         return;
       }
+      m.el = null;
+      // A client-rendered route arrives after the overlay does. Keep looking
+      // rather than counting an element that has not been drawn yet as gone.
+      if (settling) return;
       m.misses = (m.misses || 0) + 1;
       if (m.misses >= 3 && m.status !== 'orphan') { m.status = 'orphan'; changed = true; }
     });
@@ -118,10 +152,14 @@
   /* A single-page app changes route without a reload, so marks belonging to the
      new route must appear and the old ones must leave. */
   function watchRoute() {
-    var last = location.pathname;
+    var last = routeKey();
     function check() {
-      if (location.pathname === last) return;
-      last = location.pathname;
+      if (routeKey() === last) return;
+      last = routeKey();
+      // A route the reviewer has just walked into is rendering, not missing:
+      // start its marks on a clean count inside a fresh settle window.
+      enteredAt = Date.now();
+      S.marks.forEach(function (m) { if (m.route === last) m.misses = 0; });
       closeComposer();
       reconcile(); renderMarks(); renderIsland();
     }
@@ -225,10 +263,10 @@
       id: 'm' + Date.now() + Math.random().toString(36).slice(2, 6),
       n: S.seq++,
       type: type,
-      route: location.pathname,
+      route: routeKey(),
       el: el || null,
       selector: el ? selectorFor(el) : null,
-      address: el ? (sourceAddress(el) || describe(el)) : location.pathname,
+      address: el ? (sourceAddress(el) || describe(el)) : routeKey(),
       snippet: el ? snippetOf(el) : '',
       tag: el ? el.tagName : null,
       comment: '',
@@ -245,7 +283,7 @@
     S.marks = S.marks.filter(function (x) { return x.id !== id; });
     save(); renderMarks(); renderIsland();
   }
-  function markOnRoute(m) { return m.route === location.pathname; }
+  function markOnRoute(m) { return m.route === routeKey(); }
 
   /* ── on-page rendering ─────────────────────────────────── */
   var nodes = {}, reconcileTimer = null;
@@ -254,6 +292,10 @@
     var seen = {};
     S.marks.forEach(function (m) {
       if (!markOnRoute(m) || m.status === 'orphan') return;
+      // Nothing to point at yet — the route is still rendering. Don't plant a
+      // badge at the origin. One already on screen stays: a re-render is not a
+      // disappearance, and it holds its place until reconcile rules either way.
+      if (!isPoint(m) && !(m.el && m.el.isConnected) && !nodes[m.id]) return;
       seen[m.id] = 1;
       var n = nodes[m.id];
       if (!n) {
@@ -432,16 +474,55 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]; }); }
 
   /* ── inline text editing ───────────────────────────────── */
+  /* What a double-click means to edit is the element that owns the whole
+     visible string. Requiring a childless element missed most of the real web:
+     a heading with one bold word, a button with an icon, a link inside a list
+     item — all have element children and all are plainly text. Inline children
+     are part of the string; a block-level descendant means this is a container,
+     not a sentence. */
+  var BLOCK_SEL = 'address,article,aside,blockquote,canvas,dd,div,dl,dt,fieldset,figcaption,' +
+    'figure,footer,form,h1,h2,h3,h4,h5,h6,header,hr,iframe,li,main,nav,ol,p,pre,section,' +
+    'table,tbody,td,tfoot,th,thead,tr,ul,video';
+  /* Elements that hold a string rather than a layout. Climbing into one is how
+     a click on a letter-span — the shape text animations and i18n wrappers
+     leave behind — reaches the heading it belongs to, while a click on a label
+     inside a flex row stays on the label instead of swallowing the row. */
+  var TEXT_TAG = /^(H1|H2|H3|H4|H5|H6|P|LI|DT|DD|TD|TH|CAPTION|FIGCAPTION|BLOCKQUOTE|LABEL|BUTTON|A|SUMMARY|LEGEND)$/;
+  function textHost(el) {
+    if (!el || el.nodeType !== 1 || isOurs(el)) return null;
+    var node = el;
+    for (var hops = 0; hops < 4; hops++) {
+      var p = node.parentElement;
+      if (!p || p === document.body || p === document.documentElement || isOurs(p)) break;
+      // a pure wrapper adds no text of its own; a text tag owns the line
+      var wrapper = p.textContent.trim() === node.textContent.trim();
+      if (!wrapper && !TEXT_TAG.test(p.tagName)) break;
+      if (p.querySelector(BLOCK_SEL)) break;
+      node = p;
+    }
+    if (!node.textContent.trim()) return null;
+    if (node.querySelector(BLOCK_SEL)) return null;
+    return node;
+  }
+
   function editText(el) {
     var before = el.textContent;
     var m = addMark('text', el, { before: before, after: before });
     el.setAttribute('data-tailr-editing', '');
     el.contentEditable = 'true';
+    // App-like pages routinely set user-select:none, which leaves a
+    // contenteditable element with no caret and no way to type into it. Tailr
+    // is a guest and does not restyle the page, so this is scoped to the
+    // element being edited and put back exactly as it was when editing ends.
+    var priorStyle = el.getAttribute('style');
+    el.style.setProperty('user-select', 'text', 'important');
+    el.style.setProperty('-webkit-user-select', 'text', 'important');
     el.focus();
     var sel = getSelection(); sel.selectAllChildren(el);
     function end() {
       el.removeAttribute('contenteditable');
       el.removeAttribute('data-tailr-editing');
+      if (priorStyle === null) el.removeAttribute('style'); else el.setAttribute('style', priorStyle);
       el.removeEventListener('blur', end);
       el.removeEventListener('keydown', key);
       m.after = el.textContent;
@@ -758,7 +839,7 @@
     // The on-page badge is deliberately small so it never covers what it labels,
     // which leaves it under the minimum target size. The row is its equivalent —
     // and the only route to editing a mark without a pointer.
-    var editable = m.route === location.pathname && (isPoint(m) || (m.el && m.el.isConnected));
+    var editable = m.route === routeKey() && (isPoint(m) || (m.el && m.el.isConnected));
     var attrs = editable
       ? ' role="button" tabindex="0" data-act="edit" data-id="' + m.id + '" title="Edit mark ' + pad(m.n) + '"'
       : '';
@@ -853,7 +934,7 @@
     if (k === 'arrowleft' && el.previousElementSibling) { S.hover = el.previousElementSibling; e.preventDefault(); }
     if (k === 'c') { e.preventDefault(); openComposer(addMark('comment', el), el.getBoundingClientRect()); }
     if (k === 'r') { e.preventDefault(); addMark('remove', el); }
-    if (k === 'e') { e.preventDefault(); editText(el); }
+    if (k === 'e') { e.preventDefault(); var h = textHost(el); if (h) editText(h); }
   }
   function onKeyUp(e) {
     if (e.key === 'Alt') { e.preventDefault(); if (!S.latched) arm(false); }
@@ -930,9 +1011,13 @@
   }
   function onDbl(e) {
     if (!guard(e)) return;
+    var host = textHost(targetAt(e));
+    // Nothing here is a string — a container, an image, a gap between blocks.
+    // Leave the pending click alone so the gesture still lands as a comment
+    // rather than being answered with nothing at all.
+    if (!host) return;
     clearTimeout(clickTimer); clickTimer = null;
-    var el = targetAt(e);
-    if (el.children.length === 0 && el.textContent.trim()) editText(el);
+    editText(host);
   }
 
   function editMark(id) {

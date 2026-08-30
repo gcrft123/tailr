@@ -19,7 +19,8 @@ changes as a batch.
    Leave it running and tell me the review URL it prints. I review there, not on
    the original port.
 
-Then wait. When I press Send you'll have a batch of marks to apply.
+Then call tailr_wait. It returns the moment I press Send, so I never have to
+tell you a batch is ready — call it again after you close each run.
 
 How to handle a batch:
 - tailr_pull leases it. Every mark has a ref ("01"), a type, the route it was made
@@ -48,6 +49,8 @@ Drop step 2 and swap the tool names for the CLI, which does the same thing:
 
 ```
 tailr status          # is a batch waiting? exit 0 yes, 3 no
+tailr wait            # block until one is — run it in the background and its
+                      # exit is the notification. 0 waiting, 3 timed out, 2 ended
 tailr pull            # lease it, printed as JSON
 tailr progress <ref>  # one mark applied
 tailr done            # finished
