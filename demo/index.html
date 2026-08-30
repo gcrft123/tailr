@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Northwind — demo host app</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:ui-sans-serif,-apple-system,'SF Pro Text',system-ui,sans-serif;background:#FAFAF8;color:#1c1f23}
+.side{position:fixed;left:0;top:0;bottom:0;width:208px;background:#F1F1EE;border-right:1px solid #E4E4DF;padding:20px 0}
+.logo{margin:0 18px 22px;font-weight:700;font-size:15px;letter-spacing:-.02em}
+.nav{display:block;margin:2px 10px;padding:8px 11px;border-radius:7px;font-size:13px;color:#5b6169;text-decoration:none}
+.nav.on{background:#E4E7EC;color:#1c1f23;font-weight:500}
+.main{margin-left:208px}
+.top{height:58px;border-bottom:1px solid #E4E4DF;background:#fff;display:flex;align-items:center;padding:0 26px;gap:14px}
+.top h1{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.search{width:260px;height:32px;background:#F4F4F1;border:1px solid #E4E4DF;border-radius:7px;margin-left:20px}
+.btn{margin-left:auto;height:32px;padding:0 14px;background:#3A6FD8;color:#fff;border-radius:7px;font-size:13px;display:flex;align-items:center}
+.wrap{padding:24px 26px;display:grid;gap:18px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.card{background:#fff;border:1px solid #E4E4DF;border-radius:10px;padding:16px}
+.card .k{font-size:11px;color:#7c838c;text-transform:uppercase;letter-spacing:.05em}
+.card .v{font-size:27px;font-weight:600;margin-top:7px;letter-spacing:-.02em}
+.card .d{font-size:12px;color:#3f8a5f;margin-top:3px}
+.panel{background:#fff;border:1px solid #E4E4DF;border-radius:10px;overflow:hidden}
+.ph{padding:14px 16px;border-bottom:1px solid #EFEFEB;font-size:14px;font-weight:600;letter-spacing:-.01em}
+.row{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid #F4F4F0;font-size:13px}
+.row:last-child{border-bottom:none}
+.row .n{width:170px} .row .i{width:110px;color:#7c838c}
+.row .amt{margin-left:auto;font-variant-numeric:tabular-nums}
+.tag{font-size:11px;padding:2px 9px;border-radius:11px;background:#E9F0EA;color:#437652}
+.tag.late{background:#F7EAE5;color:#a9543c}
+.hero{background:#fff;border:1px solid #E4E4DF;border-radius:10px;padding:22px}
+.hero h2{font-size:19px;font-weight:600;letter-spacing:-.02em;margin-bottom:6px}
+.hero p{font-size:13.5px;color:#5b6169;line-height:1.55;max-width:60ch}
+</style></head><body>
+<nav class="side">
+  <div class="logo">Northwind</div>
+  <a class="nav on" href="#">Overview</a><a class="nav" href="#">Customers</a>
+  <a class="nav" href="#">Invoices</a><a class="nav" href="#">Reports</a><a class="nav" href="#">Settings</a>
+</nav>
+<div class="main">
+  <header class="top"><h1>Overview</h1><div class="search"></div><div class="btn">New invoice</div></header>
+  <div class="wrap">
+    <section class="hero" data-source="Hero.tsx:12">
+      <h2 data-source="Hero.tsx:14">Good afternoon, Pamela</h2>
+      <p data-source="Hero.tsx:15">Here is how Northwind performed this month. Three invoices are overdue and two customers are approaching their credit limit.</p>
+    </section>
+    <div class="cards">
+      <div class="card" data-source="MetricCard.tsx:8"><div class="k">Revenue</div><div class="v">$48,210</div><div class="d">+12.4%</div></div>
+      <div class="card" data-source="MetricCard.tsx:8"><div class="k">Invoices</div><div class="v">1,284</div><div class="d">+3.1%</div></div>
+      <div class="card" data-source="MetricCard.tsx:8"><div class="k">Overdue</div><div class="v">37</div><div class="d" style="color:#b4553f">+8.0%</div></div>
+      <div class="card" data-source="MetricCard.tsx:8"><div class="k">Customers</div><div class="v">642</div><div class="d">+1.2%</div></div>
+    </div>
+    <section class="panel" data-source="InvoiceTable.tsx:20">
+      <div class="ph">Recent invoices</div>
+      <div class="row"><span class="n">Acme Corp</span><span class="i">INV-2841</span><span class="tag">Paid</span><span class="amt">$4,200.00</span></div>
+      <div class="row"><span class="n">Bellweather Ltd</span><span class="i">INV-2840</span><span class="tag">Paid</span><span class="amt">$1,880.00</span></div>
+      <div class="row"><span class="n">Cortez &amp; Sons</span><span class="i">INV-2839</span><span class="tag late">Overdue</span><span class="amt">$960.00</span></div>
+      <div class="row"><span class="n">Dunmore Group</span><span class="i">INV-2838</span><span class="tag">Paid</span><span class="amt">$12,400.00</span></div>
+    </section>
+  </div>
+</div>
+</body></html>

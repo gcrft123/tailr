@@ -1,0 +1,40 @@
+{
+  "name": "@gcrft123/tailr",
+  "version": "0.1.0",
+  "description": "Mark up a running dev server and hand the changes to your coding agent as one batch.",
+  "type": "module",
+  "bin": {
+    "tailr": "bin/tailr.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gcrft123/tailr.git"
+  },
+  "homepage": "https://github.com/gcrft123/tailr#readme",
+  "bugs": {
+    "url": "https://github.com/gcrft123/tailr/issues"
+  },
+  "author": "gcrft123",
+  "license": "MIT",
+  "keywords": [
+    "dev-server",
+    "feedback",
+    "agent",
+    "overlay",
+    "markup",
+    "mcp"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "demo": "node bin/tailr.js --target http://127.0.0.1:8902 --port 4100"
+  }
+}
