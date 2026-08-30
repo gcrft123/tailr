@@ -8,6 +8,7 @@
  */
 import { createInterface } from 'node:readline';
 import { readSession, isAlive } from '../server/session.js';
+import { waitForBatch } from '../server/watch.js';
 
 const DEFAULT_PROTOCOL = '2024-11-05';
 const SUPPORTED = new Set(['2024-11-05', '2025-03-26', '2025-06-18']);
@@ -20,6 +21,21 @@ const TOOLS = [
       'Returns the session URL to send the reviewer to, and the state of any open run. ' +
       'Call this first if you are unsure whether there is work to do.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+  },
+  {
+    name: 'tailr_wait',
+    description:
+      'Block until the reviewer sends a batch, then return. Use this instead of asking them to tell you ' +
+      'when they are done, and instead of polling tailr_status: it returns within a moment of Send being ' +
+      'pressed, and returns immediately if a batch is already waiting. Follow it with tailr_pull. If it ' +
+      'reports that nothing arrived in time, the session is still up — call it again.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        timeoutSeconds: { type: 'number', description: 'How long to wait before giving up. Default 300.' }
+      },
+      additionalProperties: false
+    }
   },
   {
     name: 'tailr_pull',
@@ -118,6 +134,24 @@ async function runTool(name, args = {}) {
     }, null, 2) };
   }
 
+  if (name === 'tailr_wait') {
+    const s = session();
+    if (!s) {
+      return { text: 'No Tailr session is running. Ask the user to run `npx tailr --target <dev server url>`.',
+               isError: true };
+    }
+    const seconds = Number(args.timeoutSeconds) || 300;
+    const r = await waitForBatch(s.port, seconds * 1000);
+    if (r.waiting) {
+      return { text: JSON.stringify({ waiting: true, run: r.waiting.run,
+        next: 'Lease it with tailr_pull.' }, null, 2) };
+    }
+    if (r.timedOut) {
+      return { text: `Nothing sent within ${seconds}s. The session is still up — call tailr_wait again.` };
+    }
+    return { text: 'The Tailr session ended before a batch was sent.', isError: true };
+  }
+
   if (name === 'tailr_pull') {
     const wait = args.wait === true;
     const deadline = Date.now() + (Number(args.timeoutSeconds) || 120) * 1000;
@@ -185,8 +219,10 @@ export function startMcp() {
           serverInfo: { name: 'tailr', version: '0.1.0' },
           instructions:
             'Tailr hands you batches of visual markup made by someone reviewing a running dev server. ' +
-            'The loop is: tailr_pull to lease a batch, tailr_progress as each mark lands, then tailr_done ' +
-            '(or tailr_fail with a reason). The reviewer cannot send another batch until you close the run.'
+            'The loop is: tailr_wait until a batch is sent, tailr_pull to lease it, tailr_progress as each ' +
+            'mark lands, then tailr_done (or tailr_fail with a reason). The reviewer cannot send another ' +
+            'batch until you close the run, and should never have to tell you a batch has arrived — ' +
+            'tailr_wait is how you find out.'
         });
       }
       if (method === 'ping') return reply(id, {});
