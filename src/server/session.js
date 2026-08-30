@@ -16,8 +16,14 @@ export function readSession() {
   try { return JSON.parse(readFileSync(FILE, 'utf8')); } catch { return null; }
 }
 
+/** Only ever clear a session this process actually registered. A second `tailr`
+ *  that fails to bind the port must not deregister the one that is serving. */
 export function clearSession() {
-  try { rmSync(FILE, { force: true }); } catch {}
+  try {
+    const current = readSession();
+    if (current && current.pid !== process.pid) return;
+    rmSync(FILE, { force: true });
+  } catch {}
 }
 
 /** A session file can outlive the process that wrote it. */
