@@ -22,12 +22,19 @@ SETUP
    there, not on the original port. Tailr proxies my app and injects its overlay;
    my source is not modified.
 
-Then stop and wait for me. When I press Send you'll have a batch to apply.
+Then tell me the URL and start watching for my batch, in the same message:
+
+  npx tailr wait
+
+Run it as a long-running background process. It prints nothing until I press
+Send, then exits — that exit is how you find out a batch has arrived, so I never
+have to tell you. Exit 0 a batch is waiting · 3 it timed out, start it again ·
+2 the session ended. Start it again after each run you close.
 
 HANDLING A BATCH
-Check for work with `npx tailr status`. Its exit code tells you what to do:
-0 a batch is waiting · 3 a session is running but nothing is waiting ·
-2 no session is running, so ask me to start one. Then:
+`npx tailr status` answers the same question at any moment: exit code 0 a batch
+is waiting · 3 a session is running but nothing is waiting · 2 no session is
+running, so ask me to start one. Then:
 
   npx tailr pull            lease the batch, printed as JSON
   npx tailr progress <ref>  report one mark as applied
@@ -83,6 +90,7 @@ The tools map one-to-one onto the CLI, so the prompt above still applies:
 | Tool | CLI |
 |---|---|
 | `tailr_status` | `npx tailr status` |
+| `tailr_wait` | `npx tailr wait` |
 | `tailr_pull` | `npx tailr pull` |
 | `tailr_progress` | `npx tailr progress <ref>` |
 | `tailr_done` | `npx tailr done` |
@@ -140,8 +148,9 @@ Run these from the same project directory, while a session is up.
 
 ```bash
 tailr status          # is a batch waiting? exit 0 if yes, 3 if not
+tailr wait            # block until one is; exit 0 waiting, 3 timed out, 2 session ended
 tailr pull            # lease the pending batch, printed as JSON on stdout
-tailr pull --wait     # block until one arrives
+tailr pull --wait     # lease it, blocking until one arrives
 tailr progress <ref>  # one mark applied — the reviewer sees it land, live
 tailr done            # the run finished
 tailr fail "reason"   # it returned incomplete
@@ -175,6 +184,20 @@ be asking for something new there or noting the spot, and the comment says which
 the batch was sent — the address is the last one known, and the mark is worth
 raising with the reviewer rather than guessing at.
 
+**Don't wait to be told.** `tailr wait` hangs on the session's event stream and
+returns within a moment of Send being pressed — no polling, and no asking the
+reviewer to announce every batch. Run it as a background process and treat its
+exit as the notification:
+
+```bash
+tailr wait && tailr pull
+```
+
+It returns immediately if a batch is already waiting, so there is no window in
+which one can be missed. `--timeout <seconds>` bounds the wait and exits 3;
+without it, it waits as long as the session lives. When the session goes away it
+exits 2 rather than hanging on a server that is no longer there.
+
 **Report progress as you go.** Each `tailr progress <ref>` empties that mark on
 the reviewer's screen while they watch. It is the difference between a tool that
 looks stuck and one that looks like it is working.
@@ -190,6 +213,7 @@ It speaks JSON-RPC over stdio with no dependencies, and exposes the same round t
 | Tool | What it does |
 |---|---|
 | `tailr_status` | Is a session running, is a batch waiting, and where should the reviewer go |
+| `tailr_wait` | Block until the reviewer sends a batch, so they never have to tell you |
 | `tailr_pull` | Lease the pending batch. `wait: true` blocks until one arrives |
 | `tailr_progress` | Report a `ref`, or several `refs`, as applied |
 | `tailr_done` | Close the run; the reviewer is prompted to reload |

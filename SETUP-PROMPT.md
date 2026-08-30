@@ -16,12 +16,19 @@ SETUP
    there, not on the original port. Tailr proxies my app and injects its overlay;
    my source is not modified.
 
-Then stop and wait for me. When I press Send you'll have a batch to apply.
+Then tell me the URL and start watching for my batch, in the same message:
+
+  npx tailr wait
+
+Run it as a long-running background process. It prints nothing until I press
+Send, then exits — that exit is how you find out a batch has arrived, so I never
+have to tell you. Exit 0 a batch is waiting · 3 it timed out, start it again ·
+2 the session ended. Start it again after each run you close.
 
 HANDLING A BATCH
-Check for work with `npx tailr status`. Its exit code tells you what to do:
-0 a batch is waiting · 3 a session is running but nothing is waiting ·
-2 no session is running, so ask me to start one. Then:
+`npx tailr status` answers the same question at any moment: exit code 0 a batch
+is waiting · 3 a session is running but nothing is waiting · 2 no session is
+running, so ask me to start one. Then:
 
   npx tailr pull            lease the batch, printed as JSON
   npx tailr progress <ref>  report one mark as applied
@@ -77,6 +84,7 @@ The tools map one-to-one onto the CLI, so the prompt above still applies:
 | Tool | CLI |
 |---|---|
 | `tailr_status` | `npx tailr status` |
+| `tailr_wait` | `npx tailr wait` |
 | `tailr_pull` | `npx tailr pull` |
 | `tailr_progress` | `npx tailr progress <ref>` |
 | `tailr_done` | `npx tailr done` |
