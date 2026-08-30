@@ -68,7 +68,11 @@ async function serve() {
 
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      process.stderr.write(`\n  Port ${port} is taken. Pick another with --port.\n\n`);
+      const existing = readSession();
+      const mine = existing && isAlive(existing) && existing.port === port;
+      process.stderr.write(mine
+        ? `\n  Tailr is already running on ${port} — review at ${existing.url}\n\n`
+        : `\n  Port ${port} is taken. Pick another with --port.\n\n`);
       process.exit(1);
     }
     process.stderr.write(`\n  ${err.message}\n\n`);
