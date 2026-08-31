@@ -7,8 +7,14 @@
  * every diagnostic goes to stderr.
  */
 import { createInterface } from 'node:readline';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { readSession, isAlive } from '../server/session.js';
 import { waitForBatch } from '../server/watch.js';
+
+const { version: VERSION } = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json'), 'utf8'));
 
 const DEFAULT_PROTOCOL = '2024-11-05';
 const SUPPORTED = new Set(['2024-11-05', '2025-03-26', '2025-06-18']);
@@ -216,7 +222,7 @@ export function startMcp() {
         return reply(id, {
           protocolVersion: SUPPORTED.has(asked) ? asked : DEFAULT_PROTOCOL,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'tailr', version: '0.1.0' },
+          serverInfo: { name: 'tailr', version: VERSION },
           instructions:
             'Tailr hands you batches of visual markup made by someone reviewing a running dev server. ' +
             'The loop is: tailr_wait until a batch is sent, tailr_pull to lease it, tailr_progress as each ' +
