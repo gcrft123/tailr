@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /* Tailr CLI.
  *
+ *   tailr init                 set the project up so the rules stick
  *   tailr                      proxy http://localhost:3000 on :4100
  *   tailr --target <url>       proxy something else
  *   tailr -- npm run dev       start the dev server too, then proxy it
@@ -39,6 +40,13 @@ if (cmd === 'mcp') {
   // stdio transport: stdout belongs to JSON-RPC from here on
   const { startMcp } = await import('../src/mcp/server.js');
   startMcp();
+} else if (cmd === 'init') {
+  const { init } = await import('../src/setup/init.js');
+  init({
+    install: !args.includes('--no-install'),
+    mcp: !args.includes('--no-mcp'),
+    file: flag('file', null)
+  });
 } else if (AGENT.has(cmd)) await agent(cmd, positional.slice(1));
 else await serve();
 
@@ -174,6 +182,14 @@ async function agent(cmd, rest) {
 function usage() {
   process.stdout.write(`
   tailr — mark up a running dev server, hand the changes to your agent
+
+  Set the project up, once
+    tailr init                    install Tailr, write the agent's operating
+                                  rules into AGENTS.md / CLAUDE.md, and register
+                                  the MCP server. Safe to re-run.
+      --no-install                don't touch package.json
+      --no-mcp                    don't register the MCP server
+      --file <path>               write the rules to this file instead
 
   Start a session
     tailr                         proxy http://localhost:3000 on :4100
