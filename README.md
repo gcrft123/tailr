@@ -131,6 +131,15 @@ be asking for something new there or noting the spot, and the comment says which
 the batch was sent — the address is the last one known, and the mark is worth
 raising with the reviewer rather than guessing at.
 
+**Where `address` comes from.** Nothing standard tells a page which file an
+element came from, so Tailr reads whatever your dev tooling already emits:
+`data-v-inspector` (vite-plugin-vue-inspector), `data-inspector-relative-path`
+(react-dev-inspector), `data-astro-source-file`, Svelte's `__svelte_meta`, a
+generic `data-source`, and React 18's development fibers. Emit
+`data-tailr-source="Component.tsx:20"` yourself and that wins. With none of
+them present `address` is `null` and the mark still carries its selector, its
+text, and its route — which is the fallback, not a failure.
+
 **Don't wait to be told.** `tailr wait` hangs on the session's event stream and
 returns within a moment of Send being pressed — no polling, and no asking the
 reviewer to announce every batch. Run it as a background process and treat its

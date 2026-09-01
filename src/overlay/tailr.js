@@ -173,28 +173,83 @@
   }
 
   /* ── element addressing (best-effort source resolution) ── */
-  function sourceAddress(el) {
-    for (var k in el) {
-      if (k.indexOf('__reactFiber$') === 0 || k.indexOf('__reactInternalInstance$') === 0) {
-        var f = el[k];
-        while (f) {
-          var s = f._debugSource;
-          if (s && s.fileName) return baseName(s.fileName) + ':' + s.lineNumber;
-          f = f._debugOwner || f.return;
-        }
-      }
+  /* Nothing standard says where an element came from, so Tailr reads whatever
+     the project's own dev tooling already emits and returns null rather than
+     guessing when none of it is there. This is the proof only Tailr has — the
+     resolved address, on hover, on the running page — so it is worth reading
+     every dialect rather than one.
+
+     Attributes come before framework internals: a build plugin writes an exact
+     file and line, where a runtime only ever carried one in a development
+     build — and React dropped even that in 19. */
+  function nodeSource(node) {
+    // Vue — vite-plugin-vue-inspector: "src/components/Cart.vue:12:3"
+    var vue = node.getAttribute('data-v-inspector');
+    if (vue) return fileLine(vue);
+
+    // React — react-dev-inspector, and anything else emitting its attributes
+    var reactPath = node.getAttribute('data-inspector-relative-path');
+    if (reactPath) {
+      var line = node.getAttribute('data-inspector-line');
+      return baseName(reactPath) + (line ? ':' + line : '');
     }
-    // Build-time source attributes usually sit on the component root, not the
-    // leaf you clicked, so walk up for the nearest one.
-    var node = el, hops = 0;
-    while (node && node.nodeType === 1 && hops < 8) {
-      var attr = node.getAttribute('data-tailr-source') || node.getAttribute('data-source');
-      if (attr) return baseName(attr) + (node === el ? '' : ' › ' + describe(el));
-      node = node.parentElement; hops++;
+
+    // Astro — its dev toolbar splits the file from the location
+    var astro = node.getAttribute('data-astro-source-file');
+    if (astro) {
+      var loc = node.getAttribute('data-astro-source-loc');    // "12:3"
+      return baseName(astro) + (loc ? ':' + String(loc).split(':')[0] : '');
+    }
+
+    // Tailr's own, and the generic spelling several toolchains settled on
+    var generic = node.getAttribute('data-tailr-source') || node.getAttribute('data-source');
+    if (generic) return fileLine(generic);
+
+    // Svelte — vite-plugin-svelte hangs its inspector meta on the node itself
+    // rather than on an attribute, so it is read here and not from getAttribute.
+    var svelte = node.__svelte_meta;
+    if (svelte && svelte.loc && svelte.loc.file) {
+      return baseName(svelte.loc.file) + (svelte.loc.line ? ':' + svelte.loc.line : '');
     }
     return null;
   }
-  function baseName(p) { var parts = String(p).split('/'); return parts[parts.length - 1]; }
+
+  /* React 18 and earlier, development builds only: 19 removed _debugSource and
+     a production build never carried it. Last resort, after the attributes. */
+  function reactSource(el) {
+    for (var k in el) {
+      if (k.indexOf('__reactFiber$') !== 0 && k.indexOf('__reactInternalInstance$') !== 0) continue;
+      var f = el[k];
+      while (f) {
+        var s = f._debugSource;
+        if (s && s.fileName) return baseName(s.fileName) + ':' + s.lineNumber;
+        f = f._debugOwner || f.return;
+      }
+    }
+    return null;
+  }
+
+  function sourceAddress(el) {
+    // Source attributes usually sit on the component root rather than the leaf
+    // that was clicked, so walk up for the nearest one and name the element
+    // inside it that was actually marked.
+    var node = el, hops = 0;
+    while (node && node.nodeType === 1 && hops < 8) {
+      var hit = nodeSource(node);
+      if (hit) return hit + (node === el ? '' : ' › ' + describe(el));
+      node = node.parentElement; hops++;
+    }
+    return reactSource(el);
+  }
+
+  /* "src/components/Cart.vue:12:3" → "Cart.vue:12". A column is more precision
+     than a source address can carry, and it reads as noise in the batch. */
+  function fileLine(raw) {
+    var s = String(raw).trim();
+    var m = s.match(/^(.*?):(\d+)(?::\d+)?$/);
+    return m ? baseName(m[1]) + ':' + m[2] : baseName(s);
+  }
+  function baseName(p) { var parts = String(p).split(/[\\/]/); return parts[parts.length - 1]; }
 
   function selectorFor(el) {
     if (!el || el.nodeType !== 1) return null;
