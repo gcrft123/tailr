@@ -36,6 +36,6 @@
   },
   "scripts": {
     "test": "node --test",
-    "demo": "node bin/tailr.js --target http://127.0.0.1:8902 --port 4100"
+    "demo": "node bin/tailr.js --target http://127.0.0.1:8902 --port 4100 -- node demo/serve.js"
   }
 }
