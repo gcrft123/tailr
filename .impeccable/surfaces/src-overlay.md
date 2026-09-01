@@ -7,7 +7,7 @@ related_targets: []
 
 # Surface: the markup overlay
 
-**Scope.** The overlay Tailr injects into a host application: hover inspector, mark gestures, the rail, the review sheet, the horizon, and the send → in-flight → reload cycle. Not the CLI, not the bridge protocol, not a landing page.
+**Scope.** The overlay Tailr injects into a host application: hover inspector, mark gestures, the island, the staged list, and the send → in-flight → reload cycle. Not the CLI, not the bridge protocol, not a landing page.
 
 **Visitor mode: Operate.** A designer or PM mid-review on a dev server they did not start and cannot rebuild. They are accumulating corrections, not authoring. Their fear is that what they noticed gets lost or misread. The secondary reader is the agent, which never sees this interface — only the batch. Every decision is judged twice: does it help the person notice and mark, and does it make the batch unambiguous.
 
@@ -40,34 +40,37 @@ Pinned by the user against a Wispr Flow reference recording, which beats the rol
 
 ## Ranges and states
 
-**Ranges.** 0 marks (empty), 1–3 typical, 8–15 heavy, 40+ must not break the review sheet. 1 route typical, 3–6 for a flow review. Comments from five words to a paragraph. Targets from a 16px icon to a full-bleed hero — a balloon must never cover the element it describes, which forces dynamic leader length. Parent and child both marked must be representable.
+**Ranges.** 0 marks (empty), 1–3 typical, 8–15 heavy, 40+ must not break the staged list. 1 route typical, 3–6 for a flow review. Comments from five words to a paragraph. Targets from a 16px icon to a full-bleed hero — the reference badge must never cover what it labels, which is why it is a small corner badge rather than anything with a leader. Parent and child both marked must be representable.
 
 **Host pages to survive.** Light, dark, dense dashboard, image-heavy, sticky headers, scroll containers, CSS transforms, canvas.
 
-**States.** Inert (Alt released) · armed · location-picking (Alt+Shift) · hover · selected · multi-selected · composing a comment · staged · off-screen · on another route · review sheet open · sending · in flight · served per mark · all served · reload offered · agent failure · orphaned mark · bridge disconnected.
+**States.** Inert (Alt released) · armed · latched · location-picking (Alt+Shift) · hover · selected · composing a comment · staged · off-screen · on another route · staged list open · sending · in flight · served per mark · all served · reload offered · agent failure · orphaned mark · bridge disconnected · site data blocked. There is no multi-selection: each mark addresses one element or one point.
 
 ## Interaction and layout
 
-- **The rail** floats at the bottom edge: mode hint and lamp left, staged count centre in tabular figures, SEND right as the only filled element on screen. It collapses to a sliver and must never permanently occlude an app's own bottom-fixed UI.
-- **Hover** draws a hairline contour with the resolved source address set small at the corner.
-- **Marking** plants a numbered balloon tethered by a leader, placed outside the element's bounds.
-- **Point comments** place a dot and a leader with no element tether.
-- **Insertion** (Alt+Shift) switches hover from element-picking to location-picking — a dot between siblings rather than a contour — and plants a caret balloon at that point.
-- **Text edit** puts a caret in the text in place, with a change bar on the leader marking it revised.
-- **Review sheet** opens from the count: rows keyed to the numbers visible on the page, grouped by route, each removable and re-editable, orphans grouped first.
-- **Motion** is fluid but short and always state-bearing: spring-damped leader draw around 180ms, layer fade around 150ms, served balloons emptying in staggered order, horizon marks bound continuously to scroll position rather than transitioned. Physical, not lengthy.
+This section described the withdrawn Callout direction — a rail, numbered balloons, leader lines — until the build landed. It now describes what shipped. DESIGN.md is authoritative on the world; this is how the surface behaves inside it.
+
+- **The island** sits 20px from two edges, defaults to the bottom-right, and can be dragged to any corner, which persists per origin. Everything in it mirrors to suit that corner, because the corner it is anchored to is the only part of it that holds still. Dragging is throwable: release velocity is projected forward before the quadrant is chosen.
+- **Hover** draws a halo-paired contour with the resolved source address set small at the corner.
+- **Marking** outlines the element and puts a **small reference badge in its corner** — enough to name the mark in the staged list, never a balloon on a leader. The badge is itself a control: clicking it reopens that mark. It hides while its own composer is open, where the number is already in the header.
+- **A comment** is a 268px textbox anchored on the element, opening from the point of click.
+- **Spot marks** (Alt+Shift, or middle-click for anyone who has one) pin a dot anywhere on screen with its number beside it. Asking for something new and noting a place are one operation; the comment says which.
+- **Text edit** makes the host's own text editable in place under a faint underlay, with no chrome around it.
+- **The staged list** lives inside the batch pill and expands on hover in the island's growth direction. Rows are keyed to the numbers on the page, each removable and re-editable; a row opens its mark and scrolls the element into view first, which is the only route to editing without a pointer. The action never moves as the panel opens.
+- **A mark that is off screen** is reached through its row, which scrolls it back into view. There is no horizon indicator: an earlier direction pinned off-screen marks to the viewport edge, and the list does that job without drawing anything on a page Tailr does not own.
+- **Motion** is the identity, and the one place this surface spends. Shape morphs both axes on `cubic-bezier(0.32, 0.72, 0, 1)`, 140–380ms scaled to how far the shape actually travels, and every morph is interruptible — a new transition starts from the shape currently on screen. Content cross-fades 120–140ms a beat behind. Marks land with a 180ms scale-and-settle and never fade in. A running indicator is never re-created by a re-render, because rewriting the node restarts its animation and a spinner that restarts reads as stalling.
 
 ## Constraints
 
 Guest overlay over an unpredictable host page. No layout mutation. Red pinned for removal. Minimal at rest. Marks persist across reloads. Alt-gated entry, non-gated continuation.
 
-Browser realities the build must handle: Alt-click default actions (link download on macOS, link save in Firefox), Alt keyup focusing the menu bar on Windows and Linux, contextmenu suppression while armed, auxclick suppression for middle-click, and middle-click being physically unreachable on an Apple trackpad — which requires a rail-armed equivalent that produces the identical mark.
+Browser realities the build must handle: Alt-click default actions (link download on macOS, link save in Firefox), Alt keyup focusing the menu bar on Windows and Linux, contextmenu suppression while armed, auxclick suppression for middle-click, and middle-click being physically unreachable on an Apple trackpad — which is why Shift-click produces the identical mark and is the gesture that gets taught.
 
 ## Keyboard operation
 
 Hold Alt to peek; **double-tap Alt to latch**. The latched mode is what keyboard operation requires, and it is required rather than preferred: on macOS Alt+letter produces dead keys, so a held modifier cannot carry letter verbs.
 
-In the latched mode every markable element in the viewport takes a callout key — the same balloon the marks use, which is why this costs almost nothing here. Type the key to select, a letter for the verb, and walk the selection to parent, child, or sibling to correct it. That correction is the real prize: hover picks the wrong node constantly, and structural walking is the accurate fix for everyone, pointer users included.
+In the latched mode every markable element in the viewport takes a callout key — the same badge the marks use, which is why this costs almost nothing here. Type the key to select, a letter for the verb, and walk the selection to parent, child, or sibling to correct it. That correction is the real prize: hover picks the wrong node constantly, and structural walking is the accurate fix for everyone, pointer users included.
 
 Tailr's own chrome is fully keyboard operable and labeled. Tailr never enters the host's tab order while inert. Escape exits any state without side effects. A screen-reader-equivalent visual review is explicitly out of scope and documented as such.
 
