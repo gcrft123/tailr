@@ -119,7 +119,10 @@ async function agent(cmd, rest) {
   if (cmd === 'status') {
     const { data } = await call('state', null, 'GET');
     process.stdout.write(JSON.stringify(data, null, 2) + '\n');
-    process.exit(data.run && data.run.phase === 'working' ? 0 : 3);
+    // `pending` is the only thing that means a batch is waiting. A run stays
+    // `working` after it has been leased, so reading the phase would report the
+    // agent's own run back to it as new work.
+    process.exit(data.pending ? 0 : 3);
   }
 
   if (cmd === 'wait') {
