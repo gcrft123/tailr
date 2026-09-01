@@ -1,0 +1,123 @@
+name: Release
+
+# The tag is the trigger and the source of truth. Everything below is checked
+# against the tagged commit, never against whatever main happens to be at the
+# time — a release has to be a thing you can go back to.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify the tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: read the version out of the tag
+        id: tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # 0.4.0-rc.1 is a pre-release; 0.4.0 is not.
+          if [ "$version" != "${version%%-*}" ]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Releasing $version from $GITHUB_REF_NAME"
+
+      - name: the tag must match the version it claims to release
+        run: |
+          manifest="$(node -p 'require("./package.json").version')"
+          if [ "$manifest" != "${{ steps.tag.outputs.version }}" ]; then
+            echo "::error::$GITHUB_REF_NAME tags source whose package.json says $manifest. Tag the commit that bumps the version — 'npm version' does both in one move."
+            exit 1
+          fi
+
+      - name: the tag must be on main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not reachable from main. A release nobody can get back to from the default branch is not a release."
+            exit 1
+          fi
+
+      - name: the release must have notes
+        run: node scripts/changelog.js --notes "${{ steps.tag.outputs.version }}"
+
+      - name: the tests must pass at the tag
+        run: npm test
+
+  npm:
+    name: publish to npm
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # provenance: npm attests this came from this tag
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::notice::No NPM_TOKEN secret is set, so nothing was published to npm. The GitHub Release still goes out."
+            exit 0
+          fi
+          name="$(node -p 'require("./package.json").name')"
+          # npm versions are permanent, so a re-run must not try to take one
+          # that is already there and fail the release behind it.
+          if npm view "$name@$VERSION" version >/dev/null 2>&1; then
+            echo "::notice::$name@$VERSION is already on npm — left alone."
+            exit 0
+          fi
+          npm publish --provenance --access public
+
+  release:
+    name: cut the GitHub Release
+    needs: [verify, npm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # creating a release writes to the repo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: take the notes out of the changelog
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: node scripts/changelog.js --notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+
+      - name: create it, or update it if the tag is being re-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          flags=""
+          if [ "$PRERELEASE" = "true" ]; then flags="--prerelease"; fi
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" $flags
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag \
+              --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" $flags
+          fi
