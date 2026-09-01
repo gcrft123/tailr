@@ -98,9 +98,11 @@ Other confirmed behavior:
 
 ## Evidence on Hand
 
-None. This is a greenfield project with no code, no users, no shipped release, and no collected feedback. There are no benchmarks, testimonials, case studies, adoption numbers, press, or screenshots.
+**An implementation, and nothing beyond it.** Tailr is built and published as `@gcrft123/tailr`: the CLI, the proxy and bridge, the overlay, the MCP server, and `tailr init`. That establishes that the loop runs. It does not establish that anyone has run it.
 
-Future work must not fabricate any of these, and must not claim framework compatibility, performance characteristics, or install counts beyond what has actually been implemented.
+There are still no users, no collected feedback, no benchmarks, testimonials, case studies, adoption numbers, press, or screenshots. Future work must not fabricate any of these.
+
+Framework compatibility is the claim most likely to outrun the evidence, so it is worth stating precisely. The proxy is genuinely framework-agnostic — it injects into HTML and passes everything else through, including the hot-reload WebSocket. Source resolution is not: it reads the attributes the Vue, Astro and React inspector plugins emit, Svelte's node-level meta, a generic `data-source`, and React 18's development fibers, and it resolves nothing at all for a project that emits none of those — which is the ordinary case for a project that has not opted in. A mark still carries its selector, its text and its route when that happens. Claims must stay on the correct side of that line.
 
 ## Product Principles
 
@@ -116,7 +118,7 @@ No external standard has been adopted. The following are confirmed product decis
 
 **Binding.** The overlay must never degrade the host page's accessibility tree, and must not appear in the host's tab order while inert. A review tool that adds tab stops to the application under review has corrupted the thing being tested.
 
-**In scope.** Tailr's own chrome — rail, review sheet, comment composer, reload prompt — is fully keyboard operable and properly labeled. Element selection is keyboard operable: a latched markup mode (double-tap Alt, as against hold-to-peek), keyed hints that give every markable element in the viewport a callout key, letter verbs for each mark type, and structural walking to move a selection to its parent, child, or sibling. Escape always exits any Tailr state without side effects.
+**In scope.** Tailr's own chrome — island, staged list, comment composer, reload prompt — is fully keyboard operable and properly labeled. Element selection is keyboard operable: a latched markup mode (double-tap Alt, as against hold-to-peek), keyed hints that give every markable element in the viewport a callout key, letter verbs for each mark type, and structural walking to move a selection to its parent, child, or sibling. Escape always exits any Tailr state without side effects.
 
 This is treated as a precision feature rather than a concession. Pointer hover picks the wrong node constantly — the span inside the heading inside the wrapper — and structural walking is the accurate correction. The keyboard path is also why the mode is latched rather than held: on macOS, Alt+letter produces dead keys and special characters, so a held modifier cannot carry letter verbs.
 
