@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor the package claims in `engines`, the current LTS, and current.
+        node: ['18', '20', '22']
+    name: node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # Tailr has no dependencies, so there is nothing to install — which is
+      # itself worth keeping true. This fails if that ever stops being the case.
+      - name: check there are still no dependencies
+        run: node -e "const p=require('./package.json');if(p.dependencies&&Object.keys(p.dependencies).length)throw new Error('Tailr has taken on a runtime dependency')"
+      - run: npm test

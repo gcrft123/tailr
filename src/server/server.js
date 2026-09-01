@@ -11,7 +11,9 @@
  * it is the single place that knows whether a run is still open.
  */
 import http from 'node:http';
+import https from 'node:https';
 import net from 'node:net';
+import tls from 'node:tls';
 import { readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -24,6 +26,13 @@ const API = '/__tailr/';
 
 export function createServer({ target, onReady }) {
   const upstream = new URL(target);
+  /* A dev server on https is still a dev server, and its certificate is nearly
+     always self-signed or locally-minted. Refusing one would make https targets
+     unusable for exactly the people who need them, so the proxy accepts what
+     the user pointed it at — it is their own machine at the other end. */
+  const secure = upstream.protocol === 'https:';
+  const transport = secure ? https : http;
+  const upstreamPort = Number(upstream.port || (secure ? 443 : 80));
 
   /* ── run state ─────────────────────────────────────────── */
   const state = {
@@ -129,12 +138,15 @@ export function createServer({ target, onReady }) {
 
     if ((path === 'done' || path === 'fail') && req.method === 'POST') {
       const body = await readBody(req);
-      if (!state.run) return json(res, 409, { error: 'No open run.' });
+      // A run that is already closed is not an open run. An agent retrying
+      // `done` after a dropped connection has to be told that plainly; the
+      // alternative is a 500 it cannot tell apart from a real failure.
+      if (!state.run || state.run.phase !== 'working') return json(res, 409, { error: 'No open run.' });
       state.run.phase = path === 'done' ? 'done' : 'failed';
-      if (path === 'done') {
+      if (path === 'done' && state.batch) {
         // finishing implies everything landed unless the agent said otherwise
         for (const m of state.batch.marks) if (!state.run.served.includes(m.ref)) state.run.served.push(m.ref);
-      } else if (body.error) state.run.error = String(body.error).slice(0, 300);
+      } else if (path === 'fail' && body.error) state.run.error = String(body.error).slice(0, 300);
       state.batch = null;
       publish();
       process.stdout.write(`  ⌁ run ${state.run.id} ${state.run.phase}\n`);
@@ -152,24 +164,34 @@ export function createServer({ target, onReady }) {
   /* ── proxy ─────────────────────────────────────────────── */
   function proxy(req, res) {
     const opts = {
-      protocol: upstream.protocol, hostname: upstream.hostname, port: upstream.port,
+      protocol: upstream.protocol, hostname: upstream.hostname, port: upstreamPort,
       path: req.url, method: req.method,
+      rejectUnauthorized: false,
       headers: { ...req.headers, host: upstream.host,
         // ask for plain text so HTML can be rewritten without decompressing
         'accept-encoding': 'identity' }
     };
-    const up = http.request(opts, (ur) => {
+    const up = transport.request(opts, (ur) => {
       const type = String(ur.headers['content-type'] || '');
-      if (!type.includes('text/html')) {
+      const encoding = String(ur.headers['content-encoding'] || '').toLowerCase();
+      const compressed = encoding !== '' && encoding !== 'identity';
+      // Only HTML this process can actually read gets rewritten. A dev server
+      // that ignores `accept-encoding: identity` and compresses anyway is
+      // passed through whole: a page without the overlay beats a page decoded
+      // into nonsense.
+      if (!type.includes('text/html') || compressed) {
         res.writeHead(ur.statusCode || 502, ur.headers);
         return ur.pipe(res);
       }
       const chunks = [];
       ur.on('data', (c) => chunks.push(c));
       ur.on('end', () => {
-        let html = Buffer.concat(chunks).toString('utf8');
-        html = inject(html);
+        const html = inject(Buffer.concat(chunks).toString('utf8'));
         const headers = { ...ur.headers };
+        // The body is being replaced, so every header describing the old one
+        // goes with it. A fresh content-length left beside the upstream's
+        // `transfer-encoding: chunked` is a response strict clients refuse.
+        delete headers['transfer-encoding'];
         delete headers['content-length'];
         headers['content-length'] = Buffer.byteLength(html);
         res.writeHead(ur.statusCode || 200, headers);
@@ -197,13 +219,20 @@ export function createServer({ target, onReady }) {
       const path = url.slice(API.length).split('?')[0];
       return api(req, res, path).catch(() => json(res, 500, { error: 'Server error.' }));
     }
-    proxy(req, res);
+    // The review URL staying up is the whole job of this process. A proxy that
+    // throws synchronously must surface as one dead page, never as a dead
+    // session that takes the reviewer's staged markup out of reach.
+    try { proxy(req, res); }
+    catch (err) {
+      res.writeHead(502, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(downPage(target, err));
+    }
   });
 
   /* Hot reload rides a WebSocket upgrade; drop it and the dev server the user
      is reviewing stops updating, which would be worse than not proxying at all. */
   server.on('upgrade', (req, socket, head) => {
-    const up = net.connect(Number(upstream.port || 80), upstream.hostname, () => {
+    const relay = () => {
       const lines = [`${req.method} ${req.url} HTTP/1.1`];
       for (let i = 0; i < req.rawHeaders.length; i += 2) {
         const k = req.rawHeaders[i];
@@ -212,7 +241,11 @@ export function createServer({ target, onReady }) {
       up.write(lines.join('\r\n') + '\r\n\r\n');
       if (head && head.length) up.write(head);
       up.pipe(socket); socket.pipe(up);
-    });
+    };
+    const up = secure
+      ? tls.connect({ host: upstream.hostname, port: upstreamPort,
+                      servername: upstream.hostname, rejectUnauthorized: false }, relay)
+      : net.connect(upstreamPort, upstream.hostname, relay);
     up.on('error', () => socket.destroy());
     socket.on('error', () => up.destroy());
   });
