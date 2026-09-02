@@ -10,6 +10,7 @@
  *
  *   tailr status               is a batch waiting?
  *   tailr pull [--wait]        lease the pending batch and print it as JSON
+ *   tailr variants <ref> ...   name the versions built for a mark
  *   tailr progress <ref>       one mark applied
  *   tailr done                 the run finished
  *   tailr fail [message]       the run returned incomplete
@@ -20,7 +21,7 @@ import { readSession, writeSession, clearSession, isAlive } from '../src/server/
 import { waitForBatch } from '../src/server/watch.js';
 
 const argv = process.argv.slice(2);
-const AGENT = new Set(['status', 'wait', 'pull', 'progress', 'done', 'fail', 'reset']);
+const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'progress', 'done', 'fail', 'reset']);
 
 const dashdash = argv.indexOf('--');
 const devCommand = dashdash === -1 ? null : argv.slice(dashdash + 1);
@@ -165,6 +166,16 @@ async function agent(cmd, rest) {
     }
   }
 
+  if (cmd === 'variants') {
+    const [ref, ...labels] = rest;
+    if (!ref || labels.length < 2) {
+      process.stderr.write('\n  Usage: tailr variants <ref> "First name" "Second name" [...]\n\n');
+      process.exit(1);
+    }
+    const r = await call('variants', { ref, labels, selector: flag('selector', undefined) });
+    return finish(r);
+  }
+
   if (cmd === 'progress') {
     const ref = rest[0];
     if (!ref) { process.stderr.write('\n  Usage: tailr progress <ref>\n\n'); process.exit(1); }
@@ -205,6 +216,8 @@ function usage() {
     tailr wait [--timeout <s>]    block until one is; run it in the background
                                   and its exit is your notification
     tailr pull [--wait]           lease the pending batch, printed as JSON
+    tailr variants <ref> <names>  name the versions you built for a mark that
+                                  asked for several, in order
     tailr progress <ref>          one mark applied
     tailr done                    the run finished
     tailr fail [message]          the run returned incomplete

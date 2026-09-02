@@ -133,6 +133,25 @@ components:
     typography: "{typography.badge}"
     rounded: "{rounded.badge}"
     size: "17px"
+  version-pill:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.text-muted}"
+    typography: "{typography.badge}"
+    rounded: "999px"
+    padding: "2px"
+    height: "22px"
+  version-tab:
+    backgroundColor: "transparent"
+    textColor: "{colors.text-muted}"
+    typography: "{typography.badge}"
+    rounded: "999px"
+    height: "18px"
+  version-tab-kept:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    typography: "{typography.badge}"
+    rounded: "999px"
+    height: "18px"
 ---
 
 # Tailr — Island
@@ -218,6 +237,8 @@ The reference number is a **small badge in the corner of the element's selection
 - **Composer** — a text field anchored on the element being commented, 268px, opening from the point of click.
 - **Inline edit** — the host's own text made editable in place with a faint underlay; no chrome around it.
 - **Spot** — Alt+Shift pins a dot to the cursor that can be dropped **anywhere on screen**. It persists as a dot with its number beside it. One mark covers both asking for something new and noting a place; splitting them into two gestures only made the reviewer memorise a difference the comment already carries.
+- **Multiplier** — a third state on the composer's footer, between the ghost and the `paper` action: how many versions of this change to ask for. It cycles `1× → 4×` on click and fills in once it leaves 1×. A menu over someone else's page, for a number with four possible values, would be more chrome than the number is worth.
+- **Version pill** — one tab per version the agent built, sitting clear above the element rather than half over it: unlike a reference badge it is a control, and it is wide enough to hide what it is offering versions of. The number is always there and the name arrives on reach, the tab widening the pill rather than opening anything over the page. Hovering shows that version on the running page; clicking keeps it, in `paper`, because keeping one is a commitment. **The width must follow the pointer alone** — expanding on a class the pointer has just caused feeds the geometry back into the hover that produced it, and the page flickers between versions while the pointer sits still.
 - **Action** — `paper` for the committed move, ghost for everything else.
 - **Review row** — a way into its mark, not only a way to drop it: it opens that mark for editing, scrolling the element into view first. The on-page badge stays deliberately small so it never covers what it labels, which leaves it under the minimum target size; the row is its equivalent, and the only route to editing without a pointer.
 - **Gesture key** — the four markup gestures as a two-column list. Shown once on a reviewer's first visit with a line of orientation, again whenever Alt is held before they have marked anything, and on demand forever after by hovering the empty pill. It retires itself the moment the first mark lands.
