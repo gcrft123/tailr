@@ -1,0 +1,23 @@
+{
+  "name": "tailr",
+  "description": "Visual markup on a running dev server, handed to the agent as one locked batch. Registers Tailr's MCP server and the operating rules for the review loop.",
+  "version": "0.3.0",
+  "author": {
+    "name": "gcrft123"
+  },
+  "homepage": "https://github.com/gcrft123/tailr#readme",
+  "repository": "https://github.com/gcrft123/tailr",
+  "license": "MIT",
+  "keywords": [
+    "dev-server",
+    "feedback",
+    "agent",
+    "overlay",
+    "markup",
+    "mcp",
+    "design-review"
+  ],
+  "skills": "./skills",
+  "commands": "./commands",
+  "mcpServers": "./mcp.json"
+}

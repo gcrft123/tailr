@@ -13,6 +13,15 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ### Added
 
+- A Claude Code plugin, with this repository as its marketplace:
+  `/plugin marketplace add gcrft123/tailr`, then `/plugin install tailr@tailr`.
+  It carries the MCP server, the operating rules as a skill, and a `/tailr:start`
+  command — the same setup `tailr init` performs, without editing anything in the
+  project, and updatable from `/plugin` rather than by re-running a script. The
+  rules in it are generated from the same source `init` writes from, and the
+  version it advertises is stamped when a release is cut; `npm test` fails if
+  either drifts, so an installed plugin cannot quietly fall behind the protocol
+  Tailr actually speaks.
 - A release flow keyed to the tags: pushing `vX.Y.Z` verifies the tag against
   the manifest, runs the tests, publishes to npm with provenance, and cuts a
   GitHub Release from this file. `npm version` is the whole interface to it.

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "tailr",
+  "metadata": {
+    "description": "Mark up a running dev server and hand the changes to your coding agent as one batch."
+  },
+  "owner": {
+    "name": "gcrft123"
+  },
+  "plugins": [
+    {
+      "name": "tailr",
+      "description": "Visual markup on a running dev server, handed to the agent as one locked batch. Registers Tailr's MCP server and the operating rules for the review loop.",
+      "version": "0.3.0",
+      "author": {
+        "name": "gcrft123"
+      },
+      "source": "./plugin",
+      "category": "design",
+      "homepage": "https://github.com/gcrft123/tailr#readme",
+      "license": "MIT",
+      "keywords": [
+        "dev-server",
+        "feedback",
+        "agent",
+        "overlay",
+        "markup",
+        "mcp",
+        "design-review"
+      ]
+    }
+  ]
+}

@@ -46,6 +46,31 @@ The agent then starts a session against your dev server, hands you a review URL,
 and watches for your first batch. [PROMPT.md](PROMPT.md) is what it is following,
 if you want to read it first.
 
+## As a Claude plugin
+
+If you use Claude Code, the marketplace is the least invasive way in — it edits
+nothing in your project:
+
+```
+/plugin marketplace add gcrft123/tailr
+/plugin install tailr@tailr
+```
+
+That gives you Tailr's MCP server, the operating rules for the review loop as a
+skill, and `/tailr:start` to open a session against your dev server and hand
+you the review URL. Tailr itself is fetched with `npx` when a session starts,
+so there is nothing to install first.
+
+Updating is `/plugin` → **Update**, which re-reads the marketplace listing. The
+version the plugin advertises is stamped from `package.json` when a release is
+cut, so it moves when Tailr does.
+
+This is an alternative to `tailr init`, not an addition to it. The plugin suits
+someone reviewing across several projects; `tailr init` suits a project that wants
+Tailr committed as part of its own setup, and is the only one of the two that
+writes anything into your repository. Running both is harmless — the rules are
+the same text either way.
+
 ## Install
 
 ```bash
@@ -165,7 +190,8 @@ Tailr deliberately does not guess at causes, it points the reviewer back to you.
 ## As an MCP server
 
 `tailr init` registers this for you, in `.mcp.json` (and `.cursor/mcp.json` if
-the project uses Cursor). By hand, most clients take:
+the project uses Cursor), and the [Claude plugin](#as-a-claude-plugin) brings it
+along without touching your project at all. By hand, most clients take:
 
 ```json
 {
