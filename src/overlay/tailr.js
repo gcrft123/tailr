@@ -18,7 +18,7 @@
 
   var ORIGIN_KEY = 'tailr:' + location.origin;
   var LEARN_KEY = 'tailr:learned:' + location.origin;
-  var STORE_V = 2;            // bumped when a stored verdict stops being trustworthy
+  var STORE_V = 3;            // bumped when a stored verdict stops being trustworthy
   var SETTLE_MS = 1500;       // grace for a route to render before it is judged
   var enteredAt = Date.now(); // when the current route came on screen
   var EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
@@ -30,6 +30,7 @@
   /* ── state ─────────────────────────────────────────────── */
   var S = {
     marks: [],
+    sets: [],           // variations the agent built, waiting to be chosen between
     seq: 1,
     armed: false,
     latched: false,
@@ -38,6 +39,9 @@
     locked: false,
     expanded: null,     // 'batch' | 'agent' | null
     teach: false,       // the key is being shown rather than the staged list
+    ending: null,       // null | 'confirm' | 'cleaning' | 'ending' | 'ended'
+    app: null,          // { target, spawned } — where the application is without Tailr
+    dirty: false,       // ended before the cleanup the agent was given finished
     learn: { welcomed: false, marked: false, sent: false }
   };
 
@@ -52,6 +56,9 @@
 
   /* ── persistence ───────────────────────────────────────── */
   function save() {
+    // Nothing is written after the session has ended: what was there has just
+    // been deliberately cleared, and a stray save would put it back.
+    if (S.ending === 'ended') return;
     try {
       localStorage.setItem(ORIGIN_KEY, JSON.stringify({
         v: STORE_V,
@@ -60,7 +67,19 @@
           return {
             id: m.id, n: m.n, type: m.type, route: m.route, selector: m.selector,
             address: m.address, comment: m.comment, before: m.before, after: m.after,
-            x: m.x, y: m.y, snippet: m.snippet, tag: m.tag, status: m.status
+            x: m.x, y: m.y, snippet: m.snippet, tag: m.tag, status: m.status,
+            variations: m.variations, setId: m.setId, variantOf: m.variantOf,
+            variant: m.variant, label: m.label
+          };
+        }),
+        /* A variation set outlives the batch that asked for it: the agent
+           builds the versions, the reviewer reloads into them, and only then
+           chooses. It has to survive that reload or the choice is unreachable. */
+        sets: S.sets.map(function (s) {
+          return {
+            id: s.id, ref: s.ref, route: s.route, selector: s.selector, address: s.address,
+            snippet: s.snippet, tag: s.tag, x: s.x, y: s.y, point: s.point,
+            labels: s.labels, choice: s.choice
           };
         })
       }));
@@ -99,6 +118,14 @@
           }
         }
         return m;
+      });
+      /* A set is anchored by selector alone. The agent has just rewritten the
+         element it points at, so its text is expected to have changed — holding
+         a set to the snippet check marks use would unanchor every one of them
+         the moment the variations landed. */
+      S.sets = (d.sets || []).map(function (s) {
+        s.el = (s.selector && s.route === routeKey()) ? safeQuery(s.selector) : null;
+        return s;
       });
     } catch (e) {}
   }
@@ -145,6 +172,15 @@
       if (settling) return;
       m.misses = (m.misses || 0) + 1;
       if (m.misses >= 3 && m.status !== 'orphan') { m.status = 'orphan'; changed = true; }
+    });
+    /* A set never orphans. Losing its element costs it the pill on the page,
+       not the choice itself — that stays reachable in the island, which is the
+       only thing standing between the reviewer and scaffolding left in their
+       source forever. */
+    S.sets.forEach(function (s) {
+      if (s.point || s.route !== routeKey()) return;
+      if (s.el && s.el.isConnected) return;
+      s.el = s.selector ? safeQuery(s.selector) : null;
     });
     if (changed) { save(); renderMarks(); renderIsland(); }
   }
@@ -292,8 +328,38 @@
     document.documentElement.appendChild(host);
     layer = root.querySelector('.layer');
     island = root.querySelector('.island');
+    // hovering a version shows it on the page, so the comparison is between the
+    // real things rather than between two words about them
+    layer.addEventListener('pointerover', function (e) {
+      var t = e.target.closest && e.target.closest('.vtab');
+      if (!t) return;
+      var id = t.getAttribute('data-set');
+      if (!setFor(id)) return;
+      clearTimeout(vLeaveT);
+      // Every other set goes back to its own choice, so crossing straight from
+      // one pill to another cannot leave the first one previewing.
+      var i = Number(t.getAttribute('data-i'));
+      S.sets.forEach(function (s) { showVariant(s, s.id === id ? i : 0); });
+      renderSets();
+    });
+    /* A tab that grows under the pointer hands back a leave and an enter while
+       the pointer has not moved. Reverting on the leave itself made the page
+       flicker between versions, so the revert waits to be contradicted. */
+    layer.addEventListener('pointerout', function (e) {
+      if (!(e.target.closest && e.target.closest('.vtab'))) return;
+      clearTimeout(vLeaveT);
+      vLeaveT = setTimeout(function () {
+        S.sets.forEach(function (s) { showVariant(s); });
+        renderSets();
+      }, 140);
+    });
     // clicking a reference number reopens that mark for editing or deletion
     layer.addEventListener('click', function (e) {
+      var tab = e.target.closest && e.target.closest('.vtab');
+      if (tab) {
+        e.preventDefault(); e.stopPropagation();
+        return choose(tab.getAttribute('data-set'), Number(tab.getAttribute('data-i')));
+      }
       var b = e.target.closest && e.target.closest('[data-mark]');
       if (!b) return;
       e.preventDefault(); e.stopPropagation();
@@ -335,17 +401,122 @@
   function removeMark(id) {
     var m = S.marks.find(function (x) { return x.id === id; });
     if (m && m.type === 'text' && m.el && m.before != null) m.el.textContent = m.before;
+    // Dropping the choice puts the set back to undecided rather than leaving a
+    // highlighted version nothing is going to keep.
+    if (m && m.type === 'choice') {
+      var s = setFor(m.setId);
+      if (s) { s.choice = null; showVariant(s); }
+    }
     S.marks = S.marks.filter(function (x) { return x.id !== id; });
     save(); renderMarks(); renderIsland();
   }
   function markOnRoute(m) { return m.route === routeKey(); }
 
+  /* ── variations ────────────────────────────────────────────
+     A mark can ask for several versions of the same change. The agent builds
+     them all behind one switch — an attribute on <html> that only Tailr sets —
+     and reports what to call them. The reviewer then flips between the real
+     versions on the real page and keeps one; keeping it is itself a mark, so
+     the losing versions and the switch leave the source through the same round
+     trip everything else does. */
+  var VAR_MAX = 4;
+  function varAttr(ref) { return 'data-tailr-var-' + ref; }
+  function setFor(id) { return S.sets.find(function (s) { return s.id === id; }); }
+  function setLabel(s, i) { return (i && s.labels[i - 1]) || 'Version ' + i; }
+
+  /** Show one version of a set. `i` omitted means whatever is chosen, or the first. */
+  function showVariant(s, i) {
+    var v = i || s.choice || 1;
+    if (v < 1) v = 1;                       // discarding has no preview: the original is gone
+    if (s.showing === v) return;
+    s.showing = v;
+    document.documentElement.setAttribute(varAttr(s.ref), String(v));
+    // Style-only variations need nothing but the attribute; anything that has
+    // to re-render gets told, rather than being left to poll for it.
+    try {
+      document.dispatchEvent(new CustomEvent('tailr:variant', {
+        detail: { ref: s.ref, variant: v, label: setLabel(s, v), total: s.labels.length }
+      }));
+    } catch (e) {}
+  }
+  function showAllVariants() { S.sets.forEach(function (s) { showVariant(s); }); }
+
+  /** The agent reporting what it built. Idempotent: the run replays on reconnect. */
+  function addSet(ref, labels, selector) {
+    var s = S.sets.find(function (x) { return x.ref === ref; });
+    if (s) {
+      s.labels = labels;
+      if (selector) { s.selector = selector; s.el = null; }
+      save(); showVariant(s); renderMarks(); renderIsland();
+      return s;
+    }
+    // The set inherits the mark's address, so it must be built while that mark
+    // is still staged — which is why the agent reports variations before it
+    // reports the mark as applied.
+    var m = S.marks.find(function (x) { return pad(x.n) === ref; });
+    if (!m) return null;
+    s = {
+      id: 'v' + Date.now() + Math.random().toString(36).slice(2, 6),
+      ref: ref, route: m.route, selector: selector || m.selector, address: m.address,
+      snippet: m.snippet, tag: m.tag, x: m.x, y: m.y, point: isPoint(m),
+      labels: labels, choice: null, el: selector ? null : (m.el || null)
+    };
+    S.sets.push(s);
+    save(); showVariant(s); renderMarks(); renderIsland();
+    return s;
+  }
+
+  /** Keep version `i` of a set — or, at 0, keep none of them. */
+  function choose(id, i) {
+    var s = setFor(id);
+    if (!s || S.locked) return;
+    var existing = S.marks.find(function (m) {
+      return m.type === 'choice' && m.setId === s.id && m.status !== 'served';
+    });
+    // Clicking the version already chosen takes the choice back, so a misclick
+    // costs nothing and an undecided set stays undecided.
+    if (s.choice === i) {
+      s.choice = null;
+      if (existing) removeMark(existing.id);
+      showVariant(s); save(); renderMarks(); renderIsland();
+      return;
+    }
+    s.choice = i;
+    showVariant(s);
+    var comment = i === 0
+      ? 'Discard every version of ' + s.ref + ' and put the element back as it was.'
+      : 'Keep version ' + i + ' (' + setLabel(s, i) + ') of ' + s.ref + '.';
+    if (existing) {
+      existing.variant = i;
+      existing.label = i ? setLabel(s, i) : null;
+      existing.comment = comment;
+      save(); renderMarks(); renderIsland();
+    } else {
+      addMark('choice', s.el, {
+        setId: s.id, variantOf: s.ref, variant: i, label: i ? setLabel(s, i) : null,
+        comment: comment, route: s.route, selector: s.selector, address: s.address,
+        snippet: s.snippet, tag: s.tag, x: s.x, y: s.y
+      });
+    }
+  }
+
+  /** The choice landed: the versions are gone from the source, so the switch goes too. */
+  function dropSet(id) {
+    var s = setFor(id);
+    if (!s) return;
+    document.documentElement.removeAttribute(varAttr(s.ref));
+    S.sets = S.sets.filter(function (x) { return x.id !== id; });
+  }
+
   /* ── on-page rendering ─────────────────────────────────── */
-  var nodes = {}, reconcileTimer = null;
+  var nodes = {}, vnodes = {}, reconcileTimer = null, vLeaveT = null;
   function renderMarks() {
     wake();
     var seen = {};
     S.marks.forEach(function (m) {
+      // A choice is shown by which version of the pill is lit, so a badge on
+      // top of that pill would be the same fact said twice.
+      if (m.type === 'choice') return;
       if (!markOnRoute(m) || m.status === 'orphan') return;
       // Nothing to point at yet — the route is still rendering. Don't plant a
       // badge at the origin. One already on screen stays: a re-render is not a
@@ -374,8 +545,64 @@
     Object.keys(nodes).forEach(function (id) {
       if (!seen[id]) { nodes[id].remove(); delete nodes[id]; }
     });
+    renderSets();
   }
-  function isPoint(m) { return m.type === 'point' || m.type === 'insert'; }
+
+  /* The chooser sits on the element it belongs to, because the whole point is
+     comparing versions of that element rather than of a description of it. */
+  function renderSets() {
+    var seen = {};
+    S.sets.forEach(function (s) {
+      if (s.route !== routeKey()) return;
+      if (!s.point && !(s.el && s.el.isConnected)) return;
+      seen[s.id] = 1;
+      var n = vnodes[s.id];
+      if (!n) {
+        n = document.createElement('div');
+        n.className = 'vset';
+        n.innerHTML = '<div class="ring"></div><div class="pt"></div><div class="vpill"></div>';
+        layer.appendChild(n);
+        vnodes[s.id] = n;
+        if (!reduced) n.animate(
+          [{ transform: 'scale(.94)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
+          { duration: 200, easing: EASE });
+      }
+      // Rewriting the pill under the pointer would tear out the tab being
+      // hovered, so which version is lit is a class toggle, never a rebuild.
+      if (n.__sig !== s.labels.join('|')) {
+        n.__sig = s.labels.join('|');
+        n.querySelector('.vpill').innerHTML = tabsHtml(s, 'vtab');
+      }
+      var tabs = n.querySelectorAll('.vtab');
+      for (var i = 0; i < tabs.length; i++) {
+        tabs[i].classList.toggle('on', s.choice === i + 1);
+        tabs[i].classList.toggle('peek', s.showing === i + 1 && s.choice !== i + 1);
+      }
+      n.className = 'vset' + (s.point ? ' point' : '') + (S.locked ? ' locked' : '');
+      position(n, s);
+    });
+    Object.keys(vnodes).forEach(function (id) {
+      if (!seen[id]) { vnodes[id].remove(); delete vnodes[id]; }
+    });
+  }
+  /* One tab per version. The number is always there; the words the agent gave
+     it arrive on hover, widening the pill rather than covering the page. */
+  function tabsHtml(s, cls, focusable) {
+    var h = '';
+    for (var i = 1; i <= s.labels.length; i++) {
+      h += '<button class="' + cls + (s.choice === i ? ' on' : '') +
+        (s.showing === i && s.choice !== i ? ' peek' : '') + '"' +
+        (focusable ? '' : ' tabindex="-1"') +
+        ' data-act="pick" data-set="' + s.id + '" data-i="' + i + '"' +
+        ' aria-label="Version ' + i + ': ' + esc(setLabel(s, i)).replace(/"/g, '&quot;') + '">' +
+        '<span class="vt-n">' + i + '</span>' +
+        '<span class="vt-l"><span>' + esc(setLabel(s, i)) + '</span></span></button>';
+    }
+    return h;
+  }
+  // Marks carry it as a type; a variation set carries it as a flag copied from
+  // the mark that asked for it.
+  function isPoint(m) { return m.point === true || m.type === 'point' || m.type === 'insert'; }
   function position(n, m) {
     if (isPoint(m)) {
       n.style.transform = 'translate(' + (m.x - scrollX) + 'px,' + (m.y - scrollY) + 'px)';
@@ -398,6 +625,10 @@
     for (var i = 0; i < S.marks.length; i++) {
       var n = nodes[S.marks[i].id];
       if (n) { position(n, S.marks[i]); live = true; }
+    }
+    for (var j = 0; j < S.sets.length; j++) {
+      var v = vnodes[S.sets[j].id];
+      if (v) { position(v, S.sets[j]); live = true; }
     }
     if (S.armed && S.hover) { drawHover(S.hover); live = true; }
     if (composer) live = true;
@@ -423,6 +654,7 @@
 
   /* ── arming ────────────────────────────────────────────── */
   function arm(on) {
+    if (S.ending) on = false;         // a session on its way out marks nothing
     if (S.armed === on) return;
     S.armed = on;
     // reinforcement at the point of use, and only until they have marked once
@@ -462,6 +694,7 @@
       '<textarea rows="2" placeholder="' + placeholderFor(m.type) + '"></textarea>' +
       '<div class="c-foot"><button class="ghost" data-act="cancel">' +
       (editing ? 'Delete' : 'Discard') + '</button>' +
+      (canVary(m) ? '<button class="mult" data-act="mult"></button>' : '') +
       '<button class="paper" data-act="save">' + (editing ? 'Save' : 'Add') + '</button></div>';
     // Position before it is in the document, so it never flashes at the origin.
     place(c, anchorRect);
@@ -477,8 +710,27 @@
     if (!reduced) c.animate([{ opacity: 0, transform: 'translateY(4px) scale(.98)' },
       { opacity: 1, transform: 'translateY(0) scale(1)' }], { duration: 200, easing: EASE });
 
+    // How many versions of this change to ask for. It cycles rather than opening
+    // a menu: four is the whole range, and a menu over someone else's page for
+    // a number between one and four is more chrome than the number is worth.
+    var want = Math.min(VAR_MAX, Math.max(1, m.variations || 1));
+    var mult = c.querySelector('.mult');
+    drawMult();
+    function drawMult() {
+      if (!mult) return;
+      mult.className = 'mult' + (want > 1 ? ' on' : '');
+      mult.textContent = want + '×';
+      mult.setAttribute('aria-label', want === 1
+        ? 'One version. Click for more.'
+        : want + ' versions to choose between');
+      mult.title = want === 1
+        ? 'The agent makes one change. Click to ask for versions to choose between.'
+        : 'The agent builds ' + want + ' versions and you pick one on the page.';
+    }
+
     c.addEventListener('click', function (e) {
       var a = e.target.getAttribute && e.target.getAttribute('data-act');
+      if (a === 'mult') { want = want >= VAR_MAX ? 1 : want + 1; drawMult(); return; }
       if (a === 'save') commit();
       if (a === 'cancel') { editing ? removeMark(m.id) : cancel(); if (editing) closeComposer(); }
     });
@@ -497,9 +749,14 @@
       if (!composer || composer.mark.id !== m.id) return;
       m.comment = ta.value.trim();
       if (!m.comment && m.type !== 'remove') { removeMark(m.id); closeComposer(); return; }
+      if (canVary(m)) m.variations = want > 1 ? want : undefined;
       save(); closeComposer(); renderMarks(); renderIsland();
     }
   }
+  /* Only a described change can be made several ways. A deletion has one
+     outcome, and an inline text edit is the reviewer writing the answer
+     themselves — there is nothing left to offer versions of. */
+  function canVary(m) { return m.type === 'comment' || isPoint(m); }
   function place(c, r) {
     var w = 268, gap = 8;
     var left = Math.min(Math.max(8, r.left), innerWidth - w - 8);
@@ -520,7 +777,8 @@
     }
   }
   function kindLabel(t) {
-    return { comment: 'Comment', remove: 'Remove', text: 'Text', point: 'Spot', insert: 'Spot' }[t] || t;
+    return { comment: 'Comment', remove: 'Remove', text: 'Text', point: 'Spot', insert: 'Spot',
+      choice: 'Version' }[t] || t;
   }
   function placeholderFor(t) {
     return { comment: 'What should change here?', remove: 'Why remove it? (optional)',
@@ -697,10 +955,22 @@
     island.addEventListener('focusin', function (e) {
       var p = e.target.closest && e.target.closest('[data-pill]');
       if (p) setExpanded(p.getAttribute('data-pill'));
+      peek(e.target);
+    });
+    // Reaching a version — by pointer or by focus — shows it on the page. The
+    // list rebuilds on state changes, so previewing only ever touches classes.
+    island.addEventListener('pointerover', function (e) { peek(e.target); });
+    island.addEventListener('pointerout', function (e) {
+      if (e.target.closest && e.target.closest('.vt')) peek(null);
+    });
+    island.addEventListener('focusout', function (e) {
+      if (e.target.closest && e.target.closest('.vt')) peek(null);
     });
     island.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && S.expanded) { e.stopPropagation(); setExpanded(null); island.blur(); return; }
       if (e.key !== 'Enter' && e.key !== ' ') return;
+      // a version button is an ordinary button; let it fire its own click
+      if (e.target.closest && e.target.closest('[data-act="pick"]')) return;
       var row = e.target.closest && e.target.closest('.li[data-act="edit"]');
       if (row) { e.preventDefault(); e.stopPropagation(); return editMark(row.getAttribute('data-id')); }
       var p = e.target.closest && e.target.closest('[data-pill]');
@@ -730,53 +1000,86 @@
       }, 140);
     });
   }
+  /* Preview from the island. Every set on screen goes back to its chosen
+     version and the one being reached for shows instead, so leaving a row never
+     depends on catching the matching leave event. */
+  function peek(target) {
+    if (!S.sets.length) return;
+    var t = target && target.closest && target.closest('.vt');
+    var id = t && t.getAttribute('data-set');
+    var i = t ? Number(t.getAttribute('data-i')) : 0;
+    S.sets.forEach(function (s) { showVariant(s, s.id === id ? i : 0); });
+    if (!IS) return;
+    var tabs = IS.list.querySelectorAll('.vt');
+    for (var k = 0; k < tabs.length; k++) tabs[k].classList.toggle('peek', tabs[k] === t);
+    renderSets();
+  }
   function inside(node) {
     var r = node.getBoundingClientRect();
     return PX >= r.left - 2 && PX <= r.right + 2 && PY >= r.top - 2 && PY <= r.bottom + 2;
   }
-  function setExpanded(v) { if (S.expanded === v) return; S.expanded = v; renderIsland(); }
+  function setExpanded(v) {
+    if (S.ending || S.expanded === v) return;
+    S.expanded = v; renderIsland();
+  }
 
   function renderIsland() {
     if (!IS) buildIsland();
     var count = staged().length;
+    var undecided = S.sets.filter(function (s) { return s.choice == null; }).length;
     var needsReload = !!(S.agent && S.agent.phase === 'done');
     var sig = [count, S.locked, S.armed, S.expanded, needsReload, S.teach, S.learn.welcomed,
+      S.ending, S.dirty, S.app && S.app.target,
       S.agent ? S.agent.phase : '-', S.agent ? S.agent.served.length : 0,
-      S.marks.map(function (m) { return m.id + m.status; }).join(',')].join('|');
+      S.marks.map(function (m) { return m.id + m.status; }).join(','),
+      S.sets.map(function (s) { return s.id + s.choice; }).join(',')].join('|');
     if (sig === renderIsland._sig) return;
     renderIsland._sig = sig;
 
     var b0 = IS.batch.getBoundingClientRect();
     var a0 = IS.agent.hidden ? null : IS.agent.getBoundingClientRect();
 
-    var dormant = count === 0 && !needsReload;
-    var teaching = S.teach || (S.expanded === 'batch' && count === 0);
+    // A set nobody has chosen between is unfinished work: the island cannot go
+    // back to resting on it, or the versions sit in the source unmentioned.
+    var dormant = count === 0 && !needsReload && !S.sets.length;
+    var teaching = S.teach || (S.expanded === 'batch' && count === 0 && !S.sets.length);
     var welcoming = teaching && !S.learn.welcomed;
     // The dismiss belongs to the welcome, not to any one row state — a reviewer
     // arriving while a finished run is still on the server must still be able
     // to put the card away.
     var dismiss = welcoming ? '<button class="paper row-dismiss" data-act="gotit">Got it</button>' : '';
     IS.row.className = 'row' + (welcoming ? ' has-dismiss' : '');
-    if (dormant) {
+    // Being asked is not the same as having answered: the row only changes once
+    // the session is actually on its way out.
+    if (S.ending && S.ending !== 'confirm') {
+      IS.row.innerHTML = '<span class="dot"></span><span class="hint">' +
+        (S.ending === 'ended' ? 'Ended' : 'Ending') + '</span>';
+    } else if (dormant) {
       IS.row.innerHTML = dismiss +
         '<span class="dot ' + (S.armed ? 'live' : '') + '"></span>' +
         '<span class="hint">' + (S.armed ? 'Marking' : 'Hold ' + ALT + ' to mark') + '</span>';
     } else {
       var label = needsReload ? 'Needs refresh'
         : S.locked ? 'Sent'
+        : count === 0 ? (undecided === 1 ? 'Pick a version' : 'Pick versions')
         : count === 1 ? 'Send' : 'Send batch';
       IS.row.innerHTML = dismiss +
         (count ? '<span class="count">' + count + '</span>' : '') +
         '<span class="send">' + label + '</span>';
     }
 
-    var open = (S.expanded === 'batch' && count > 0) || teaching;
+    // Ending holds the panel open on its own: it is a question being asked, and
+    // it must not close because the pointer wandered off the pill.
+    var open = !!S.ending || (S.expanded === 'batch' && (count > 0 || S.sets.length > 0)) || teaching;
     IS.batch.className = 'pill batch ' +
-      (dormant ? 'dormant' : (needsReload || S.locked) ? 'locked' : 'ready') +
-      (open ? ' open' : '') + (teaching ? ' teaching' : '');
-    IS.list.innerHTML = teaching ? keyHtml(!S.learn.welcomed) : (open ? listHtml() : '');
+      // nothing staged but versions waiting: the pill is a prompt, not a Send
+      (S.ending ? 'locked' : dormant ? 'dormant' : (needsReload || S.locked || count === 0) ? 'locked' : 'ready') +
+      (open ? ' open' : '') + (teaching && !S.ending ? ' teaching' : '');
+    IS.list.innerHTML = S.ending ? endingHtml()
+      : teaching ? keyHtml(!S.learn.welcomed) + footerHtml()
+      : open ? listHtml() + footerHtml() : '';
 
-    if (S.agent) {
+    if (S.agent && S.ending !== 'ended') {
       var wasHidden = IS.agent.hidden;
       IS.agent.hidden = false;
       // Rewriting this node restarts the CSS animation, so the spinner would
@@ -795,6 +1098,27 @@
 
     morph(IS.batch, b0);
     if (!IS.agent.hidden) morph(IS.agent, a0);
+
+    /* Ending replaces the control that started it, so the reviewer who got here
+       from the keyboard would otherwise be dropped back to the top of the page
+       with a question open behind them. Land them on the safe answer. */
+    if (S.ending !== renderIsland._phase) {
+      renderIsland._phase = S.ending;
+      if (S.ending === 'confirm') {
+        announce('End this session? Cancel, or end session.');
+        focusIn('[data-act="stay"]');
+      } else if (S.ending === 'cleaning') {
+        announce('Cleaning up. The agent is taking the versions it left out of your source.');
+        focusIn('[data-act="quit-now"]');
+      } else if (S.ending === 'ended') {
+        announce('Tailr has ended.');
+        focusIn('[data-act="dismiss"]');
+      }
+    }
+  }
+  function focusIn(sel) {
+    var el = IS && IS.list.querySelector(sel);
+    if (el) try { el.focus({ preventScroll: true }); } catch (e) {}
   }
 
   /* one object, many shapes — measure, swap, animate both axes */
@@ -868,6 +1192,61 @@
     return h + '</div>';
   }
 
+  /* The way out. It sits under the panel rather than on the pill: leaving is
+     never the thing a reviewer is reaching for, and a control that ends the
+     session has no business being one pixel from the one that sends a batch. */
+  function footerHtml() {
+    return '<div class="pfoot"><button class="ghost" data-act="quit">End session</button></div>';
+  }
+
+  function endingHtml() {
+    var h = '<div class="teach">';
+    if (S.ending === 'confirm') {
+      var unsent = staged().filter(function (m) { return m.type !== 'choice'; }).length;
+      var work = cleanupWork();
+      h += '<div class="t-head">End this session?</div><div class="qlist">';
+      if (unsent) {
+        h += '<div class="qli bad">' + unsent + (unsent === 1 ? ' mark you have not sent' : ' marks you have not sent') +
+             ' will be discarded.</div>';
+      }
+      if (work) {
+        h += '<div class="qli">Tailr hands the agent one last batch to take the ' +
+             (work === 1 ? 'version it left' : 'versions it left') + ' out of your source.</div>';
+      }
+      h += '<div class="qli">' + (S.app && S.app.spawned
+        ? 'Tailr stops, and the dev server it started stops with it.'
+        : 'Tailr stops proxying. Your app keeps running at ' +
+          esc((S.app && S.app.target) || 'its own address') + '.') + '</div>';
+      h += '<div class="qli">Everything Tailr keeps in this browser is cleared.</div>';
+      h += '</div><div class="bact"><button class="ghost" data-act="stay">Cancel</button>' +
+           '<button class="paper" data-act="quit-go">End session</button></div>';
+    } else if (S.ending === 'cleaning') {
+      h += '<div class="t-head">Cleaning up</div>' +
+           '<div class="t-sub">The agent is taking the versions it left out of your source. ' +
+           (S.agent ? S.agent.served.length + ' of ' + S.agent.total + ' done.' : '') + '</div>' +
+           '<div class="bact"><button class="ghost" data-act="quit-now">End anyway</button></div>';
+    } else if (S.ending === 'ending') {
+      h += '<div class="t-head">Ending…</div>';
+    } else {
+      h += '<div class="t-head">Tailr has ended</div>';
+      h += '<div class="t-sub">' + (S.dirty
+        ? 'The cleanup did not finish, so versions may still be guarded in your source — ' +
+          'ask your agent to take out what Tailr left. '
+        : '') + (S.app && S.app.spawned
+        ? 'The dev server Tailr started has stopped too.'
+        : 'Your app is still running at ' + esc((S.app && S.app.target) || 'its own address') + '.') +
+        '</div><div class="bact">';
+      if (!(S.app && S.app.spawned) && S.app && S.app.target) {
+        h += '<button class="ghost" data-act="dismiss">Dismiss</button>' +
+             '<button class="paper" data-act="goto">Go to the app</button>';
+      } else {
+        h += '<button class="paper" data-act="dismiss">Dismiss</button>';
+      }
+      h += '</div>';
+    }
+    return h + '</div>';
+  }
+
   function listHtml() {
     var byRoute = {}, orph = [];
     staged().forEach(function (m) {
@@ -879,6 +1258,10 @@
       h += '<div class="grp bad">Not being saved — this browser is blocking site data. ' +
            'Send before you reload.</div>';
     }
+    if (S.sets.length) {
+      h += '<div class="grp">Versions the agent built — keep one</div>';
+      S.sets.forEach(function (s) { h += setRowHtml(s); });
+    }
     if (orph.length) {
       h += '<div class="grp bad">Orphaned — element no longer on the page</div>';
       orph.forEach(function (m) { h += rowHtml(m, true); });
@@ -889,18 +1272,35 @@
     });
     return h;
   }
+  /* The pill on the page is small enough not to cover what it labels, which
+     leaves it under the minimum target size and out of the tab order. This row
+     is its equivalent: the same versions, named rather than hovered, reachable
+     from the keyboard, and the only place a set can be turned down entirely. */
+  function setRowHtml(s) {
+    return '<div class="li vli">' +
+      '<span class="li-n">' + esc(s.ref) + '</span>' +
+      '<span class="li-a">' + esc(s.address) + '</span>' +
+      '<span class="vtabs">' + tabsHtml(s, 'vt', true) + '</span>' +
+      '<button class="li-x' + (s.choice === 0 ? ' on' : '') + '" data-act="pick" data-set="' + s.id +
+      '" data-i="0" title="Keep none of them" aria-label="Keep none of the versions of ' +
+      esc(s.ref) + '">×</button></div>';
+  }
   function rowHtml(m, orphan) {
     var text = m.type === 'text' ? '“' + esc(m.before) + '” → “' + esc(m.after) + '”' : esc(m.comment || m.snippet);
     // The on-page badge is deliberately small so it never covers what it labels,
     // which leaves it under the minimum target size. The row is its equivalent —
     // and the only route to editing a mark without a pointer.
-    var editable = m.route === routeKey() && (isPoint(m) || (m.el && m.el.isConnected));
+    // A choice has no comment of its own to reopen: the version pill above it in
+    // this same list is where it is changed, and the × is how it is dropped.
+    var editable = m.type !== 'choice' &&
+      m.route === routeKey() && (isPoint(m) || (m.el && m.el.isConnected));
     var attrs = editable
       ? ' role="button" tabindex="0" data-act="edit" data-id="' + m.id + '" title="Edit mark ' + pad(m.n) + '"'
       : '';
     return '<div class="li' + (orphan ? ' orph' : '') + (editable ? ' editable' : '') + '"' + attrs + '>' +
       '<span class="li-n ' + m.type + '">' + pad(m.n) + '</span>' +
-      '<span class="li-k">' + kindLabel(m.type) + '</span>' +
+      '<span class="li-k">' + kindLabel(m.type) +
+      (m.variations > 1 ? '<span class="li-v">' + m.variations + '×</span>' : '') + '</span>' +
       '<span class="li-a">' + esc(m.address) + '</span>' +
       '<span class="li-c" title="' + text.replace(/"/g, '&quot;') + '">' + text + '</span>' +
       '<button class="li-x" data-act="drop" data-id="' + m.id +
@@ -932,7 +1332,9 @@
       marks: batch.map(function (m) {
         return { ref: pad(m.n), type: m.type, route: m.route, address: m.address,
           selector: m.selector, element: m.snippet, comment: m.comment,
-          before: m.before, after: m.after, x: m.x, y: m.y, orphaned: m.status === 'orphan' };
+          before: m.before, after: m.after, x: m.x, y: m.y, orphaned: m.status === 'orphan',
+          variations: m.variations > 1 ? m.variations : undefined,
+          variantOf: m.variantOf, variant: m.variant, label: m.label };
       })
     };
   }
@@ -942,8 +1344,75 @@
     var m = S.marks.find(function (x) { return pad(x.n) === ref; });
     if (!m || m.status === 'served') return;
     m.status = 'served';
+    // The versions have been settled in the source, so the switch that chose
+    // between them is not a thing on this page any more.
+    if (m.type === 'choice') dropSet(m.setId);
     if (S.agent && S.agent.served.indexOf(ref) === -1) S.agent.served.push(ref);
     save(); renderMarks(); renderIsland();
+  }
+  /* ── ending the session ────────────────────────────────────
+     The reviewer has no terminal, so the only way out of Tailr that exists for
+     them is this one. Leaving has to take Tailr's own residue with it: the
+     versions still guarded in their source, the switches on the page, what is
+     in this browser, and the process in front of their dev server. */
+  function undecided() { return S.sets.filter(function (s) { return s.choice == null; }); }
+  function cleanupWork() {
+    return staged().filter(function (m) { return m.type === 'choice'; }).length + undecided().length;
+  }
+
+  function endSession() {
+    // Versions nobody chose between are guards sitting in the source. Ending is
+    // the last chance to say what happens to them, and the only answer Tailr can
+    // give on the reviewer's behalf without guessing is: take them all out.
+    undecided().forEach(function (s) { choose(s.id, 0); });
+    var batch = staged().filter(function (m) { return m.type === 'choice'; });
+    if (!batch.length || S.locked) {
+      // A run already open means the batch cannot be handed over. Say so on the
+      // way out rather than quietly leaving the guards behind.
+      return quit(batch.length > 0);
+    }
+    S.ending = 'cleaning';
+    S.locked = true;
+    S.agent = { phase: 'working', served: [], total: batch.length };
+    renderIsland();
+    try { window.__tailr.transport.send(payload(batch)); }
+    catch (e) { quit(true); }
+  }
+
+  /** Tell the server to go. Whatever happens next, this page is done. */
+  function quit(dirty) {
+    S.dirty = !!dirty;
+    S.ending = 'ending';
+    renderIsland();
+    try { window.__tailr.transport.exit(); }
+    catch (e) { shutdown(); }
+  }
+
+  /** Tailr, off the page and out of this browser. */
+  function shutdown(app) {
+    if (app) S.app = app;
+    if (S.ending === 'ended') return;
+    closeComposer();
+    S.latched = false; arm(false);
+    if (reconcileTimer) { clearInterval(reconcileTimer); reconcileTimer = null; }
+    S.sets.forEach(function (s) { document.documentElement.removeAttribute(varAttr(s.ref)); });
+    S.ending = 'ended';
+    S.marks = []; S.sets = []; S.seq = 1; S.agent = null; S.locked = false; S.expanded = null;
+    try {
+      localStorage.removeItem(ORIGIN_KEY);
+      localStorage.removeItem(LEARN_KEY);
+      localStorage.removeItem(CORNER_KEY);
+    } catch (e) {}
+    renderMarks(); renderIsland();
+  }
+
+  function syncVariants(variants) {
+    if (!variants) return;
+    Object.keys(variants).forEach(function (ref) {
+      var v = variants[ref];
+      var labels = (v && v.labels) || [];
+      if (labels.length > 1) addSet(ref, labels, v.selector);
+    });
   }
   function abandon() {
     // Nothing guarantees the agent ever answers. The user must always be able
@@ -957,6 +1426,9 @@
     S.agent.phase = ok ? 'done' : 'failed';
     S.locked = !ok ? false : true;
     if (!ok) S.marks.forEach(function (m) { if (m.status === 'served') return; m.status = 'staged'; });
+    // The last batch of a session is the cleanup one. There is nothing to
+    // reload into afterwards — the reviewer is leaving.
+    if (S.ending === 'cleaning') return quit(!ok);
     renderIsland();
   }
 
@@ -975,6 +1447,9 @@
         else removeMark(composer.mark.id);
         closeComposer();
       }
+      // Escape backs out of the question, never out of the answer: once the
+      // session is actually going there is nothing left to cancel.
+      else if (S.ending === 'confirm') { S.ending = null; renderIsland(); }
       else if (S.latched) { S.latched = false; arm(false); }
       else if (S.expanded) { S.expanded = null; renderIsland(); }
     }
@@ -1012,7 +1487,7 @@
     // Gate on the event's own modifier state, never on the sticky armed flag.
     // A missed Alt keyup — window blur, a release outside the frame — would
     // otherwise leave Tailr swallowing ordinary clicks on the host app.
-    var live = e.altKey || S.latched;
+    var live = (e.altKey || S.latched) && !S.ending;
     if (S.armed !== live) arm(live);
     if (!live || isOurs(e.target)) return false;
     e.preventDefault(); e.stopPropagation(); return true;
@@ -1100,12 +1575,20 @@
       var a = b.getAttribute('data-act');
       if (a === 'drop') { clearTimeout(leaveT); removeMark(b.getAttribute('data-id')); }
       if (a === 'edit') editMark(b.getAttribute('data-id'));
+      if (a === 'pick') { clearTimeout(leaveT); choose(b.getAttribute('data-set'), Number(b.getAttribute('data-i'))); }
       if (a === 'reload') location.reload();
       if (a === 'resend') { S.agent = null; S.locked = false; renderIsland(); }
       if (a === 'abandon') abandon();
       if (a === 'gotit') { learned('welcomed'); S.teach = false; S.expanded = null; renderIsland(); }
+      if (a === 'quit') { S.ending = 'confirm'; renderIsland(); }
+      if (a === 'stay') { S.ending = null; renderIsland(); }
+      if (a === 'quit-go') endSession();
+      if (a === 'quit-now') quit(true);
+      if (a === 'goto') location.href = (S.app && S.app.target) || '/';
+      if (a === 'dismiss') window.__tailr.destroy();
       return;
     }
+    if (S.ending) return;
     if (e.target.closest('.batch') && !S.locked && !(S.agent && S.agent.phase === 'done') && staged().length) send();
   }
 
@@ -1129,6 +1612,14 @@
     /* Reflect authoritative run state from the bridge. The server is the only
        thing that knows whether a run is still open, so the overlay follows it
        rather than keeping its own idea of the truth. */
+    /* Where the application lives without Tailr in front of it, and whether the
+       dev server is Tailr's to stop. The ending card is the last thing the
+       reviewer sees, and it is the only place they can be told. */
+    session: function (app) {
+      if (!app || (S.app && S.app.target === app.target && S.app.spawned === app.spawned)) return;
+      S.app = app; renderIsland();
+    },
+    shutdown: shutdown,
     sync: function (run) {
       if (!run) {
         // the server forgot the run (restarted, or it was reset) — give the
@@ -1136,13 +1627,26 @@
         if (S.agent && S.agent.phase === 'working') abandon();
         return;
       }
+      // Variations first: a set is built from the mark that asked for it, and
+      // reporting that mark applied is what eventually takes the mark away.
+      syncVariants(run.variants);
       if (run.phase === 'working') {
         S.locked = true;
+        S.watched = run.id;
         if (!S.agent || S.agent.phase !== 'working') S.agent = { phase: 'working', served: [], total: run.total };
         S.agent.total = run.total;
         S.agent.served = (run.served || []).slice();
         (run.served || []).forEach(served);
         renderIsland();
+        return;
+      }
+      /* A run that closed while this page was not on screen is history. The
+         server keeps the last one indefinitely, so a reviewer who reloads is
+         handed it again — and prompting them to reload into changes they are
+         already looking at would hold Send shut against nothing. Take what it
+         says about the marks; leave the prompt to the page that watched it. */
+      if (S.watched !== run.id) {
+        (run.served || []).forEach(function (ref) { served(ref); });
         return;
       }
       if (!S.agent) S.agent = { phase: 'working', served: (run.served || []).slice(), total: run.total };
@@ -1154,6 +1658,9 @@
     },
     clear: function () {
       closeComposer();
+      // Reference numbers start over, so every switch keyed to an old one has to
+      // go with them or the next mark 03 inherits a stranger's versions.
+      S.sets.slice().forEach(function (s) { dropSet(s.id); });
       S.marks = []; S.seq = 1; S.agent = null; S.locked = false;
       save(); renderMarks(); renderIsland();
     },
@@ -1169,6 +1676,7 @@
       document.removeEventListener('click', onClick, true);
       document.removeEventListener('dblclick', onDbl, true);
       document.documentElement.removeAttribute('data-tailr-armed');
+      S.sets.forEach(function (s) { document.documentElement.removeAttribute(varAttr(s.ref)); });
       host.remove();
       delete window.__tailr;
     },
@@ -1179,12 +1687,17 @@
       send: function () {
         if (S.agent) S.agent.error = 'Tailr is not connected to a session.';
         finish(false);
-      }
+      },
+      // Nothing to tell, so the page is the only thing left to end.
+      exit: function () { shutdown(); }
     }
   };
 
   loadLearn();
   load();
+  // Before anything is drawn: the page has to come up in the version the
+  // reviewer left it on, not flash version one and then correct itself.
+  showAllVariants();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
   else mount();
   root.addEventListener('click', islandClick);
@@ -1223,6 +1736,42 @@
 .pindot{position:absolute;top:0;left:0;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;
   background:#0B0B0C;box-shadow:0 0 0 2px rgba(255, 255, 255, 0.92);pointer-events:none}
 
+/* the version chooser — one pill per set, sitting on its own element */
+.vset{position:absolute;top:0;left:0;pointer-events:none;will-change:transform}
+.vset .ring{position:absolute;inset:0;border-radius:3px;
+  box-shadow:0 0 0 1px rgba(11, 11, 12, 0.30), 0 0 0 2px rgba(255, 255, 255, 0.65)}
+.vset .pt{display:none}
+.vset.point .ring{display:none}
+.vset.point .pt{display:block;position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;
+  background:#0B0B0C;box-shadow:0 0 0 2px rgba(255, 255, 255, 0.92)}
+/* Clear of the element rather than half over it, the way the reference badges
+   sit: this one is a control, and it is large enough to hide the thing it is
+   offering versions of. */
+.vpill{position:absolute;left:-1px;top:-26px;display:flex;align-items:center;gap:2px;padding:2px;
+  pointer-events:auto;background:#0B0B0C;border-radius:999px;
+  box-shadow:0 4px 14px rgba(0, 0, 0, 0.34),0 0 0 1px rgba(255, 255, 255, 0.10)}
+.vset.point .vpill{left:10px;top:-11px}
+.vset.locked .vpill{pointer-events:none;opacity:.5}
+.vtab,.vt{display:flex;align-items:center;background:transparent;color:rgba(255, 255, 255, 0.56);
+  height:18px;padding:0;border-radius:999px;font-size:10px;font-weight:700;
+  font-variant-numeric:tabular-nums;overflow:hidden}
+.vtab .vt-n,.vt .vt-n{width:18px;flex:0 0 18px;text-align:center;line-height:18px}
+/* the words the agent gave a version: no width until it is reached for, then
+   the pill grows to make room rather than putting anything over the page */
+.vtab .vt-l,.vt .vt-l{display:grid;grid-template-columns:0fr;
+  transition:grid-template-columns 340ms ${EASE},opacity 140ms ease}
+.vtab .vt-l > span,.vt .vt-l > span{overflow:hidden;white-space:nowrap;font-size:10.5px;font-weight:650;
+  letter-spacing:-.005em;max-width:150px;text-overflow:ellipsis}
+.vtab.peek,.vtab.on,.vt.peek,.vt.on{background:rgba(255, 255, 255, 0.12);color:#FFFFFF}
+.vtab.on,.vt.on{background:#F2EDE1;color:#0B0B0C}
+/* On the page the width follows the pointer alone. Tying it to state as well
+   let a class the pointer had just caused feed back into the geometry the
+   pointer was standing on. */
+.vtab:hover .vt-l,.vt:hover .vt-l,.vt.peek .vt-l,.vt:focus-visible .vt-l{
+  grid-template-columns:1fr;padding-right:7px}
+.vtab:hover,.vt:hover{color:#FFFFFF}
+.vtab.on:hover,.vt.on:hover{color:#0B0B0C}
+
 /* composer — a textbox ON the element */
 .composer{position:absolute;width:268px;pointer-events:auto;background:#0B0B0C;
   border-radius:12px;padding:10px;color:#fff;
@@ -1240,6 +1789,11 @@
 .composer textarea::placeholder{color:rgba(255, 255, 255, 0.56)}
 .composer textarea:focus{box-shadow:0 0 0 2px rgba(47, 212, 168, 0.55)}
 .c-foot{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+/* how many versions to ask for — one tap apart from the send that commits it */
+.mult{background:rgba(255, 255, 255, 0.06);color:rgba(255, 255, 255, 0.56);padding:6px 10px;
+  font-variant-numeric:tabular-nums;transition:background .12s,color .12s}
+.mult:hover{background:rgba(255, 255, 255, 0.12);color:#FFFFFF}
+.mult.on{background:rgba(255, 255, 255, 0.18);color:#FFFFFF}
 button{border:none;cursor:pointer;font-size:12px;font-weight:650;border-radius:999px;padding:6px 14px;
   font-family:inherit;letter-spacing:-.005em}
 button.paper{background:#F2EDE1;color:#0B0B0C}
@@ -1311,6 +1865,17 @@ button.ghost:hover{color:#fff}
   white-space:nowrap}
 .t-row dd{margin:0;font-size:12.5px;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
+/* the way out, under everything else and never beside the Send */
+.pfoot{display:flex;justify-content:flex-end;padding:4px 4px 2px;margin-top:2px;
+  border-top:1px solid rgba(255, 255, 255, 0.10)}
+.pfoot .ghost{font-size:11.5px;padding:5px 10px}
+.qlist{margin:8px 0 2px}
+.qli{position:relative;padding:3px 0 3px 14px;font-size:12.5px;line-height:1.45;
+  color:rgba(255, 255, 255, 0.56);overflow-wrap:break-word}
+.qli::before{content:'';position:absolute;left:3px;top:10px;width:4px;height:4px;border-radius:50%;
+  background:rgba(255, 255, 255, 0.28)}
+.qli.bad{color:#FFFFFF}
+.qli.bad::before{background:#E8483C}
 .row-dismiss{margin-right:auto}
 .row.has-dismiss{padding-left:6px}
 .grp{padding:6px 8px 4px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;
@@ -1332,6 +1897,15 @@ button.ghost:hover{color:#fff}
   width:26px;height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:center;
   padding:0;border-radius:999px}
 .li-x:hover{background:rgba(255, 255, 255, 0.12);color:#FFFFFF}
+.li-x.on{background:#F2EDE1;color:#0B0B0C}
+.li-v{margin-left:4px;padding:0 4px;border-radius:5px;background:rgba(255, 255, 255, 0.12);
+  color:#FFFFFF;font-size:9.5px;font-variant-numeric:tabular-nums}
+/* the same versions as the pill on the page, named rather than hovered */
+.vli .li-a{flex:0 0 118px}
+.vtabs{display:flex;align-items:center;gap:3px;flex:1 1 0;min-width:0;overflow:hidden}
+.vt{flex:0 0 auto;height:20px;background:rgba(255, 255, 255, 0.06)}
+.vt .vt-n{width:20px;flex:0 0 20px;line-height:20px}
+.vt .vt-l > span{max-width:120px}
 
 .ainner{display:flex}
 .aico{flex:0 0 auto;width:38px;height:38px;display:flex;align-items:center;justify-content:center}
@@ -1349,6 +1923,9 @@ button.ghost:hover{color:#fff}
 .btitle.bad{color:#E8483C}
 .bmeta{font-size:12px;line-height:1.45;color:rgba(255, 255, 255, 0.56);overflow-wrap:break-word}
 .bact{display:flex;margin-top:10px}
-@media (prefers-reduced-motion:reduce){.loader{animation-duration:1.6s}}
+@media (prefers-reduced-motion:reduce){
+  .loader{animation-duration:1.6s}
+  .vtab .vt-l,.vt .vt-l{transition:none}
+}
 `; }
 })();
