@@ -11,6 +11,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-02
+
 ### Added
 
 - Versions. A comment on an element or a spot can ask for up to four answers

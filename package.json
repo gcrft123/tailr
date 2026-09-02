@@ -1,6 +1,6 @@
 {
   "name": "@gcrft123/tailr",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Mark up a running dev server and hand the changes to your coding agent as one batch.",
   "type": "module",
   "bin": {
