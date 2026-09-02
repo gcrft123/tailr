@@ -62,3 +62,18 @@ test('reports the session as ended when it goes away mid-wait', async () => {
 
   assert.deepEqual(await waiting, { ended: true });
 });
+
+test('a session the reviewer ended reads as ended, not as a timeout', async (t) => {
+  // The agent's `wait` is what finds out. Ending has to be distinguishable from
+  // nothing having happened yet, or it restarts a session that is deliberately
+  // over.
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  const waiting = waitForBatch(s.port, 5000);
+  setTimeout(async () => { await s.api('exit'); s.server.closeAllConnections?.(); }, 50);
+
+  const result = await waiting;
+  assert.ok(result.ended, 'the stream closing under the wait is the signal');
+  assert.ok(!result.timedOut);
+});

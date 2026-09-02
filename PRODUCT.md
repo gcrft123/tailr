@@ -83,6 +83,19 @@ Other confirmed behavior:
 - A mark whose element no longer exists after a reload is **orphaned, never silently re-anchored and never discarded**. It keeps its number and its comment, loses its tether, and is surfaced with the last known address and a snippet of the element as it was. Re-anchoring risks attaching a comment to the wrong element and having the agent act on it; discarding breaks the guarantee that staged markup is never lost.
 - Orphaning is a claim about the element, so it may only be made from the route the mark was made on, and only once that route has had a chance to render. A mark belonging to a page the reviewer has since navigated away from is **not** orphaned — it is unverifiable, and stays staged under its own route until they return to it. A route-shaped hash (`#/orders`) is part of that address; a plain anchor (`#pricing`) is not. Telling the agent an element was lost when the reviewer merely changed pages sends it to ask about marks that are perfectly intact.
 
+### Confirmed exit model
+
+**The reviewer can end the session from the page, and it is the only way out that exists for them** — they have no terminal, and the process in front of their dev server is not theirs to stop. Ending is confirmed rather than immediate, and the confirmation states each consequence rather than summarizing them.
+
+Ending is also the only cleanup stage Tailr has, so it does all of it in one pass:
+
+- Versions nobody chose between go to the agent as a final batch that removes them and their guards. The reviewer cannot be left with scaffolding in their source and nothing on screen that would take it out.
+- The switches come off the document, and everything Tailr kept in the browser for that origin is cleared. Staged markup that was never sent is lost — the one place the "staged markup is never lost" guarantee is deliberately spent, because ending is an explicit confirmed act and the confirmation says so in as many words.
+- The server stops, which takes the review URL down with it. The overlay's last card is therefore the only thing that can tell the reviewer where their application is now, and it says which: the dev server is still running at its own address, or it stopped too because Tailr had started it.
+- Dismissing that card removes the overlay from the host DOM entirely.
+
+If the agent never answers the cleanup batch, the reviewer can still leave. Tailr says the cleanup did not finish rather than implying it did.
+
 ### Confirmed variation model
 
 A comment on an element, or on a spot, can ask for **up to four versions of the same change**, built together so the reviewer compares them on the running page rather than in prose. This is the one place where the agent's work is reflected back into the overlay beyond the reload prompt.

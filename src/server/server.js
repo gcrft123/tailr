@@ -24,7 +24,7 @@ const BRIDGE = join(HERE, '..', 'bridge', 'client.js');
 
 const API = '/__tailr/';
 
-export function createServer({ target, onReady }) {
+export function createServer({ target, onReady, onExit, spawned = false }) {
   const upstream = new URL(target);
   /* A dev server on https is still a dev server, and its certificate is nearly
      always self-signed or locally-minted. Refusing one would make https targets
@@ -38,7 +38,8 @@ export function createServer({ target, onReady }) {
   const state = {
     batch: null,      // { id, sentAt, marks }  — waiting or in flight
     run: null,        // { id, phase, served:[], total, error, leasedAt }
-    seq: 0
+    seq: 0,
+    ending: false     // the reviewer has ended the session; this process is going
   };
   const listeners = new Set();
 
@@ -53,7 +54,12 @@ export function createServer({ target, onReady }) {
         total: state.run.total, error: state.run.error || null,
         variants: state.run.variants
       },
-      pending: !!(state.batch && state.run && state.run.phase === 'working' && !state.run.leasedAt)
+      pending: !!(state.batch && state.run && state.run.phase === 'working' && !state.run.leasedAt),
+      ending: state.ending,
+      /* Ending the session takes the review URL down with it, so the overlay has
+         to be able to say where the application went — it is the last thing on
+         screen, and the reviewer has no terminal to ask. */
+      app: { target, spawned }
     };
   }
 
@@ -104,7 +110,25 @@ export function createServer({ target, onReady }) {
 
     if (path === 'state') return json(res, 200, publicState());
 
+    /* The reviewer ending the session from the page. Everything that was going
+       to be cleaned up has been sent by now; this is the last call, and the
+       process goes with it. */
+    if (path === 'exit' && req.method === 'POST') {
+      if (state.ending) return json(res, 200, publicState());
+      state.ending = true;
+      publish();
+      json(res, 200, publicState());
+      // Let the last frame reach every open page before the socket dies under it.
+      setTimeout(() => {
+        for (const l of listeners) { try { l.end(); } catch {} }
+        listeners.clear();
+        if (onExit) onExit();
+      }, 120);
+      return;
+    }
+
     if (path === 'batch' && req.method === 'POST') {
+      if (state.ending) return json(res, 409, { error: 'The session is ending.' });
       if (state.run && state.run.phase === 'working') {
         return json(res, 409, { error: 'A run is already open. Wait for it to finish.' });
       }

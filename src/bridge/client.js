@@ -14,7 +14,20 @@
   var API = '/__tailr/';
   var T = window.__tailr;
 
+  var ending = false;
+
   T.transport = {
+    /* The last call of a session, and the only one whose failure means the same
+       thing as its success: the server is gone either way, so the page ends
+       regardless of what comes back. */
+    exit: function () {
+      ending = true;
+      var done = function () { T.shutdown(); };
+      fetch(API + 'exit', { method: 'POST' }).then(done, done);
+      // A server that dies without answering must not leave the page mid-exit.
+      setTimeout(done, 4000);
+    },
+
     send: function (payload) {
       fetch(API + 'batch', {
         method: 'POST',
@@ -45,18 +58,23 @@
     es.onmessage = function (ev) {
       var data;
       try { data = JSON.parse(ev.data); } catch (e) { return; }
+      T.session(data.app);
+      // Another page in this browser ended the session, or this one did and the
+      // server is confirming. Either way there is nothing left to listen to.
+      if (data.ending) { ending = true; close(); return T.shutdown(data.app); }
       T.sync(data.run);
     };
     es.onerror = function () {
       // The dev server restarting takes the stream with it; back off and return.
-      try { es.close(); } catch (e) {}
-      es = null;
+      close();
       schedule();
     };
   }
 
+  function close() { try { if (es) es.close(); } catch (e) {} es = null; }
+
   function schedule() {
-    if (retryTimer) return;
+    if (ending || retryTimer) return;
     var wait = Math.min(1000 * Math.pow(2, retry++), 15000);
     retryTimer = setTimeout(function () { retryTimer = null; connect(); }, wait);
   }

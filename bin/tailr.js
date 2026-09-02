@@ -65,6 +65,15 @@ async function serve() {
 
   const { server } = createServer({
     target,
+    // Whether the dev server is ours to stop decides what the overlay tells the
+    // reviewer to do once Tailr is gone.
+    spawned: !!child,
+    onExit() {
+      process.stdout.write('\n  ⌁ the reviewer ended the session. Shutting down.\n\n');
+      shutdown();
+      server.close();
+      process.exit(0);
+    },
     onReady(actual) {
       const url = `http://localhost:${actual}`;
       writeSession({ port: actual, url, target, pid: process.pid, startedAt: new Date().toISOString() });

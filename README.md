@@ -127,6 +127,22 @@ its row in the island keeps none of them.
 
 The island in the corner shows what is staged; hover it for the list. Drag it to any corner if it's covering page content.
 
+## Ending a session
+
+**End session** is at the bottom of the island's panel. It asks first, and the
+card says what you are agreeing to: marks you never sent are discarded, and
+Tailr stops proxying, so it names the address your app goes back to (or tells
+you the dev server is stopping too, if Tailr started it).
+
+Confirming runs a cleanup pass before anything shuts down. Any versions you
+never chose between go to the agent as one last batch that takes them, and the
+switches guarding them, out of your source — that scaffolding is Tailr's, and it
+shouldn't outlive the session that asked for it. Then the server stops, the
+overlay clears what it kept in your browser, and it takes itself off the page.
+
+If the agent isn't listening, **End anyway** leaves without waiting; Tailr says
+so on the way out rather than pretending the cleanup happened.
+
 ## The agent side
 
 Run these from the same project directory, while a session is up.
