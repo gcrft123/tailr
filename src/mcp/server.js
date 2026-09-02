@@ -53,6 +53,10 @@ const TOOLS = [
       'place rather than a thing — asking for something new there, or noting the spot; the comment says which. ' +
       'A mark with orphaned:true ' +
       'lost its element before the batch was sent — raise it with the reviewer rather than guessing. ' +
+      'A mark with variations:n asks for n versions of that one change, built behind the switch ' +
+      'described by tailr_variants. A "choice" mark carries variantOf (the ref whose versions are ' +
+      'being settled) and variant: keep that version, delete the rest and the switch with them; ' +
+      'variant 0 means keep none and put the element back as it was. ' +
       'After pulling you MUST close the run with tailr_done or tailr_fail; until then the reviewer cannot send again.',
     inputSchema: {
       type: 'object',
@@ -60,6 +64,37 @@ const TOOLS = [
         wait: { type: 'boolean', description: 'Block until a batch arrives instead of returning immediately.' },
         timeoutSeconds: { type: 'number', description: 'How long to wait when wait is true. Default 120.' }
       },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'tailr_variants',
+    description:
+      'Report the versions you built for a mark that asked for variations, and name each one. ' +
+      'Build every version into the source at once, each guarded on the switch Tailr sets for that ' +
+      'mark: the attribute data-tailr-var-<ref> on the <html> element, whose value is the version ' +
+      'number ("1", "2", …). Style-only versions can key straight off it, e.g. ' +
+      '[data-tailr-var-03="2"] .card { … }; anything that has to re-render should read ' +
+      'document.documentElement.dataset["tailrVar<ref>"] and listen for the "tailr:variant" event ' +
+      'on document. Version 1 must also be what renders if the attribute is missing. ' +
+      'Labels are what the reviewer chooses between, so make them 1-3 concrete words ' +
+      '("Softer edges", "Full width", "Two columns") and give them in version order. ' +
+      'Call this BEFORE tailr_progress for the same ref, and always before tailr_done.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ref: { type: 'string', description: 'The mark the versions belong to, e.g. "03".' },
+        labels: {
+          type: 'array', items: { type: 'string' },
+          description: '1-3 words per version, in order. Two to four of them.'
+        },
+        selector: {
+          type: 'string',
+          description: 'Optional. A CSS selector for the element if your change moved it, so the ' +
+            'chooser still lands on it after the reviewer reloads.'
+        }
+      },
+      required: ['ref', 'labels'],
       additionalProperties: false
     }
   },
@@ -171,6 +206,17 @@ async function runTool(name, args = {}) {
     }
   }
 
+  if (name === 'tailr_variants') {
+    const labels = Array.isArray(args.labels) ? args.labels : [];
+    if (!args.ref || labels.length < 2) {
+      return { text: 'Give the mark\'s ref and at least two labels, one per version.', isError: true };
+    }
+    const r = await call('variants', { ref: String(args.ref), labels, selector: args.selector });
+    if (!r.ok) return { text: r.data.error || 'Could not register the versions.', isError: true };
+    return { text: `Registered ${labels.length} versions for ${args.ref}. The reviewer picks one ` +
+      'on the page after the reload; keeping it comes back as a "choice" mark in a later batch.' };
+  }
+
   if (name === 'tailr_progress') {
     const refs = args.refs && args.refs.length ? args.refs : (args.ref ? [args.ref] : []);
     if (!refs.length) return { text: 'Give a ref or refs to report.', isError: true };
@@ -226,7 +272,8 @@ export function startMcp() {
           instructions:
             'Tailr hands you batches of visual markup made by someone reviewing a running dev server. ' +
             'The loop is: tailr_wait until a batch is sent, tailr_pull to lease it, tailr_progress as each ' +
-            'mark lands, then tailr_done (or tailr_fail with a reason). The reviewer cannot send another ' +
+            'mark lands, then tailr_done (or tailr_fail with a reason). A mark asking for variations also ' +
+            'needs tailr_variants, before its progress. The reviewer cannot send another ' +
             'batch until you close the run, and should never have to tell you a batch has arrived — ' +
             'tailr_wait is how you find out.'
         });

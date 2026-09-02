@@ -53,6 +53,16 @@ test('the plugin in this repository is in step with the source', () => {
   assert.equal(code, 0, err);
 });
 
+/* PROMPT.md is the third copy: the one an agent fetches over HTTP to set the
+   project up, before any of this repository is on disk. Nothing generates it,
+   so nothing but this catches it teaching a protocol Tailr no longer speaks. */
+test('PROMPT.md carries the same rules `tailr init` writes', () => {
+  const block = rulesBlock({ mcp: true });
+  const body = block.slice(START.length, block.length - END.length).trim();
+  assert.ok(read('PROMPT.md').includes(body),
+    'PROMPT.md and src/setup/rules.js have diverged — copy the block across.');
+});
+
 test('the skill carries the same rules `tailr init` writes', () => {
   const block = rulesBlock({ mcp: true });
   const body = block.slice(START.length, block.length - END.length).trim();

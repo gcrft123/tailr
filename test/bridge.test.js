@@ -158,3 +158,109 @@ test('an unknown endpoint is a 404, not a crash', async (t) => {
   t.after(() => s.close());
   assert.equal((await s.api('nonsense')).status, 404);
 });
+
+/* ── variations ──────────────────────────────────────────── */
+
+test('the versions built for a mark ride the run state to the overlay', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  await s.api('batch', { marks: [{ ref: '01', type: 'comment', variations: 3 }] });
+  await s.api('pull');
+
+  const named = await s.api('variants', { ref: '01', labels: ['Softer edges', 'Full width', 'Two columns'] });
+  assert.equal(named.status, 200);
+  assert.deepEqual(named.body.run.variants['01'].labels, ['Softer edges', 'Full width', 'Two columns']);
+
+  // The reviewer chooses after the run closes, so the labels have to outlive it.
+  const closed = await s.api('done');
+  assert.deepEqual(closed.body.run.variants['01'].labels.length, 3);
+});
+
+test('a set of versions needs a ref and more than one of them', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  await s.api('batch', oneMark());
+  await s.api('pull');
+
+  assert.equal((await s.api('variants', { labels: ['a', 'b'] })).status, 400);
+  assert.equal((await s.api('variants', { ref: '01', labels: ['only one'] })).status, 400,
+    'one version is not a choice');
+  assert.equal((await s.api('variants', { ref: '01', labels: [] })).status, 400);
+});
+
+test('versions cannot be registered outside an open run', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  assert.equal((await s.api('variants', { ref: '01', labels: ['a', 'b'] })).status, 409);
+
+  await s.api('batch', oneMark());
+  await s.api('pull');
+  await s.api('done');
+  assert.equal((await s.api('variants', { ref: '01', labels: ['a', 'b'] })).status, 409);
+});
+
+test('a set is capped at four versions and its labels are kept short', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  await s.api('batch', oneMark());
+  await s.api('pull');
+  const r = await s.api('variants', {
+    ref: '01',
+    labels: ['  one  ', '', '   ', 'a label far longer than anything anyone would hover to read',
+             'three', 'four', 'five']
+  });
+  const set = r.body.run.variants['01'];
+  assert.equal(set.labels.length, 4, 'more versions than the chooser can show are dropped');
+  assert.equal(set.labels[0], 'one', 'labels arrive trimmed, and blank ones never arrive at all');
+  assert.equal(set.labels[1].length, 32, 'a label too long to sit in a pill is cut to fit');
+  assert.deepEqual(set.labels.slice(2), ['three', 'four']);
+});
+
+/* ── ending the session ──────────────────────────────────── */
+
+test('the reviewer can end the session, and the process is told to go', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  const before = await s.api('state', null, 'GET');
+  assert.equal(before.body.ending, false);
+
+  const end = await s.api('exit');
+  assert.equal(end.status, 200);
+  assert.equal(end.body.ending, true, 'every open page is told, not just the one that asked');
+  assert.equal(await s.exited(), true, 'and the process is asked to shut down');
+});
+
+test('ending twice is not an error — the second page to ask gets the same answer', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  assert.equal((await s.api('exit')).status, 200);
+  const again = await s.api('exit');
+  assert.equal(again.status, 200);
+  assert.equal(again.body.ending, true);
+});
+
+test('a batch sent into a session that is ending is refused', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  await s.api('exit');
+  const late = await s.api('batch', oneMark());
+  assert.equal(late.status, 409);
+  assert.equal(late.body.error, 'The session is ending.');
+});
+
+test('the state says where the application is without Tailr in front of it', async (t) => {
+  const s = await startTailr('http://127.0.0.1:5173', { spawned: true });
+  t.after(() => s.close());
+
+  const { body } = await s.api('state', null, 'GET');
+  assert.equal(body.app.target, 'http://127.0.0.1:5173');
+  assert.equal(body.app.spawned, true,
+    'a dev server Tailr started stops with it, and the reviewer has to be told which it is');
+});

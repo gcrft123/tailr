@@ -1,6 +1,6 @@
 /* Where a running Tailr session records itself, so the agent's CLI commands can
    find the server without being told a port. */
-import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, rmSync, rmdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const DIR = '.tailr';
@@ -23,6 +23,9 @@ export function clearSession() {
     const current = readSession();
     if (current && current.pid !== process.pid) return;
     rmSync(FILE, { force: true });
+    // Tailr made this directory; with the session file gone there is nothing
+    // left in it worth keeping, and leaving an empty one behind is residue.
+    rmdirSync(DIR);                        // throws, and is ignored, if not empty
   } catch {}
 }
 

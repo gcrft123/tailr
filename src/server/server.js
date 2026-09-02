@@ -24,7 +24,7 @@ const BRIDGE = join(HERE, '..', 'bridge', 'client.js');
 
 const API = '/__tailr/';
 
-export function createServer({ target, onReady }) {
+export function createServer({ target, onReady, onExit, spawned = false }) {
   const upstream = new URL(target);
   /* A dev server on https is still a dev server, and its certificate is nearly
      always self-signed or locally-minted. Refusing one would make https targets
@@ -38,7 +38,8 @@ export function createServer({ target, onReady }) {
   const state = {
     batch: null,      // { id, sentAt, marks }  — waiting or in flight
     run: null,        // { id, phase, served:[], total, error, leasedAt }
-    seq: 0
+    seq: 0,
+    ending: false     // the reviewer has ended the session; this process is going
   };
   const listeners = new Set();
 
@@ -50,9 +51,15 @@ export function createServer({ target, onReady }) {
     return {
       run: state.run && {
         id: state.run.id, phase: state.run.phase, served: state.run.served,
-        total: state.run.total, error: state.run.error || null
+        total: state.run.total, error: state.run.error || null,
+        variants: state.run.variants
       },
-      pending: !!(state.batch && state.run && state.run.phase === 'working' && !state.run.leasedAt)
+      pending: !!(state.batch && state.run && state.run.phase === 'working' && !state.run.leasedAt),
+      ending: state.ending,
+      /* Ending the session takes the review URL down with it, so the overlay has
+         to be able to say where the application went — it is the last thing on
+         screen, and the reviewer has no terminal to ask. */
+      app: { target, spawned }
     };
   }
 
@@ -103,7 +110,25 @@ export function createServer({ target, onReady }) {
 
     if (path === 'state') return json(res, 200, publicState());
 
+    /* The reviewer ending the session from the page. Everything that was going
+       to be cleaned up has been sent by now; this is the last call, and the
+       process goes with it. */
+    if (path === 'exit' && req.method === 'POST') {
+      if (state.ending) return json(res, 200, publicState());
+      state.ending = true;
+      publish();
+      json(res, 200, publicState());
+      // Let the last frame reach every open page before the socket dies under it.
+      setTimeout(() => {
+        for (const l of listeners) { try { l.end(); } catch {} }
+        listeners.clear();
+        if (onExit) onExit();
+      }, 120);
+      return;
+    }
+
     if (path === 'batch' && req.method === 'POST') {
+      if (state.ending) return json(res, 409, { error: 'The session is ending.' });
       if (state.run && state.run.phase === 'working') {
         return json(res, 409, { error: 'A run is already open. Wait for it to finish.' });
       }
@@ -113,7 +138,7 @@ export function createServer({ target, onReady }) {
       state.seq += 1;
       const id = 'r' + state.seq;
       state.batch = { id, sentAt: body.sentAt || new Date().toISOString(), origin: body.origin, marks };
-      state.run = { id, phase: 'working', served: [], total: marks.length, leasedAt: null };
+      state.run = { id, phase: 'working', served: [], total: marks.length, leasedAt: null, variants: {} };
       publish();
       process.stdout.write(`\n  ⌁ batch ${id} — ${marks.length} mark${marks.length === 1 ? '' : 's'} waiting. Run: tailr pull\n`);
       return json(res, 200, { id, total: marks.length });
@@ -126,6 +151,23 @@ export function createServer({ target, onReady }) {
       state.run.leasedAt = new Date().toISOString();
       publish();
       return json(res, 200, state.batch);
+    }
+
+    /* The labels for a set of variations the agent has built. They are the only
+       thing the reviewer has to choose between, so they arrive over the same
+       stream the run does and the overlay keeps them from there. */
+    if (path === 'variants' && req.method === 'POST') {
+      const body = await readBody(req);
+      if (!state.run || state.run.phase !== 'working') return json(res, 409, { error: 'No open run.' });
+      const ref = String(body.ref || '').trim();
+      const labels = (Array.isArray(body.labels) ? body.labels : [])
+        .map((l) => String(l).trim().replace(/\s+/g, ' ').slice(0, 32)).filter(Boolean);
+      if (!ref) return json(res, 400, { error: 'Give the ref of the mark the variations belong to.' });
+      if (labels.length < 2) return json(res, 400, { error: 'A set of variations needs at least two labels.' });
+      state.run.variants[ref] = { labels: labels.slice(0, 4) };
+      if (body.selector) state.run.variants[ref].selector = String(body.selector).slice(0, 400);
+      publish();
+      return json(res, 200, publicState());
     }
 
     if (path === 'progress' && req.method === 'POST') {
