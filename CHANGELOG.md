@@ -11,6 +11,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-09-02
+
 ### Added
 
 - A Claude Code plugin, with this repository as its marketplace:
