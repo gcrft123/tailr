@@ -1433,7 +1433,23 @@
   }
 
   /* ── events ────────────────────────────────────────────── */
+  /* Where a keystroke is actually going. A caret owns the keyboard: Tailr's
+     verbs are bare letters and it walks the tree with the arrows, so anything
+     typed into a field — the app's own, or the one Tailr opens to edit text in
+     place — is typing and never a shortcut. composedPath is what sees the field
+     itself when the app keeps it inside a component of its own. */
+  var NOT_TEXT = /^(button|checkbox|color|file|hidden|image|radio|range|reset|submit)$/;
+  var TEXT_ROLE = /^(textbox|searchbox|combobox)$/;
+  function field(e) {
+    var el = (e.composedPath && e.composedPath()[0]) || e.target;
+    if (!el || el.nodeType !== 1) return null;
+    if (el.tagName === 'INPUT') return NOT_TEXT.test((el.type || 'text').toLowerCase()) ? null : el;
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return el;
+    if (el.isContentEditable) return el;
+    return TEXT_ROLE.test((el.getAttribute('role') || '').toLowerCase()) ? el : null;
+  }
   function onKeyDown(e) {
+    var into = field(e);
     if (e.key === 'Alt') {
       e.preventDefault();               // Windows/Linux: stop menu-bar focus
       if (!S.latched) arm(true);
@@ -1441,7 +1457,11 @@
       if (now - (onKeyDown._t || 0) < 320) { S.latched = true; arm(true); }
       onKeyDown._t = now;
     }
-    if (e.key === 'Escape') {
+    // Escape still reaches Tailr from a field of the app's — it is never
+    // swallowed, so the field answers it too. Tailr's own inline editor is the
+    // exception: it answers Escape by putting the text back, and one press
+    // should not also drop the mode the reviewer was editing from.
+    if (e.key === 'Escape' && !(into && into.closest('[data-tailr-editing]'))) {
       if (composer) {
         if (composer.editing) composer.mark.comment = composer.original;
         else removeMark(composer.mark.id);
@@ -1453,7 +1473,7 @@
       else if (S.latched) { S.latched = false; arm(false); }
       else if (S.expanded) { S.expanded = null; renderIsland(); }
     }
-    if (!S.latched || composer) return;
+    if (!S.latched || composer || into) return;
     // latched-mode verbs + structural walking
     var el = S.hover;
     if (!el) return;
