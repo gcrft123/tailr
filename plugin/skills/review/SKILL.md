@@ -92,6 +92,12 @@ being settled) and `variant`:
 - Run `wait` as a long-running background process and treat its exit as the
   notification. Never ask the reviewer to tell you a batch has arrived, and
   never poll for one. Start it again after each run you close.
+- The reviewer can end the session from the page, which stops the server. `wait`
+  then exits 2 and `.tailr/session.json` is gone. That is them finishing, not a
+  crash: don't restart the session, and don't ask them to reopen the review URL.
+  A last batch of `choice` marks usually arrives just before it — that is the
+  cleanup, and it is the one batch worth closing quickly, because they are
+  waiting on it to leave.
 - Report each mark with `progress` as you land it, not all at once at the end.
   The reviewer watches them clear on screen; batching makes it look like nothing
   is happening.

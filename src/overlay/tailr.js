@@ -39,6 +39,9 @@
     locked: false,
     expanded: null,     // 'batch' | 'agent' | null
     teach: false,       // the key is being shown rather than the staged list
+    ending: null,       // null | 'confirm' | 'cleaning' | 'ending' | 'ended'
+    app: null,          // { target, spawned } — where the application is without Tailr
+    dirty: false,       // ended before the cleanup the agent was given finished
     learn: { welcomed: false, marked: false, sent: false }
   };
 
@@ -53,6 +56,9 @@
 
   /* ── persistence ───────────────────────────────────────── */
   function save() {
+    // Nothing is written after the session has ended: what was there has just
+    // been deliberately cleared, and a stray save would put it back.
+    if (S.ending === 'ended') return;
     try {
       localStorage.setItem(ORIGIN_KEY, JSON.stringify({
         v: STORE_V,
@@ -648,6 +654,7 @@
 
   /* ── arming ────────────────────────────────────────────── */
   function arm(on) {
+    if (S.ending) on = false;         // a session on its way out marks nothing
     if (S.armed === on) return;
     S.armed = on;
     // reinforcement at the point of use, and only until they have marked once
@@ -1011,7 +1018,10 @@
     var r = node.getBoundingClientRect();
     return PX >= r.left - 2 && PX <= r.right + 2 && PY >= r.top - 2 && PY <= r.bottom + 2;
   }
-  function setExpanded(v) { if (S.expanded === v) return; S.expanded = v; renderIsland(); }
+  function setExpanded(v) {
+    if (S.ending || S.expanded === v) return;
+    S.expanded = v; renderIsland();
+  }
 
   function renderIsland() {
     if (!IS) buildIsland();
@@ -1019,6 +1029,7 @@
     var undecided = S.sets.filter(function (s) { return s.choice == null; }).length;
     var needsReload = !!(S.agent && S.agent.phase === 'done');
     var sig = [count, S.locked, S.armed, S.expanded, needsReload, S.teach, S.learn.welcomed,
+      S.ending, S.dirty, S.app && S.app.target,
       S.agent ? S.agent.phase : '-', S.agent ? S.agent.served.length : 0,
       S.marks.map(function (m) { return m.id + m.status; }).join(','),
       S.sets.map(function (s) { return s.id + s.choice; }).join(',')].join('|');
@@ -1038,7 +1049,12 @@
     // to put the card away.
     var dismiss = welcoming ? '<button class="paper row-dismiss" data-act="gotit">Got it</button>' : '';
     IS.row.className = 'row' + (welcoming ? ' has-dismiss' : '');
-    if (dormant) {
+    // Being asked is not the same as having answered: the row only changes once
+    // the session is actually on its way out.
+    if (S.ending && S.ending !== 'confirm') {
+      IS.row.innerHTML = '<span class="dot"></span><span class="hint">' +
+        (S.ending === 'ended' ? 'Ended' : 'Ending') + '</span>';
+    } else if (dormant) {
       IS.row.innerHTML = dismiss +
         '<span class="dot ' + (S.armed ? 'live' : '') + '"></span>' +
         '<span class="hint">' + (S.armed ? 'Marking' : 'Hold ' + ALT + ' to mark') + '</span>';
@@ -1052,14 +1068,18 @@
         '<span class="send">' + label + '</span>';
     }
 
-    var open = (S.expanded === 'batch' && (count > 0 || S.sets.length > 0)) || teaching;
+    // Ending holds the panel open on its own: it is a question being asked, and
+    // it must not close because the pointer wandered off the pill.
+    var open = !!S.ending || (S.expanded === 'batch' && (count > 0 || S.sets.length > 0)) || teaching;
     IS.batch.className = 'pill batch ' +
       // nothing staged but versions waiting: the pill is a prompt, not a Send
-      (dormant ? 'dormant' : (needsReload || S.locked || count === 0) ? 'locked' : 'ready') +
-      (open ? ' open' : '') + (teaching ? ' teaching' : '');
-    IS.list.innerHTML = teaching ? keyHtml(!S.learn.welcomed) : (open ? listHtml() : '');
+      (S.ending ? 'locked' : dormant ? 'dormant' : (needsReload || S.locked || count === 0) ? 'locked' : 'ready') +
+      (open ? ' open' : '') + (teaching && !S.ending ? ' teaching' : '');
+    IS.list.innerHTML = S.ending ? endingHtml()
+      : teaching ? keyHtml(!S.learn.welcomed) + footerHtml()
+      : open ? listHtml() + footerHtml() : '';
 
-    if (S.agent) {
+    if (S.agent && S.ending !== 'ended') {
       var wasHidden = IS.agent.hidden;
       IS.agent.hidden = false;
       // Rewriting this node restarts the CSS animation, so the spinner would
@@ -1078,6 +1098,27 @@
 
     morph(IS.batch, b0);
     if (!IS.agent.hidden) morph(IS.agent, a0);
+
+    /* Ending replaces the control that started it, so the reviewer who got here
+       from the keyboard would otherwise be dropped back to the top of the page
+       with a question open behind them. Land them on the safe answer. */
+    if (S.ending !== renderIsland._phase) {
+      renderIsland._phase = S.ending;
+      if (S.ending === 'confirm') {
+        announce('End this session? Cancel, or end session.');
+        focusIn('[data-act="stay"]');
+      } else if (S.ending === 'cleaning') {
+        announce('Cleaning up. The agent is taking the versions it left out of your source.');
+        focusIn('[data-act="quit-now"]');
+      } else if (S.ending === 'ended') {
+        announce('Tailr has ended.');
+        focusIn('[data-act="dismiss"]');
+      }
+    }
+  }
+  function focusIn(sel) {
+    var el = IS && IS.list.querySelector(sel);
+    if (el) try { el.focus({ preventScroll: true }); } catch (e) {}
   }
 
   /* one object, many shapes — measure, swap, animate both axes */
@@ -1148,6 +1189,61 @@
       h += '<div class="t-row"><dt>' + r[0] + '</dt><dd>' + r[1] + '</dd></div>';
     });
     h += '</dl>';
+    return h + '</div>';
+  }
+
+  /* The way out. It sits under the panel rather than on the pill: leaving is
+     never the thing a reviewer is reaching for, and a control that ends the
+     session has no business being one pixel from the one that sends a batch. */
+  function footerHtml() {
+    return '<div class="pfoot"><button class="ghost" data-act="quit">End session</button></div>';
+  }
+
+  function endingHtml() {
+    var h = '<div class="teach">';
+    if (S.ending === 'confirm') {
+      var unsent = staged().filter(function (m) { return m.type !== 'choice'; }).length;
+      var work = cleanupWork();
+      h += '<div class="t-head">End this session?</div><div class="qlist">';
+      if (unsent) {
+        h += '<div class="qli bad">' + unsent + (unsent === 1 ? ' mark you have not sent' : ' marks you have not sent') +
+             ' will be discarded.</div>';
+      }
+      if (work) {
+        h += '<div class="qli">Tailr hands the agent one last batch to take the ' +
+             (work === 1 ? 'version it left' : 'versions it left') + ' out of your source.</div>';
+      }
+      h += '<div class="qli">' + (S.app && S.app.spawned
+        ? 'Tailr stops, and the dev server it started stops with it.'
+        : 'Tailr stops proxying. Your app keeps running at ' +
+          esc((S.app && S.app.target) || 'its own address') + '.') + '</div>';
+      h += '<div class="qli">Everything Tailr keeps in this browser is cleared.</div>';
+      h += '</div><div class="bact"><button class="ghost" data-act="stay">Cancel</button>' +
+           '<button class="paper" data-act="quit-go">End session</button></div>';
+    } else if (S.ending === 'cleaning') {
+      h += '<div class="t-head">Cleaning up</div>' +
+           '<div class="t-sub">The agent is taking the versions it left out of your source. ' +
+           (S.agent ? S.agent.served.length + ' of ' + S.agent.total + ' done.' : '') + '</div>' +
+           '<div class="bact"><button class="ghost" data-act="quit-now">End anyway</button></div>';
+    } else if (S.ending === 'ending') {
+      h += '<div class="t-head">Ending…</div>';
+    } else {
+      h += '<div class="t-head">Tailr has ended</div>';
+      h += '<div class="t-sub">' + (S.dirty
+        ? 'The cleanup did not finish, so versions may still be guarded in your source — ' +
+          'ask your agent to take out what Tailr left. '
+        : '') + (S.app && S.app.spawned
+        ? 'The dev server Tailr started has stopped too.'
+        : 'Your app is still running at ' + esc((S.app && S.app.target) || 'its own address') + '.') +
+        '</div><div class="bact">';
+      if (!(S.app && S.app.spawned) && S.app && S.app.target) {
+        h += '<button class="ghost" data-act="dismiss">Dismiss</button>' +
+             '<button class="paper" data-act="goto">Go to the app</button>';
+      } else {
+        h += '<button class="paper" data-act="dismiss">Dismiss</button>';
+      }
+      h += '</div>';
+    }
     return h + '</div>';
   }
 
@@ -1254,6 +1350,62 @@
     if (S.agent && S.agent.served.indexOf(ref) === -1) S.agent.served.push(ref);
     save(); renderMarks(); renderIsland();
   }
+  /* ── ending the session ────────────────────────────────────
+     The reviewer has no terminal, so the only way out of Tailr that exists for
+     them is this one. Leaving has to take Tailr's own residue with it: the
+     versions still guarded in their source, the switches on the page, what is
+     in this browser, and the process in front of their dev server. */
+  function undecided() { return S.sets.filter(function (s) { return s.choice == null; }); }
+  function cleanupWork() {
+    return staged().filter(function (m) { return m.type === 'choice'; }).length + undecided().length;
+  }
+
+  function endSession() {
+    // Versions nobody chose between are guards sitting in the source. Ending is
+    // the last chance to say what happens to them, and the only answer Tailr can
+    // give on the reviewer's behalf without guessing is: take them all out.
+    undecided().forEach(function (s) { choose(s.id, 0); });
+    var batch = staged().filter(function (m) { return m.type === 'choice'; });
+    if (!batch.length || S.locked) {
+      // A run already open means the batch cannot be handed over. Say so on the
+      // way out rather than quietly leaving the guards behind.
+      return quit(batch.length > 0);
+    }
+    S.ending = 'cleaning';
+    S.locked = true;
+    S.agent = { phase: 'working', served: [], total: batch.length };
+    renderIsland();
+    try { window.__tailr.transport.send(payload(batch)); }
+    catch (e) { quit(true); }
+  }
+
+  /** Tell the server to go. Whatever happens next, this page is done. */
+  function quit(dirty) {
+    S.dirty = !!dirty;
+    S.ending = 'ending';
+    renderIsland();
+    try { window.__tailr.transport.exit(); }
+    catch (e) { shutdown(); }
+  }
+
+  /** Tailr, off the page and out of this browser. */
+  function shutdown(app) {
+    if (app) S.app = app;
+    if (S.ending === 'ended') return;
+    closeComposer();
+    S.latched = false; arm(false);
+    if (reconcileTimer) { clearInterval(reconcileTimer); reconcileTimer = null; }
+    S.sets.forEach(function (s) { document.documentElement.removeAttribute(varAttr(s.ref)); });
+    S.ending = 'ended';
+    S.marks = []; S.sets = []; S.seq = 1; S.agent = null; S.locked = false; S.expanded = null;
+    try {
+      localStorage.removeItem(ORIGIN_KEY);
+      localStorage.removeItem(LEARN_KEY);
+      localStorage.removeItem(CORNER_KEY);
+    } catch (e) {}
+    renderMarks(); renderIsland();
+  }
+
   function syncVariants(variants) {
     if (!variants) return;
     Object.keys(variants).forEach(function (ref) {
@@ -1274,6 +1426,9 @@
     S.agent.phase = ok ? 'done' : 'failed';
     S.locked = !ok ? false : true;
     if (!ok) S.marks.forEach(function (m) { if (m.status === 'served') return; m.status = 'staged'; });
+    // The last batch of a session is the cleanup one. There is nothing to
+    // reload into afterwards — the reviewer is leaving.
+    if (S.ending === 'cleaning') return quit(!ok);
     renderIsland();
   }
 
@@ -1292,6 +1447,9 @@
         else removeMark(composer.mark.id);
         closeComposer();
       }
+      // Escape backs out of the question, never out of the answer: once the
+      // session is actually going there is nothing left to cancel.
+      else if (S.ending === 'confirm') { S.ending = null; renderIsland(); }
       else if (S.latched) { S.latched = false; arm(false); }
       else if (S.expanded) { S.expanded = null; renderIsland(); }
     }
@@ -1329,7 +1487,7 @@
     // Gate on the event's own modifier state, never on the sticky armed flag.
     // A missed Alt keyup — window blur, a release outside the frame — would
     // otherwise leave Tailr swallowing ordinary clicks on the host app.
-    var live = e.altKey || S.latched;
+    var live = (e.altKey || S.latched) && !S.ending;
     if (S.armed !== live) arm(live);
     if (!live || isOurs(e.target)) return false;
     e.preventDefault(); e.stopPropagation(); return true;
@@ -1422,8 +1580,15 @@
       if (a === 'resend') { S.agent = null; S.locked = false; renderIsland(); }
       if (a === 'abandon') abandon();
       if (a === 'gotit') { learned('welcomed'); S.teach = false; S.expanded = null; renderIsland(); }
+      if (a === 'quit') { S.ending = 'confirm'; renderIsland(); }
+      if (a === 'stay') { S.ending = null; renderIsland(); }
+      if (a === 'quit-go') endSession();
+      if (a === 'quit-now') quit(true);
+      if (a === 'goto') location.href = (S.app && S.app.target) || '/';
+      if (a === 'dismiss') window.__tailr.destroy();
       return;
     }
+    if (S.ending) return;
     if (e.target.closest('.batch') && !S.locked && !(S.agent && S.agent.phase === 'done') && staged().length) send();
   }
 
@@ -1447,6 +1612,14 @@
     /* Reflect authoritative run state from the bridge. The server is the only
        thing that knows whether a run is still open, so the overlay follows it
        rather than keeping its own idea of the truth. */
+    /* Where the application lives without Tailr in front of it, and whether the
+       dev server is Tailr's to stop. The ending card is the last thing the
+       reviewer sees, and it is the only place they can be told. */
+    session: function (app) {
+      if (!app || (S.app && S.app.target === app.target && S.app.spawned === app.spawned)) return;
+      S.app = app; renderIsland();
+    },
+    shutdown: shutdown,
     sync: function (run) {
       if (!run) {
         // the server forgot the run (restarted, or it was reset) — give the
@@ -1514,7 +1687,9 @@
       send: function () {
         if (S.agent) S.agent.error = 'Tailr is not connected to a session.';
         finish(false);
-      }
+      },
+      // Nothing to tell, so the page is the only thing left to end.
+      exit: function () { shutdown(); }
     }
   };
 
@@ -1690,6 +1865,17 @@ button.ghost:hover{color:#fff}
   white-space:nowrap}
 .t-row dd{margin:0;font-size:12.5px;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
+/* the way out, under everything else and never beside the Send */
+.pfoot{display:flex;justify-content:flex-end;padding:4px 4px 2px;margin-top:2px;
+  border-top:1px solid rgba(255, 255, 255, 0.10)}
+.pfoot .ghost{font-size:11.5px;padding:5px 10px}
+.qlist{margin:8px 0 2px}
+.qli{position:relative;padding:3px 0 3px 14px;font-size:12.5px;line-height:1.45;
+  color:rgba(255, 255, 255, 0.56);overflow-wrap:break-word}
+.qli::before{content:'';position:absolute;left:3px;top:10px;width:4px;height:4px;border-radius:50%;
+  background:rgba(255, 255, 255, 0.28)}
+.qli.bad{color:#FFFFFF}
+.qli.bad::before{background:#E8483C}
 .row-dismiss{margin-right:auto}
 .row.has-dismiss{padding-left:6px}
 .grp{padding:6px 8px 4px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;

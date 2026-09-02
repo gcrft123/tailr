@@ -6,14 +6,26 @@ import { createServer } from '../src/server/server.js';
 
 const DEAD = 'http://127.0.0.1:1';
 
-export async function startTailr(target = DEAD) {
-  const { server, state } = createServer({ target, onReady() {} });
+export async function startTailr(target = DEAD, { spawned = false } = {}) {
+  // The real CLI shuts the process down here. A test needs to see that it was
+  // asked to, and to still have a server to make assertions against.
+  const exits = [];
+  const { server, state } = createServer({
+    target, spawned, onReady() {}, onExit() { exits.push(Date.now()); }
+  });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
   const base = `http://127.0.0.1:${port}`;
 
   return {
-    port, base, state, server,
+    port, base, state, server, exits,
+
+    /** Wait for the deferred onExit the server fires after its last frame. */
+    async exited(ms = 1000) {
+      const deadline = Date.now() + ms;
+      while (!exits.length && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+      return exits.length > 0;
+    },
 
     /** Call the bridge and return status + parsed body. */
     async api(path, body, method = 'POST') {
