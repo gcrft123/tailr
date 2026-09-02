@@ -13,20 +13,6 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ### Added
 
-- A way out. **End session** sits under the island's panel, and it asks before
-  it acts: the card names what is being agreed to, one consequence per line —
-  the marks that go unsent, the versions that get cleaned up, the address the
-  application goes back to once Tailr stops proxying, and that the browser is
-  cleared. Until now the only way to end a session was a terminal the reviewer
-  does not have.
-- A cleanup pass on the way out, because ending is the last moment anything can
-  be done about what Tailr left behind. Versions nobody chose between go to the
-  agent as one final batch that takes them, and the switches guarding them, out
-  of the source; the switches come off the document; what Tailr kept in the
-  browser is cleared; the server stops and the overlay takes itself off the
-  page. If the agent never answers, **End anyway** leaves regardless and says
-  the cleanup did not finish rather than implying it did.
-
 - Versions. A comment on an element or a spot can ask for up to four answers
   instead of one: the composer carries a `1×` button beside Add that cycles to
   `4×`. The agent builds every version at once, each guarded on an attribute
@@ -43,6 +29,19 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
   for reporting what was built. The operating rules carry the whole contract:
   where the switch lives, that version 1 must also be what renders without it,
   and that a guard never outlives the choice that settles it.
+- A way out. **End session** sits under the island's panel, and it asks before
+  it acts: the card names what is being agreed to, one consequence per line —
+  the marks that go unsent, the versions that get cleaned up, the address the
+  application goes back to once Tailr stops proxying, and that the browser is
+  cleared. Until now the only way to end a session was a terminal the reviewer
+  does not have.
+- A cleanup pass on the way out, because ending is the last moment anything can
+  be done about what Tailr left behind. Versions nobody chose between go to the
+  agent as one final batch that takes them, and the switches guarding them, out
+  of the source; the switches come off the document; what Tailr kept in the
+  browser is cleared; the server stops and the overlay takes itself off the
+  page. If the agent never answers, **End anyway** leaves regardless and says
+  the cleanup did not finish rather than implying it did.
 
 ### Fixed
 
