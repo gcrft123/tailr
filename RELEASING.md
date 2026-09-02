@@ -49,21 +49,35 @@ publishes anything:
 Re-running a tag's workflow is safe. npm publishing is skipped if that version
 is already there, and the GitHub Release is edited rather than duplicated.
 
-## The one secret
+## No secrets
 
-npm publishing needs an `NPM_TOKEN` repository secret — an npm **automation**
-token, which is the kind that works with 2FA enabled:
+npm publishing uses **trusted publishing**: this repository is registered as a
+trusted publisher on npm, and the release workflow authenticates with the OIDC
+token GitHub mints for it. There is no `NPM_TOKEN`, nothing to rotate, and
+nothing that can be leaked out of a workflow log.
 
-```bash
-gh secret set NPM_TOKEN --repo gcrft123/tailr
-```
+Three things make that work, and all three are already in `release.yml`:
 
-Without it the release still happens, the tests still run, and the GitHub
-Release is still cut; only the npm publish is skipped, and the run says so.
+- **`id-token: write` on the publish job.** That permission is not a
+  convenience; it *is* the credential.
+- **Node 22 and npm 11.5.1 or newer.** Trusted publishing does not exist in
+  older npm, and the runner's bundled version is not guaranteed to be new
+  enough — so the job upgrades npm explicitly rather than hoping.
+- **The workflow filename npm was told to expect.** npm matches the OIDC claim
+  against one specific workflow file, so renaming `release.yml` stops
+  publishing until the trusted publisher entry on npm is updated to match. If
+  the entry names a GitHub environment, the `npm` job needs a matching
+  `environment:` key too.
 
-Publishing is done with `--provenance`, so npm records which repository, commit
-and workflow built the package. That is worth having for a tool whose first act
-in someone's project is to edit their files.
+Provenance comes with it. npm records which repository, commit and workflow
+built the package without the workflow asking for it, which is worth having for
+a tool whose first act in someone's project is to edit their files.
+
+A trusted publisher that is misconfigured **fails the publish** rather than
+skipping it, and the GitHub Release job needs the publish job — so a release
+that cannot reach npm stops instead of cutting a release that advertises a
+version nobody can install. That is the intended behaviour: silence would be
+worse.
 
 ## A caveat worth knowing once
 

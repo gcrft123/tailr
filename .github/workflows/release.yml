@@ -67,23 +67,24 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write        # provenance: npm attests this came from this tag
+      id-token: write        # not a convenience: this token IS the credential
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Trusted publishing needs Node 22.14+ and npm 11.5.1+. This job
+          # publishes and does not test, so it pins ahead of what Tailr itself
+          # supports — `engines` and the CI matrix are a separate question.
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: npm new enough to authenticate by OIDC
+        run: npm install -g npm@latest
 
       - name: publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::notice::No NPM_TOKEN secret is set, so nothing was published to npm. The GitHub Release still goes out."
-            exit 0
-          fi
           name="$(node -p 'require("./package.json").name')"
           # npm versions are permanent, so a re-run must not try to take one
           # that is already there and fail the release behind it.
@@ -91,7 +92,11 @@ jobs:
             echo "::notice::$name@$VERSION is already on npm — left alone."
             exit 0
           fi
-          npm publish --provenance --access public
+          # No token. The repository is registered as a trusted publisher, so
+          # npm takes this workflow's OIDC identity instead, and generates
+          # provenance from it without being asked. A failure here is a real
+          # failure — there is no missing-secret case left to degrade into.
+          npm publish --access public
 
   release:
     name: cut the GitHub Release

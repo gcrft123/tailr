@@ -24,7 +24,9 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
   Tailr actually speaks.
 - A release flow keyed to the tags: pushing `vX.Y.Z` verifies the tag against
   the manifest, runs the tests, publishes to npm with provenance, and cuts a
-  GitHub Release from this file. `npm version` is the whole interface to it.
+  GitHub Release from this file. Publishing authenticates as a trusted publisher
+  over OIDC, so no npm token is stored anywhere. `npm version` is the whole
+  interface to it.
 - A test suite — `npm test`, no dependencies — covering the bridge state machine
   and its refusals, the proxy's injection and passthrough, the three outcomes of
   `tailr wait`, and the idempotence of `tailr init`. CI runs it on Node 18, 20
