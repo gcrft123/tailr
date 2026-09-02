@@ -11,6 +11,33 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Added
+
+- Versions. A comment on an element or a spot can ask for up to four answers
+  instead of one: the composer carries a `1×` button beside Add that cycles to
+  `4×`. The agent builds every version at once, each guarded on an attribute
+  Tailr sets on `<html>`, and names it in a word or three. After the reload a
+  pill sits on the element with a tab per version — hover one and it widens to
+  the name while the page switches to that version live, so the comparison is
+  between the real things rather than between two descriptions of them.
+- Keeping a version is a mark like any other. It joins the batch, and sending it
+  is what makes that version permanent and takes the losing ones — and the
+  guards — out of the source. Turning the whole set down is the `×` on its row.
+  An unresolved set keeps the island awake, because the alternative is versions
+  sitting in someone's repository with nothing on screen that would remove them.
+- `tailr variants <ref> <names…>`, and the matching `tailr_variants` MCP tool,
+  for reporting what was built. The operating rules carry the whole contract:
+  where the switch lives, that version 1 must also be what renders without it,
+  and that a guard never outlives the choice that settles it.
+
+### Fixed
+
+- A session was good for exactly one batch. The server keeps the last run
+  indefinitely, so a reviewer who reloaded was handed a finished run again and
+  the overlay re-entered its "Needs refresh" state — against changes they were
+  already looking at — with Send locked and no way back. A closed run now only
+  prompts the page that watched it close.
+
 ## [1.0.0] — 2026-09-02
 
 ### Added

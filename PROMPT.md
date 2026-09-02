@@ -79,6 +79,7 @@ The loop is `wait` → `pull` → `progress` per mark → `done` or `fail`.
 | `npx tailr status` | `tailr_status` | is a batch waiting? exit 0 yes · 3 session up, nothing waiting · 2 no session |
 | `npx tailr wait` | `tailr_wait` | block until Send is pressed; exit 0 a batch is waiting · 3 timed out, start it again · 2 session ended |
 | `npx tailr pull` | `tailr_pull` | lease the batch, printed as JSON |
+| `npx tailr variants <ref> <names…>` | `tailr_variants` | name the versions you built for one mark |
 | `npx tailr progress <ref>` | `tailr_progress` | report one mark as applied |
 | `npx tailr done` | `tailr_done` | the run finished |
 | `npx tailr fail "reason"` | `tailr_fail` | it returned incomplete |
@@ -93,6 +94,42 @@ reviewer's `comment`.
 - `point` — carries page `x`/`y` instead of an element. The reviewer marked a
   place, not a thing: they may want something new there, or may just be noting
   the spot. Their comment says which.
+- `choice` — the reviewer picked between versions you built. See below.
+
+### Versions
+
+A `comment` or `point` mark can carry `"variations": 3`. That asks for three
+different answers to the same comment, all built at once, so the reviewer can
+compare them on the running page and keep one.
+
+Build every version into the source together, each guarded on the switch Tailr
+sets for that mark: the attribute `data-tailr-var-<ref>` on `<html>`, whose
+value is the version number.
+
+    /* mark 03, version 2 */
+    [data-tailr-var-03="2"] .cart-total { font-size: 24px; border-radius: 14px }
+
+Version 1 must also be what renders when the attribute is absent, so the page is
+never broken for anyone who isn't looking through Tailr. Anything that has to
+re-render rather than restyle reads `document.documentElement.dataset.tailrVar03`
+and listens for the `tailr:variant` event on `document`; its `detail` carries
+`{ ref, variant, label }`.
+
+Then name them, in order, before you report that mark applied:
+
+    npx tailr variants 03 "Softer edges" "Full width" "Two columns"
+
+One to three concrete words each. They are the whole basis on which someone who
+cannot read the diff decides, so `"Two columns"` earns its place and
+`"Option B"` does not.
+
+A `choice` mark closes it. It carries `variantOf` (the ref whose versions are
+being settled) and `variant`:
+
+- `variant: 2` — keep version 2 as the plain, unguarded code. Delete the other
+  versions and every `data-tailr-var-<ref>` guard for that ref.
+- `variant: 0` — keep none of them. Remove all the versions and the guards, and
+  put the element back the way it was before you built them.
 
 ### Rules that matter
 
@@ -106,6 +143,11 @@ reviewer's `comment`.
   send another batch. If you hit something you can't do, `fail` with what
   actually went wrong — Tailr won't invent an explanation, it points them back
   to you.
+- The guards are scaffolding, not code. They live for exactly one round trip:
+  you write them when a mark asks for versions, and the `choice` mark that comes
+  back is what takes them out. Never leave a guard standing after its choice has
+  landed, and never write one for anything the reviewer didn't ask to see
+  versions of.
 - When the source address and the selector disagree, trust the source address.
 - A mark with `"orphaned": true` lost its element before it was sent. Don't
   guess at what was meant — raise it with the reviewer.

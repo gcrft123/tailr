@@ -50,7 +50,8 @@ export function createServer({ target, onReady }) {
     return {
       run: state.run && {
         id: state.run.id, phase: state.run.phase, served: state.run.served,
-        total: state.run.total, error: state.run.error || null
+        total: state.run.total, error: state.run.error || null,
+        variants: state.run.variants
       },
       pending: !!(state.batch && state.run && state.run.phase === 'working' && !state.run.leasedAt)
     };
@@ -113,7 +114,7 @@ export function createServer({ target, onReady }) {
       state.seq += 1;
       const id = 'r' + state.seq;
       state.batch = { id, sentAt: body.sentAt || new Date().toISOString(), origin: body.origin, marks };
-      state.run = { id, phase: 'working', served: [], total: marks.length, leasedAt: null };
+      state.run = { id, phase: 'working', served: [], total: marks.length, leasedAt: null, variants: {} };
       publish();
       process.stdout.write(`\n  ⌁ batch ${id} — ${marks.length} mark${marks.length === 1 ? '' : 's'} waiting. Run: tailr pull\n`);
       return json(res, 200, { id, total: marks.length });
@@ -126,6 +127,23 @@ export function createServer({ target, onReady }) {
       state.run.leasedAt = new Date().toISOString();
       publish();
       return json(res, 200, state.batch);
+    }
+
+    /* The labels for a set of variations the agent has built. They are the only
+       thing the reviewer has to choose between, so they arrive over the same
+       stream the run does and the overlay keeps them from there. */
+    if (path === 'variants' && req.method === 'POST') {
+      const body = await readBody(req);
+      if (!state.run || state.run.phase !== 'working') return json(res, 409, { error: 'No open run.' });
+      const ref = String(body.ref || '').trim();
+      const labels = (Array.isArray(body.labels) ? body.labels : [])
+        .map((l) => String(l).trim().replace(/\s+/g, ' ').slice(0, 32)).filter(Boolean);
+      if (!ref) return json(res, 400, { error: 'Give the ref of the mark the variations belong to.' });
+      if (labels.length < 2) return json(res, 400, { error: 'A set of variations needs at least two labels.' });
+      state.run.variants[ref] = { labels: labels.slice(0, 4) };
+      if (body.selector) state.run.variants[ref].selector = String(body.selector).slice(0, 400);
+      publish();
+      return json(res, 200, publicState());
     }
 
     if (path === 'progress' && req.method === 'POST') {

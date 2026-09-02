@@ -103,7 +103,7 @@ Hold **Alt** to arm. While it is held:
 
 | Gesture | Result |
 |---|---|
-| Left-click | Comment on an element, |
+| Left-click | Comment on an element, and ask for several versions of the change if you want to compare |
 | Right-click | Stage an element for removal (right-click again to undo) |
 | Double-click text | Edit text in place |
 | Shift-click | Mark a spot rather than an element. Use it both to ask for something new and to note a place; what you write says which. Middle-click does the same thing if you have one |
@@ -111,6 +111,19 @@ Hold **Alt** to arm. While it is held:
 Release Alt and you can control the application again. Double-tap Alt to latch markup on
 for keyboard use. Marks persist in the browser across reloads, span routes, and
 survive the reload after the agent has worked.
+
+## Asking for versions
+
+A comment on an element, or on a spot, can ask for more than one answer. The
+composer carries a **1×** button next to Add; click it for 2×, 3×, 4×. The agent
+then builds that many versions of the change instead of one.
+
+After the reload, a small pill sits on the element with a tab per version. Hover
+one and the pill widens to the name the agent gave it while the page switches to
+it live, so you are comparing the real thing rather than two descriptions of it.
+Click to keep one. That goes into your batch like any other mark, and the next
+Send is what makes it permanent and clears the rest out of the source. The × on
+its row in the island keeps none of them.
 
 The island in the corner shows what is staged; hover it for the list. Drag it to any corner if it's covering page content.
 
@@ -123,6 +136,8 @@ tailr status          # is a batch waiting? exit 0 if yes, 3 if not
 tailr wait            # block until one is; exit 0 waiting, 3 timed out, 2 session ended
 tailr pull            # lease the pending batch, printed as JSON on stdout
 tailr pull --wait     # lease it, blocking until one arrives
+tailr variants <ref> "First name" "Second name"
+                      # name the versions you built for a mark that asked for several
 tailr progress <ref>  # one mark applied — the reviewer sees it land, live
 tailr done            # the run finished
 tailr fail "reason"   # it returned incomplete
@@ -149,12 +164,21 @@ tailr fail "reason"   # it returned incomplete
 }
 ```
 
-`type` is one of `comment`, `remove`, `text`, `point`. A `text` mark carries
+`type` is one of `comment`, `remove`, `text`, `point`, `choice`. A `text` mark carries
 `before` and `after`. A `point` mark carries page coordinates `x`/`y` instead of
 an element, and means the reviewer marked a place rather than a thing — they may
 be asking for something new there or noting the spot, and the comment says which. `orphaned: true` means the element was gone when
 the batch was sent — the address is the last one known, and the mark is worth
 raising with the reviewer rather than guessing at.
+
+**Versions.** A mark carrying `"variations": 3` asks for three answers to the
+same comment, built together so the reviewer can compare them on the running
+page. Guard each one on the attribute Tailr sets on `<html>` for that mark —
+`[data-tailr-var-03="2"] .card { … }`, with version 1 also being what renders if
+the attribute is absent — then name them in order with `tailr variants 03 "Softer
+edges" "Full width" "Two columns"`. What comes back later is a `choice` mark
+carrying `variantOf` and `variant`: keep that version as plain code and take the
+others and the guards out with it. `variant: 0` means keep none of them.
 
 **Where `address` comes from.** Nothing standard tells a page which file an
 element came from, so Tailr reads whatever your dev tooling already emits:
