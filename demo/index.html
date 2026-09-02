@@ -10,7 +10,8 @@ body{font-family:ui-sans-serif,-apple-system,'SF Pro Text',system-ui,sans-serif;
 .main{margin-left:208px}
 .top{height:58px;border-bottom:1px solid #E4E4DF;background:#fff;display:flex;align-items:center;padding:0 26px;gap:14px}
 .top h1{font-size:15px;font-weight:600;letter-spacing:-.01em}
-.search{width:260px;height:32px;background:#F4F4F1;border:1px solid #E4E4DF;border-radius:7px;margin-left:20px}
+.search{width:260px;height:32px;background:#F4F4F1;border:1px solid #E4E4DF;border-radius:7px;margin-left:20px;padding:0 11px;font:inherit;font-size:13px;color:#1c1f23}
+.search::placeholder{color:#9aa1a9}
 .btn{margin-left:auto;height:32px;padding:0 14px;background:#3A6FD8;color:#fff;border-radius:7px;font-size:13px;display:flex;align-items:center}
 .wrap{padding:24px 26px;display:grid;gap:18px}
 .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
@@ -36,7 +37,7 @@ body{font-family:ui-sans-serif,-apple-system,'SF Pro Text',system-ui,sans-serif;
   <a class="nav" href="#">Invoices</a><a class="nav" href="#">Reports</a><a class="nav" href="#">Settings</a>
 </nav>
 <div class="main">
-  <header class="top"><h1>Overview</h1><div class="search"></div><div class="btn">New invoice</div></header>
+  <header class="top"><h1>Overview</h1><input class="search" type="search" placeholder="Search invoices"><div class="btn">New invoice</div></header>
   <div class="wrap">
     <section class="hero" data-source="Hero.tsx:12">
       <h2 data-source="Hero.tsx:14">Good afternoon, Pamela</h2>

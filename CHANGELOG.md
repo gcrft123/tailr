@@ -11,6 +11,19 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Fixed
+
+- Latched markup read what someone was typing as commands. With the mode on, a
+  caret in the application's own text box — or in the one Tailr opens to edit
+  text in place — lost `c`, `r` and `e` to the comment, remove and edit verbs
+  and the arrow keys to structural walking, and the characters never reached the
+  field. A keystroke on its way into an input, a textarea, a select or a
+  contenteditable is now typing rather than a shortcut. Escape still reaches
+  Tailr from a field of the application's, where it is not swallowed and the
+  field answers it too; the exception is Tailr's own inline editor, which
+  answers Escape by putting the text back without also dropping the mode the
+  reviewer was editing from.
+
 ## [1.1.0] — 2026-09-02
 
 ### Added
