@@ -25,6 +25,10 @@ const HOME = 'https://github.com/gcrft123/tailr#readme';
 const REPO = 'https://github.com/gcrft123/tailr';
 const SHORT = 'Mark up a running dev server and hand the changes to your coding agent as one batch.';
 const REVIEW = join(ROOT, 'plugin', 'skills', 'review', 'SKILL.md');
+const START_SKILL = join(ROOT, 'plugin', 'skills', 'start', 'SKILL.md');
+const CURSOR_RULE = join(ROOT, 'plugin', 'rules', 'review.mdc');
+const CURSOR_COMMAND = join(ROOT, 'plugin', 'cursor-commands', 'start.md');
+const CURSOR_SKILLS_KEEP = join(ROOT, 'plugin', 'cursor-skills', '.gitkeep');
 
 function fail(message) {
   process.stderr.write(`\n  ${message}\n\n`);
@@ -107,7 +111,13 @@ function catalogs(version, pkgName) {
   const mcp = servers(pkgName);
   return [
     [at('plugin', '.claude-plugin', 'plugin.json'), id],
-    [at('plugin', '.cursor-plugin', 'plugin.json'), { ...id, displayName: 'Tailr' }],
+    [at('plugin', '.cursor-plugin', 'plugin.json'), {
+      ...id,
+      displayName: 'Tailr',
+      commands: './cursor-commands',
+      skills: './cursor-skills',
+      rules: './rules'
+    }],
     [at('plugin', 'plugin.json'), {
       $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
       ...id
@@ -144,7 +154,9 @@ function catalogs(version, pkgName) {
     [at('.cursor-plugin', 'plugin.json'), {
       ...id,
       displayName: 'Tailr',
-      skills: './plugin/skills',
+      commands: './plugin/cursor-commands',
+      skills: './plugin/cursor-skills',
+      rules: './plugin/rules',
       mcpServers: './plugin/mcp.json'
     }],
     [at('.cursor-plugin', 'marketplace.json'), {
@@ -182,6 +194,9 @@ function requiredFiles() {
   return [
     [at('plugin', 'skills', 'review', 'SKILL.md'), 'review skill'],
     [at('plugin', 'skills', 'start', 'SKILL.md'), 'start skill'],
+    [at('plugin', 'rules', 'review.mdc'), 'Cursor review rule'],
+    [at('plugin', 'cursor-commands', 'start.md'), 'Cursor start command'],
+    [at('plugin', 'cursor-skills', '.gitkeep'), 'Cursor skills placeholder'],
     [at('plugin', '.mcp.json'), '.mcp.json'],
     [at('plugin', 'mcp.json'), 'mcp.json'],
     [at('plugin', '.claude-plugin', 'plugin.json'), 'Claude plugin manifest'],
@@ -222,6 +237,43 @@ function spliceRules(skill) {
   return skill.slice(0, from) + rulesRegion() + skill.slice(to + END.length);
 }
 
+function yamlDouble(value) {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function splitSkill(skill, path) {
+  const close = skill.indexOf('\n---', 4);
+  if (close === -1) fail(`${rel(path)} has no frontmatter.`);
+  return {
+    front: skill.slice(4, close),
+    body: skill.slice(close + 4).replace(/^\n/, '')
+  };
+}
+
+function frontField(front, name) {
+  const match = front.match(new RegExp(`^${name}:\\s*(?:"((?:\\\\.|[^"])*)"|(.+)$)`, 'm'));
+  if (!match) return null;
+  return match[1] != null ? match[1].replace(/\\"/g, '"') : match[2].trim();
+}
+
+function cursorRuleFrom(skill) {
+  const { front, body } = splitSkill(skill, REVIEW);
+  const description = frontField(front, 'description');
+  if (!description) fail(`${rel(REVIEW)} has no description.`);
+  return `---\ndescription: ${yamlDouble(description)}\nalwaysApply: false\n---\n\n${body}`;
+}
+
+function cursorCommandFrom(skill) {
+  const { front, body } = splitSkill(skill, START_SKILL);
+  const name = frontField(front, 'name') || 'start';
+  const description = frontField(front, 'description');
+  const hint = frontField(front, 'argument-hint');
+  if (!description) fail(`${rel(START_SKILL)} has no description.`);
+  return `---\nname: ${name}\ndescription: ${yamlDouble(description)}\n` +
+    (hint ? `argument-hint: ${yamlDouble(hint)}\n` : '') +
+    `---\n\n${body}`;
+}
+
 const [mode] = process.argv.slice(2);
 const pkg = json(at('package.json'));
 const version = pkg.version;
@@ -242,6 +294,14 @@ if (mode === '--check') {
   try { skill = readFileSync(REVIEW, 'utf8'); } catch { fail(`${rel(REVIEW)} is missing.`); }
   if (!skill.includes(rulesRegion())) {
     wrong.push(`${rel(REVIEW)} carries a different rules block than src/setup/rules.js`);
+  }
+  if (!existsSync(CURSOR_RULE) || readFileSync(CURSOR_RULE, 'utf8') !== cursorRuleFrom(skill)) {
+    wrong.push(`${rel(CURSOR_RULE)} is out of step with ${rel(REVIEW)}`);
+  }
+  let start = null;
+  try { start = readFileSync(START_SKILL, 'utf8'); } catch { start = null; }
+  if (start && (!existsSync(CURSOR_COMMAND) || readFileSync(CURSOR_COMMAND, 'utf8') !== cursorCommandFrom(start))) {
+    wrong.push(`${rel(CURSOR_COMMAND)} is out of step with ${rel(START_SKILL)}`);
   }
   wrong.push(...brokenPaths());
 
@@ -271,6 +331,27 @@ if (mode === '--check') {
   try { skill = readFileSync(REVIEW, 'utf8'); } catch { fail(`${rel(REVIEW)} is missing.`); }
   const spliced = spliceRules(skill);
   if (spliced !== skill) { writeFileSync(REVIEW, spliced); changed.push(rel(REVIEW)); }
+
+  const rule = cursorRuleFrom(spliced);
+  mkdirSync(dirname(CURSOR_RULE), { recursive: true });
+  if (!existsSync(CURSOR_RULE) || readFileSync(CURSOR_RULE, 'utf8') !== rule) {
+    writeFileSync(CURSOR_RULE, rule);
+    changed.push(rel(CURSOR_RULE));
+  }
+
+  let start;
+  try { start = readFileSync(START_SKILL, 'utf8'); } catch { fail(`${rel(START_SKILL)} is missing.`); }
+  const command = cursorCommandFrom(start);
+  mkdirSync(dirname(CURSOR_COMMAND), { recursive: true });
+  if (!existsSync(CURSOR_COMMAND) || readFileSync(CURSOR_COMMAND, 'utf8') !== command) {
+    writeFileSync(CURSOR_COMMAND, command);
+    changed.push(rel(CURSOR_COMMAND));
+  }
+  mkdirSync(dirname(CURSOR_SKILLS_KEEP), { recursive: true });
+  if (!existsSync(CURSOR_SKILLS_KEEP)) {
+    writeFileSync(CURSOR_SKILLS_KEEP, '');
+    changed.push(rel(CURSOR_SKILLS_KEEP));
+  }
 
   for (const [src, dest] of skillCopies()) {
     const text = read(src);

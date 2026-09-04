@@ -47,6 +47,8 @@ const GENERATED = [
   ['plugin', 'plugin.json'],
   ['plugin', '.mcp.json'],
   ['plugin', 'mcp.json'],
+  ['plugin', 'rules', 'review.mdc'],
+  ['plugin', 'cursor-commands', 'start.md'],
   ['gemini-extension.json'],
   SKILL,
   ['skills', 'review', 'SKILL.md'],
@@ -140,8 +142,14 @@ test('the repository root is a plugin the in-app directory can submit', () => {
   assert.equal(root.skills, './plugin/skills');
   assert.equal(root.mcpServers, './plugin/.mcp.json');
   const cursor = load('.cursor-plugin', 'plugin.json');
-  assert.equal(cursor.skills, './plugin/skills');
+  assert.equal(cursor.commands, './plugin/cursor-commands');
+  assert.equal(cursor.skills, './plugin/cursor-skills');
+  assert.equal(cursor.rules, './plugin/rules');
   assert.equal(cursor.mcpServers, './plugin/mcp.json');
+  const nested = load('plugin', '.cursor-plugin', 'plugin.json');
+  assert.equal(nested.commands, './cursor-commands');
+  assert.equal(nested.skills, './cursor-skills');
+  assert.equal(nested.rules, './rules');
 });
 
 test('the review skill has the frontmatter a skill is found by', () => {
@@ -152,6 +160,26 @@ test('the review skill has the frontmatter a skill is found by', () => {
   assert.ok(description[1].length > 80, 'the description is the whole trigger — it has to say when');
   assert.match(front, /^user-invocable: false$/m,
     'review is the loop, not a slash command — start is the one the user types');
+});
+
+test('Cursor carries the review loop as a rule, not a slash skill', () => {
+  const skill = read(...SKILL);
+  const body = skill.slice(skill.indexOf('\n---', 4) + 4).replace(/^\n/, '');
+  const rule = read('plugin', 'rules', 'review.mdc');
+  assert.match(rule, /^alwaysApply: false$/m);
+  assert.ok(rule.includes(body), 'the Cursor rule has to carry the same loop as the skill');
+  const cursor = load('plugin', '.cursor-plugin', 'plugin.json');
+  assert.equal(cursor.skills, './cursor-skills');
+  assert.equal(cursor.commands, './cursor-commands');
+});
+
+test('Cursor slash start is a command, not a skill folder Cursor would miss', () => {
+  const skill = read(...START_SKILL);
+  const command = read('plugin', 'cursor-commands', 'start.md');
+  assert.match(command, /^name: start$/m);
+  assert.doesNotMatch(command, /^disable-model-invocation:/m);
+  const body = skill.slice(skill.indexOf('\n---', 4) + 4).replace(/^\n/, '');
+  assert.ok(command.includes(body));
 });
 
 test('start is a slash-command skill, not an auto-loaded one', () => {

@@ -18,6 +18,8 @@
     "design-review"
   ],
   "displayName": "Tailr",
-  "skills": "./plugin/skills",
+  "commands": "./plugin/cursor-commands",
+  "skills": "./plugin/cursor-skills",
+  "rules": "./plugin/rules",
   "mcpServers": "./plugin/mcp.json"
 }
