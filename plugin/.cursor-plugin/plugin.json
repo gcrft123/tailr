@@ -17,5 +17,8 @@
     "mcp",
     "design-review"
   ],
-  "displayName": "Tailr"
+  "displayName": "Tailr",
+  "commands": "./cursor-commands",
+  "skills": "./cursor-skills",
+  "rules": "./rules"
 }

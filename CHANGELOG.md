@@ -16,7 +16,12 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 - `/tailr:start` is a slash-command skill. Typing it starts a session against
   the dev server and begins watching for the first batch; the model will not
   fire it on its own. The review loop stays a background skill, loaded when a
-  batch is in play rather than offered as a second command.
+  batch is in play rather than offered as a second command. On Cursor it is a
+  rule rather than a skill, because plugin skills all become slash commands
+  there and `/review` is already a built-in. `/start` is a Cursor command file:
+  pointing `skills` at the start folder finds nothing (Cursor wants a parent of
+  skill folders), and `disable-model-invocation` hides plugin skills from the
+  slash menu.
 - Plugin catalogs for Cursor, Codex, GitHub Copilot CLI, and Gemini CLI, so the
   same bundle that Claude Code installs is what those agents install too. Agents
   without a marketplace of their own take the skills globally through

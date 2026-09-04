@@ -24,6 +24,8 @@ plugin/
   mcp.json                      Cursor / Agent Plugins (same server, stdio typed)
   skills/start/SKILL.md         /tailr:start — start a session, hand over the URL
   skills/review/SKILL.md        the operating rules for the review loop
+  cursor-commands/start.md      the same start, as a Cursor slash command
+  rules/review.mdc              the same loop, as a Cursor rule (not a slash command)
 ```
 
 The repository root also carries Claude and Cursor plugin manifests that point
