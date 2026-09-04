@@ -13,6 +13,8 @@
                                              .......   ######   ####   #####   #####   #####      
 </pre>
 
+[![Tailr: the marked-up page and the batch waiting to be sent](media/tailr-intro-poster.jpg)](media/tailr-intro.mp4)
+
 Mark up a running dev server and hand the changes to your coding agent as one batch.
 
 You can review the real application in the browser, mark what's wrong directly on the page, and press Send once. The agent then receives a batch that names each element, resolves it toward source, and pushes changes to the dev server so you can see them live.
