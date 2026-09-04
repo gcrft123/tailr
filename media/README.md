@@ -21,9 +21,14 @@ ffmpeg -i "Tailr Intro.mov" -map 0:v:0 -an -dn \
   media/tailr-intro.mp4
 ```
 
-GitHub will not play a `<video>` tag that points at a file in a repository —
-its `media-src` policy allows only its own upload host, and `raw.githubusercontent.com`
-serves `.mp4` as `application/octet-stream`. So the README links the poster to
-the file instead, which opens GitHub's own player. To embed a real player,
-drag `tailr-intro.mp4` into a GitHub issue comment, copy the
-`user-attachments` URL it produces, and use that as the `src`.
+GitHub will not play a `<video>` tag that points at a file in a repository. Its
+`media-src` policy allows only its own upload hosts, so both
+`raw.githubusercontent.com` and the `github.com/.../raw/...` URL that redirects
+there are blocked. Nothing is wrong with the file — the same URL plays in a
+`<video>` on any other site, which is what to use for a landing page.
+
+So the README links the poster to the file instead, which opens GitHub's own
+player. To get a real inline player, drag `tailr-intro.mp4` into a GitHub issue
+comment and put the `user-attachments` URL it gives you in the README on a line
+of its own, with no Markdown around it. That is how every working example does
+it — the video lives on GitHub's upload host, not in the repository.
