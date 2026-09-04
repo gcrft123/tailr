@@ -1,6 +1,9 @@
 ---
-description: Start a Tailr session against the dev server and begin watching for the reviewer's first batch
-argument-hint: [dev server url, e.g. http://localhost:3000]
+name: start
+description: "Start a Tailr session against the running dev server and begin watching for the reviewer's first batch of visual markup. Invoke with /tailr:start."
+disable-model-invocation: true
+argument-hint: "[dev server url, e.g. http://localhost:3000]"
+license: MIT
 ---
 
 # Start a Tailr review session

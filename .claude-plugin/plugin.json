@@ -16,5 +16,7 @@
     "markup",
     "mcp",
     "design-review"
-  ]
+  ],
+  "skills": "./plugin/skills",
+  "mcpServers": "./plugin/.mcp.json"
 }

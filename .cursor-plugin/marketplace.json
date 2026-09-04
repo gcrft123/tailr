@@ -1,0 +1,16 @@
+{
+  "name": "tailr",
+  "owner": {
+    "name": "gcrft123"
+  },
+  "metadata": {
+    "description": "Mark up a running dev server and hand the changes to your coding agent as one batch."
+  },
+  "plugins": [
+    {
+      "name": "tailr",
+      "source": "plugin",
+      "description": "Visual markup on a running dev server, handed to the agent as one locked batch. Registers Tailr's MCP server and the operating rules for the review loop."
+    }
+  ]
+}

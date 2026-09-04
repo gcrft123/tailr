@@ -1,33 +1,30 @@
 #!/usr/bin/env node
-/* The marketplace copy of Tailr, kept honest.
+/* Every catalog copy of Tailr, kept honest.
  *
- * Tailr reaches an agent three ways — `tailr init` writing rules into
- * AGENTS.md, the MCP server's tool descriptions, and the Claude plugin in
- * `plugin/`. The first two are generated from `src/setup/rules.js` at the
- * moment they are used, so they cannot drift. The plugin is files on disk that
- * someone installs, so it can: a stale version number makes `/plugin update` a
- * no-op, and a stale rules block teaches an agent a protocol Tailr no longer
- * speaks.
+ * Tailr is installed through several agent marketplaces, each of which reads a
+ * different manifest. The skills and the MCP server are one directory (`plugin/`);
+ * these files are the signposts that point at it. They are generated rather than
+ * edited, so a version bump cannot update Claude and leave Codex advertising 1.0.0.
  *
- * So the plugin is checked rather than trusted. `--check` runs in the test
- * suite, which means it also runs at the tag, before anything is published.
+ *   node scripts/plugin.js --check   is every catalog in step with the source?
+ *   node scripts/plugin.js --sync    put them back in step
  *
- *   node scripts/plugin.js --check   is the plugin in step with the source?
- *   node scripts/plugin.js --sync    put it back in step
- *
- * `--sync` runs as part of `npm version`, so cutting a release stamps the
- * plugin without anyone having to remember it.
+ * `--sync` runs as part of `npm version`.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rulesBlock, START, END } from '../src/setup/rules.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const MARKETPLACE = join(ROOT, '.claude-plugin', 'marketplace.json');
-const PLUGIN = join(ROOT, 'plugin', '.claude-plugin', 'plugin.json');
-const SKILL = join(ROOT, 'plugin', 'skills', 'review', 'SKILL.md');
 const NAME = 'tailr';
+const DESC = 'Visual markup on a running dev server, handed to the agent as one locked batch. Registers Tailr\'s MCP server and the operating rules for the review loop.';
+const KEYWORDS = ['dev-server', 'feedback', 'agent', 'overlay', 'markup', 'mcp', 'design-review'];
+const OWNER = { name: 'gcrft123', url: 'https://github.com/gcrft123' };
+const HOME = 'https://github.com/gcrft123/tailr#readme';
+const REPO = 'https://github.com/gcrft123/tailr';
+const SHORT = 'Mark up a running dev server and hand the changes to your coding agent as one batch.';
+const REVIEW = join(ROOT, 'plugin', 'skills', 'review', 'SKILL.md');
 
 function fail(message) {
   process.stderr.write(`\n  ${message}\n\n`);
@@ -38,14 +35,36 @@ function json(path) {
   try { return JSON.parse(readFileSync(path, 'utf8')); }
   catch (err) { fail(`${rel(path)}: ${err.code === 'ENOENT' ? 'missing' : 'not valid JSON'}.`); }
 }
-function writeJson(path, value) { writeFileSync(path, JSON.stringify(value, null, 2) + '\n'); }
-function rel(path) { return path.slice(ROOT.length + 1); }
 
-/** The plugin's entry in the marketplace listing — the thing an install reads. */
-function listing(marketplace) {
-  const entry = (marketplace.plugins || []).find((p) => p && p.name === NAME);
-  if (!entry) fail(`${rel(MARKETPLACE)} lists no plugin called "${NAME}".`);
-  return entry;
+function read(path) {
+  try { return readFileSync(path, 'utf8'); }
+  catch (err) { fail(`${rel(path)}: ${err.code === 'ENOENT' ? 'missing' : err.message}.`); }
+}
+
+function writeJson(path, value) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(value, null, 2) + '\n');
+}
+
+function rel(path) { return path.slice(ROOT.length + 1); }
+function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+function at(...p) { return join(ROOT, ...p); }
+
+function identity(version) {
+  return {
+    name: NAME,
+    description: DESC,
+    version,
+    author: { name: 'gcrft123' },
+    homepage: HOME,
+    repository: REPO,
+    license: 'MIT',
+    keywords: KEYWORDS
+  };
+}
+
+function servers(pkgName) {
+  return { tailr: { command: 'npx', args: ['-y', pkgName, 'mcp'] } };
 }
 
 /** The rules, as they should appear inside the skill: the same text `tailr
@@ -56,42 +75,173 @@ function rulesRegion() {
   return `${START}\n\n${body}\n${END}`;
 }
 
-/** Every path the manifests promise, which an install will go looking for. */
-function brokenPaths() {
-  const plugin = json(PLUGIN);
-  const broken = [];
-  const check = (value, label) => {
-    if (value && !existsSync(join(ROOT, 'plugin', value))) broken.push(`${label} → ${value}`);
-  };
-  check(plugin.skills, 'skills');
-  check(plugin.commands, 'commands');
-  check(plugin.mcpServers, 'mcpServers');
+function skillNames() {
+  const dir = at('plugin', 'skills');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
 
-  const source = listing(json(MARKETPLACE)).source;
-  if (typeof source === 'string' && !existsSync(join(ROOT, source, '.claude-plugin', 'plugin.json'))) {
-    broken.push(`marketplace source → ${source} (no .claude-plugin/plugin.json there)`);
+function skillCopies() {
+  return skillNames().map((name) => [
+    at('plugin', 'skills', name, 'SKILL.md'),
+    at('skills', name, 'SKILL.md')
+  ]);
+}
+
+function catalogs(version, pkgName) {
+  const id = identity(version);
+  const listing = {
+    name: NAME,
+    description: DESC,
+    version,
+    author: { name: 'gcrft123' },
+    source: './plugin',
+    category: 'design',
+    homepage: HOME,
+    license: 'MIT',
+    tags: KEYWORDS
+  };
+  const mcp = servers(pkgName);
+  return [
+    [at('plugin', '.claude-plugin', 'plugin.json'), id],
+    [at('plugin', '.cursor-plugin', 'plugin.json'), { ...id, displayName: 'Tailr' }],
+    [at('plugin', 'plugin.json'), {
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      ...id
+    }],
+    [at('plugin', '.codex-plugin', 'plugin.json'), {
+      ...id,
+      skills: './skills/',
+      mcpServers: './.mcp.json',
+      interface: {
+        displayName: 'Tailr',
+        shortDescription: SHORT,
+        developerName: 'gcrft123',
+        category: 'Productivity',
+        websiteURL: REPO
+      }
+    }],
+    [at('plugin', '.mcp.json'), { mcpServers: mcp }],
+    [at('plugin', 'mcp.json'), {
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+      mcpServers: { tailr: { type: 'stdio', ...mcp.tailr } }
+    }],
+    [at('.claude-plugin', 'plugin.json'), {
+      ...id,
+      skills: './plugin/skills',
+      mcpServers: './plugin/.mcp.json'
+    }],
+    [at('.claude-plugin', 'marketplace.json'), {
+      $schema: 'https://anthropic.com/claude-code/marketplace.schema.json',
+      name: NAME,
+      owner: OWNER,
+      metadata: { description: SHORT },
+      plugins: [listing]
+    }],
+    [at('.cursor-plugin', 'plugin.json'), {
+      ...id,
+      displayName: 'Tailr',
+      skills: './plugin/skills',
+      mcpServers: './plugin/mcp.json'
+    }],
+    [at('.cursor-plugin', 'marketplace.json'), {
+      name: NAME,
+      owner: { name: 'gcrft123' },
+      metadata: { description: SHORT },
+      plugins: [{ name: NAME, source: 'plugin', description: DESC }]
+    }],
+    [at('.github', 'plugin', 'marketplace.json'), {
+      name: NAME,
+      owner: OWNER,
+      metadata: { description: SHORT },
+      plugins: [listing]
+    }],
+    [at('.agents', 'plugins', 'marketplace.json'), {
+      name: NAME,
+      interface: { displayName: 'Tailr' },
+      plugins: [{
+        name: NAME,
+        source: { source: 'local', path: './plugin' },
+        policy: { installation: 'AVAILABLE', authentication: 'ON_USE' },
+        category: 'Productivity'
+      }]
+    }],
+    [at('gemini-extension.json'), {
+      name: NAME,
+      version,
+      description: DESC,
+      mcpServers: mcp
+    }]
+  ];
+}
+
+function requiredFiles() {
+  return [
+    [at('plugin', 'skills', 'review', 'SKILL.md'), 'review skill'],
+    [at('plugin', 'skills', 'start', 'SKILL.md'), 'start skill'],
+    [at('plugin', '.mcp.json'), '.mcp.json'],
+    [at('plugin', 'mcp.json'), 'mcp.json'],
+    [at('plugin', '.claude-plugin', 'plugin.json'), 'Claude plugin manifest'],
+    [at('plugin', '.cursor-plugin', 'plugin.json'), 'Cursor plugin manifest'],
+    [at('plugin', '.codex-plugin', 'plugin.json'), 'Codex plugin manifest'],
+    [at('plugin', 'plugin.json'), 'Agent Plugins manifest'],
+    [at('gemini-extension.json'), 'Gemini extension manifest']
+  ];
+}
+
+function brokenCopies() {
+  const broken = [];
+  for (const [src, dest] of skillCopies()) {
+    if (!existsSync(src)) {
+      broken.push(`${rel(src)} is missing`);
+      continue;
+    }
+    if (!existsSync(dest) || read(dest) !== read(src)) {
+      broken.push(`${rel(dest)} is not a copy of ${rel(src)}`);
+    }
   }
   return broken;
 }
 
+function brokenPaths() {
+  const broken = [];
+  for (const [path, label] of requiredFiles()) {
+    if (!existsSync(path)) broken.push(`${label} → ${rel(path)}`);
+  }
+  broken.push(...brokenCopies());
+  return broken;
+}
+
+function spliceRules(skill) {
+  const from = skill.indexOf(START);
+  const to = skill.indexOf(END);
+  if (from === -1 || to <= from) fail(`${rel(REVIEW)} has no ${START} … ${END} block to write the rules into.`);
+  return skill.slice(0, from) + rulesRegion() + skill.slice(to + END.length);
+}
+
 const [mode] = process.argv.slice(2);
-const version = json(join(ROOT, 'package.json')).version;
+const pkg = json(at('package.json'));
+const version = pkg.version;
+const pkgName = pkg.name;
 
 if (mode === '--check') {
   const wrong = [];
-
-  const plugin = json(PLUGIN);
-  if (plugin.version !== version) {
-    wrong.push(`${rel(PLUGIN)} says ${plugin.version}, package.json says ${version}`);
-  }
-  const entry = listing(json(MARKETPLACE));
-  if (entry.version !== version) {
-    wrong.push(`${rel(MARKETPLACE)} advertises ${entry.version}, package.json says ${version}`);
+  for (const [path, expected] of catalogs(version, pkgName)) {
+    if (!existsSync(path)) {
+      wrong.push(`${rel(path)} is missing`);
+      continue;
+    }
+    if (!same(json(path), expected)) {
+      wrong.push(`${rel(path)} is out of step with package.json ${version}`);
+    }
   }
   let skill;
-  try { skill = readFileSync(SKILL, 'utf8'); } catch { fail(`${rel(SKILL)} is missing.`); }
+  try { skill = readFileSync(REVIEW, 'utf8'); } catch { fail(`${rel(REVIEW)} is missing.`); }
   if (!skill.includes(rulesRegion())) {
-    wrong.push(`${rel(SKILL)} carries a different rules block than src/setup/rules.js`);
+    wrong.push(`${rel(REVIEW)} carries a different rules block than src/setup/rules.js`);
   }
   wrong.push(...brokenPaths());
 
@@ -105,22 +255,31 @@ if (mode === '--check') {
 } else if (mode === '--sync') {
   const changed = [];
 
-  const plugin = json(PLUGIN);
-  if (plugin.version !== version) { plugin.version = version; writeJson(PLUGIN, plugin); changed.push(rel(PLUGIN)); }
-
-  const marketplace = json(MARKETPLACE);
-  const entry = listing(marketplace);
-  if (entry.version !== version) { entry.version = version; writeJson(MARKETPLACE, marketplace); changed.push(rel(MARKETPLACE)); }
+  for (const [path, expected] of catalogs(version, pkgName)) {
+    let current = null;
+    if (existsSync(path)) {
+      try { current = JSON.parse(readFileSync(path, 'utf8')); }
+      catch { current = null; }
+    }
+    if (!same(current, expected)) {
+      writeJson(path, expected);
+      changed.push(rel(path));
+    }
+  }
 
   let skill;
-  try { skill = readFileSync(SKILL, 'utf8'); } catch { fail(`${rel(SKILL)} is missing.`); }
-  const from = skill.indexOf(START);
-  const to = skill.indexOf(END);
-  if (from === -1 || to <= from) {
-    fail(`${rel(SKILL)} has no ${START} … ${END} block to write the rules into.`);
+  try { skill = readFileSync(REVIEW, 'utf8'); } catch { fail(`${rel(REVIEW)} is missing.`); }
+  const spliced = spliceRules(skill);
+  if (spliced !== skill) { writeFileSync(REVIEW, spliced); changed.push(rel(REVIEW)); }
+
+  for (const [src, dest] of skillCopies()) {
+    const text = read(src);
+    mkdirSync(dirname(dest), { recursive: true });
+    if (!existsSync(dest) || readFileSync(dest, 'utf8') !== text) {
+      writeFileSync(dest, text);
+      changed.push(rel(dest));
+    }
   }
-  const spliced = skill.slice(0, from) + rulesRegion() + skill.slice(to + END.length);
-  if (spliced !== skill) { writeFileSync(SKILL, spliced); changed.push(rel(SKILL)); }
 
   const broken = brokenPaths();
   if (broken.length) {
@@ -135,8 +294,8 @@ if (mode === '--check') {
   process.stderr.write(`
   usage: node scripts/plugin.js <mode>
 
-    --check   is the plugin in step with package.json and src/setup/rules.js?
-    --sync    put it back in step
+    --check   is every catalog in step with package.json and src/setup/rules.js?
+    --sync    put them back in step
 
 `);
   process.exit(2);

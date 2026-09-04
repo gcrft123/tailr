@@ -16,5 +16,8 @@
     "markup",
     "mcp",
     "design-review"
-  ]
+  ],
+  "displayName": "Tailr",
+  "skills": "./plugin/skills",
+  "mcpServers": "./plugin/mcp.json"
 }

@@ -16,16 +16,49 @@ const read = (...p) => readFileSync(at(...p), 'utf8');
 const load = (...p) => JSON.parse(read(...p));
 
 const MARKETPLACE = ['.claude-plugin', 'marketplace.json'];
+const ROOT_PLUGIN = ['.claude-plugin', 'plugin.json'];
 const PLUGIN = ['plugin', '.claude-plugin', 'plugin.json'];
 const SKILL = ['plugin', 'skills', 'review', 'SKILL.md'];
+const START_SKILL = ['plugin', 'skills', 'start', 'SKILL.md'];
+
+const FIXTURE = [
+  ['scripts', 'plugin.js'],
+  ['src', 'setup', 'rules.js'],
+  ['package.json'],
+  ['plugin'],
+  ['.claude-plugin'],
+  ['.cursor-plugin'],
+  ['.github', 'plugin'],
+  ['.agents'],
+  ['gemini-extension.json'],
+  ['skills']
+];
+
+const GENERATED = [
+  MARKETPLACE,
+  ROOT_PLUGIN,
+  PLUGIN,
+  ['.cursor-plugin', 'marketplace.json'],
+  ['.cursor-plugin', 'plugin.json'],
+  ['.github', 'plugin', 'marketplace.json'],
+  ['.agents', 'plugins', 'marketplace.json'],
+  ['plugin', '.cursor-plugin', 'plugin.json'],
+  ['plugin', '.codex-plugin', 'plugin.json'],
+  ['plugin', 'plugin.json'],
+  ['plugin', '.mcp.json'],
+  ['plugin', 'mcp.json'],
+  ['gemini-extension.json'],
+  SKILL,
+  ['skills', 'review', 'SKILL.md'],
+  ['skills', 'start', 'SKILL.md']
+];
 
 /* The script resolves everything from its own location, so a copy of the tree
    in a temp directory is a whole repository as far as it is concerned — which
    is what lets these tests break the plugin without breaking the repository. */
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'tailr-plugin-'));
-  for (const path of [['scripts', 'plugin.js'], ['src', 'setup', 'rules.js'],
-                      ['package.json'], MARKETPLACE, ['plugin']]) {
+  for (const path of FIXTURE) {
     cpSync(at(...path), join(dir, ...path), { recursive: true });
   }
   return dir;
@@ -45,6 +78,12 @@ const edit = (dir, path, fn) => {
   const file = join(dir, ...path);
   writeFileSync(file, fn(readFileSync(file, 'utf8')));
 };
+
+function frontmatter(path) {
+  const skill = read(...path);
+  assert.match(skill, /^---\n/, 'frontmatter has to open the file');
+  return skill.slice(4, skill.indexOf('\n---', 4));
+}
 
 /* ── the repository as it stands ─────────────────────────── */
 
@@ -81,18 +120,55 @@ test('the marketplace advertises the plugin that is actually there', () => {
     'the plugin version is what `/plugin update` compares — it has to be the released one');
 });
 
-test('the skill has the frontmatter a skill is found by', () => {
-  const skill = read(...SKILL);
-  assert.match(skill, /^---\n/, 'frontmatter has to open the file');
-  const front = skill.slice(4, skill.indexOf('\n---', 4));
+test('every catalog points at the same plugin directory, in the shape that catalog reads', () => {
+  const version = load('package.json').version;
+  assert.equal(load('.cursor-plugin', 'marketplace.json').plugins[0].source, 'plugin');
+  assert.equal(load('.github', 'plugin', 'marketplace.json').plugins[0].source, './plugin');
+  assert.equal(load('.agents', 'plugins', 'marketplace.json').plugins[0].source.path, './plugin');
+  assert.equal(load('.cursor-plugin', 'marketplace.json').plugins[0].name, 'tailr');
+  assert.equal(load('gemini-extension.json').version, version);
+  assert.equal(load('plugin', '.codex-plugin', 'plugin.json').version, version);
+  assert.equal(load('plugin', 'plugin.json').version, version);
+  assert.equal(load('.agents', 'plugins', 'marketplace.json').plugins[0].policy.authentication, 'ON_USE');
+});
+
+test('the repository root is a plugin the in-app directory can submit', () => {
+  const plugin = load(...PLUGIN);
+  const root = load(...ROOT_PLUGIN);
+  assert.equal(root.name, plugin.name);
+  assert.equal(root.version, plugin.version);
+  assert.equal(root.skills, './plugin/skills');
+  assert.equal(root.mcpServers, './plugin/.mcp.json');
+  const cursor = load('.cursor-plugin', 'plugin.json');
+  assert.equal(cursor.skills, './plugin/skills');
+  assert.equal(cursor.mcpServers, './plugin/mcp.json');
+});
+
+test('the review skill has the frontmatter a skill is found by', () => {
+  const front = frontmatter(SKILL);
   assert.match(front, /^name: review$/m, 'the name has to match the directory it lives in');
   const description = front.match(/^description: (.+)$/m);
   assert.ok(description, 'a skill with no description is never triggered');
   assert.ok(description[1].length > 80, 'the description is the whole trigger — it has to say when');
+  assert.match(front, /^user-invocable: false$/m,
+    'review is the loop, not a slash command — start is the one the user types');
+});
+
+test('start is a slash-command skill, not an auto-loaded one', () => {
+  const front = frontmatter(START_SKILL);
+  assert.match(front, /^name: start$/m, 'the name has to match the directory it lives in');
+  assert.match(front, /^disable-model-invocation: true$/m,
+    'starting a session is something the user types, not something the model decides');
+  assert.match(front, /^description: .+/m);
+});
+
+test('Gemini and the skills.sh default path see the same skill files the plugin carries', () => {
+  assert.equal(read('skills', 'start', 'SKILL.md'), read(...START_SKILL));
+  assert.equal(read('skills', 'review', 'SKILL.md'), read(...SKILL));
 });
 
 test('the plugin registers the MCP server Tailr actually ships', () => {
-  const { mcpServers } = load('plugin', 'mcp.json');
+  const { mcpServers } = load('plugin', '.mcp.json');
   const { name } = load('package.json');
   assert.deepEqual(mcpServers.tailr.args.at(-1), 'mcp', 'the MCP server is `tailr mcp`');
   assert.ok(mcpServers.tailr.args.includes(name), `the plugin has to invoke ${name}`);
@@ -101,6 +177,17 @@ test('the plugin registers the MCP server Tailr actually ships', () => {
   // stops to ask never finishes starting.
   assert.ok(mcpServers.tailr.args.includes('-y'),
     'npx must not be able to prompt: nothing is listening to answer it');
+  const cursor = load('plugin', 'mcp.json');
+  assert.equal(cursor.mcpServers.tailr.type, 'stdio');
+  assert.deepEqual(cursor.mcpServers.tailr.args, mcpServers.tailr.args);
+  assert.deepEqual(load('gemini-extension.json').mcpServers.tailr.args, mcpServers.tailr.args);
+});
+
+test('the Agent Plugins manifest is the portable identity of the same bundle', () => {
+  const plugin = load('plugin', 'plugin.json');
+  assert.equal(plugin.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
+  assert.equal(plugin.name, 'tailr');
+  assert.equal(plugin.version, load('package.json').version);
 });
 
 /* ── the gate itself ─────────────────────────────────────── */
@@ -117,23 +204,34 @@ test('--check catches a version that has drifted out of step', () => {
 
 test('--check catches a rules block the source has moved on from', () => {
   const dir = fixture();
-  edit(dir, SKILL, (s) => s.replace('Always close the run', 'Sometimes close the run'));
+  const stale = (s) => s.replace('Always close the run', 'Sometimes close the run');
+  edit(dir, SKILL, stale);
+  edit(dir, ['skills', 'review', 'SKILL.md'], stale);
   const { code, err } = run(dir, '--check');
   assert.equal(code, 1);
   assert.match(err, /rules block/);
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('--check catches a manifest promising a path that is not there', () => {
+test('--check catches a Gemini skill copy that has drifted from the plugin', () => {
   const dir = fixture();
-  rmSync(join(dir, 'plugin', 'commands'), { recursive: true, force: true });
+  edit(dir, ['skills', 'review', 'SKILL.md'], (s) => s + '\n');
   const { code, err } = run(dir, '--check');
   assert.equal(code, 1);
-  assert.match(err, /commands/);
+  assert.match(err, /not a copy/);
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('--sync puts all three back in step in one move', () => {
+test('--check catches a manifest promising a path that is not there', () => {
+  const dir = fixture();
+  rmSync(join(dir, 'plugin', 'skills', 'start'), { recursive: true, force: true });
+  const { code, err } = run(dir, '--check');
+  assert.equal(code, 1);
+  assert.match(err, /start skill/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('--sync puts every catalog back in step in one move', () => {
   const dir = fixture();
   edit(dir, ['package.json'], (s) => s.replace(/"version": "[^"]+"/, '"version": "9.9.9"'));
   edit(dir, SKILL, (s) => s.replace('Always close the run', 'Sometimes close the run'));
@@ -147,15 +245,24 @@ test('--sync puts all three back in step in one move', () => {
   assert.match(skill, /Always close the run/, 'the rules came back');
   assert.match(skill, /# Tailr — the review loop/, 'and the hand-written part survived');
   assert.equal(JSON.parse(readFileSync(join(dir, ...PLUGIN), 'utf8')).version, '9.9.9');
+  assert.equal(JSON.parse(readFileSync(join(dir, ...ROOT_PLUGIN), 'utf8')).version, '9.9.9');
+  assert.equal(JSON.parse(readFileSync(join(dir, 'gemini-extension.json'), 'utf8')).version, '9.9.9');
+  assert.equal(JSON.parse(readFileSync(join(dir, '.agents', 'plugins', 'marketplace.json'), 'utf8'))
+    .plugins[0].source.path, './plugin');
+  assert.equal(
+    readFileSync(join(dir, 'skills', 'review', 'SKILL.md'), 'utf8'),
+    readFileSync(join(dir, ...SKILL), 'utf8'),
+    'the Gemini copy moved with the plugin skill'
+  );
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('--sync is idempotent, so the version commit is not a diff every time', () => {
   const dir = fixture();
   run(dir, '--sync');
-  const before = [MARKETPLACE, PLUGIN, SKILL].map((p) => readFileSync(join(dir, ...p), 'utf8'));
+  const before = GENERATED.map((p) => readFileSync(join(dir, ...p), 'utf8'));
   run(dir, '--sync');
-  const after = [MARKETPLACE, PLUGIN, SKILL].map((p) => readFileSync(join(dir, ...p), 'utf8'));
+  const after = GENERATED.map((p) => readFileSync(join(dir, ...p), 'utf8'));
   assert.deepEqual(after, before);
   rmSync(dir, { recursive: true, force: true });
 });

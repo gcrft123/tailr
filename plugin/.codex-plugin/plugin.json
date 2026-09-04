@@ -16,5 +16,14 @@
     "markup",
     "mcp",
     "design-review"
-  ]
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Tailr",
+    "shortDescription": "Mark up a running dev server and hand the changes to your coding agent as one batch.",
+    "developerName": "gcrft123",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/gcrft123/tailr"
+  }
 }

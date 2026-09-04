@@ -48,24 +48,70 @@ The agent then starts a session against your dev server, hands you a review URL,
 and watches for your first batch. [PROMPT.md](PROMPT.md) is what it is following,
 if you want to read it first.
 
-## As a Claude plugin
+## As a plugin
 
-If you use Claude Code, the marketplace is the least invasive way in — it edits
-nothing in your project:
+The marketplace is the least invasive way in — it edits nothing in your
+project. Tailr itself is fetched with `npx` when a session starts, so there is
+nothing to install first. You get the MCP server, the operating rules for the
+review loop as a skill, and `/tailr:start` to open a session against your dev
+server and hand you the review URL.
+
+**Claude Code**
 
 ```
-/plugin marketplace add gcrft123/tailr
+/plugin marketplace add https://github.com/gcrft123/tailr.git
 /plugin install tailr@tailr
 ```
 
-That gives you Tailr's MCP server, the operating rules for the review loop as a
-skill, and `/tailr:start` to open a session against your dev server and hand
-you the review URL. Tailr itself is fetched with `npx` when a session starts,
-so there is nothing to install first.
+Use the git URL, not the `owner/repo` shorthand. The Claude Code app clones the
+shorthand over SSH and has nothing to answer the host-key prompt with, so the
+add hangs and then fails. HTTPS does not. Updating is `/plugin` → **Update**.
 
-Updating is `/plugin` → **Update**, which re-reads the marketplace listing. The
-version the plugin advertises is stamped from `package.json` when a release is
-cut, so it moves when Tailr does.
+**Cursor**
+
+Import `https://github.com/gcrft123/tailr` as a Team Marketplace (Dashboard →
+Settings → Plugins), or submit the same URL at
+[cursor.com/marketplace/publish](https://cursor.com/marketplace/publish) for the
+public listing. To load it on this machine only, copy `plugin/` to
+`~/.cursor/plugins/local/tailr` and reload the window.
+
+**Codex**
+
+```
+codex plugin marketplace add https://github.com/gcrft123/tailr.git
+codex plugin add tailr@tailr
+```
+
+**GitHub Copilot CLI**
+
+```
+copilot plugin marketplace add gcrft123/tailr
+copilot plugin install tailr@tailr
+```
+
+**Gemini CLI**
+
+```
+gemini extensions install https://github.com/gcrft123/tailr
+```
+
+Gemini clones the repository as the extension. Skills live next to
+`gemini-extension.json` at the repo root so that clone sees them.
+
+**Everywhere else** — Windsurf, OpenCode, Cline, Amp, and the rest of the
+agents that read a global `skills/` directory:
+
+```
+npx skills add gcrft123/tailr -g
+```
+
+That puts `start` and `review` in each detected agent's skill folder
+(`~/.cursor/skills`, `~/.codex/skills`, `~/.copilot/skills`,
+`~/.gemini/skills`, and so on). It does not register the MCP server; for that,
+use the marketplace or extension command above, or `tailr init` in the project.
+
+The version each catalog advertises is stamped from `package.json` when a
+release is cut, so it moves when Tailr does.
 
 This is an alternative to `tailr init`, not an addition to it. The plugin suits
 someone reviewing across several projects; `tailr init` suits a project that wants

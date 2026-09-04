@@ -38,7 +38,7 @@
   "scripts": {
     "test": "node --test",
     "preversion": "npm test && node scripts/changelog.js --check",
-    "version": "node scripts/changelog.js --release && node scripts/plugin.js --sync && git add CHANGELOG.md .claude-plugin plugin",
+    "version": "node scripts/changelog.js --release && node scripts/plugin.js --sync && git add CHANGELOG.md .claude-plugin .cursor-plugin .github/plugin .agents plugin gemini-extension.json skills",
     "postversion": "node -e \"console.log('\\n  Tagged v' + require('./package.json').version + ' locally. Nothing has shipped yet.\\n\\n  Push the tag to release it:\\n\\n    git push --follow-tags\\n')\"",
     "demo": "node bin/tailr.js --target http://127.0.0.1:8902 --port 4100 -- node demo/serve.js"
   }
