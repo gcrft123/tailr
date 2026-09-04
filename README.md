@@ -13,7 +13,7 @@
                                              .......   ######   ####   #####   #####   #####      
 </pre>
 
-[![Tailr: the marked-up page and the batch waiting to be sent](media/tailr-intro-poster.jpg)](media/tailr-intro.mp4)
+https://github.com/user-attachments/assets/bb164693-9f44-4e16-95c4-7357c798ab38
 
 Mark up a running dev server and hand the changes to your coding agent as one batch.
 
