@@ -1,8 +1,14 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
   "mcpServers": {
     "tailr": {
+      "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@gcrft123/tailr", "mcp"]
+      "args": [
+        "-y",
+        "@gcrft123/tailr",
+        "mcp"
+      ]
     }
   }
 }

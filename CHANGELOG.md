@@ -11,8 +11,25 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Added
+
+- `/tailr:start` is a slash-command skill. Typing it starts a session against
+  the dev server and begins watching for the first batch; the model will not
+  fire it on its own. The review loop stays a background skill, loaded when a
+  batch is in play rather than offered as a second command.
+- Plugin catalogs for Cursor, Codex, GitHub Copilot CLI, and Gemini CLI, so the
+  same bundle that Claude Code installs is what those agents install too. Agents
+  without a marketplace of their own take the skills globally through
+  `npx skills add gcrft123/tailr -g`.
+
 ### Fixed
 
+- The Claude Code app would not add Tailr from this repository. It looks for a
+  plugin at the repo root (`.claude-plugin/plugin.json`, `.mcp.json`, skills)
+  and the `owner/repo` marketplace shorthand clones over SSH, which the app
+  cannot complete. The root now carries a plugin manifest that points into
+  `plugin/`, the MCP server lives at `.mcp.json` where the app discovers it,
+  and the README's add command is the HTTPS git URL.
 - Latched markup read what someone was typing as commands. With the mode on, a
   caret in the application's own text box — or in the one Tailr opens to edit
   text in place — lost `c`, `r` and `e` to the comment, remove and edit verbs

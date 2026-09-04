@@ -1,11 +1,12 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "tailr",
+  "owner": {
+    "name": "gcrft123",
+    "url": "https://github.com/gcrft123"
+  },
   "metadata": {
     "description": "Mark up a running dev server and hand the changes to your coding agent as one batch."
-  },
-  "owner": {
-    "name": "gcrft123"
   },
   "plugins": [
     {
@@ -19,7 +20,7 @@
       "category": "design",
       "homepage": "https://github.com/gcrft123/tailr#readme",
       "license": "MIT",
-      "keywords": [
+      "tags": [
         "dev-server",
         "feedback",
         "agent",
