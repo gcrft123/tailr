@@ -17,3 +17,7 @@ npm-debug.log*
 .vscode/
 .idea/
 *.swp
+
+# Demo video (Remotion project and renders), kept out of the package and the repo
+video/
+tailr logo transparent.png
