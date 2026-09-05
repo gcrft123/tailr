@@ -12,7 +12,7 @@
     {
       "name": "tailr",
       "description": "Visual markup on a running dev server, handed to the agent as one locked batch. Registers Tailr's MCP server and the operating rules for the review loop.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "gcrft123"
       },

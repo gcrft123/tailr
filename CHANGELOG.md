@@ -11,6 +11,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-05
+
 ### Added
 
 - A slider companion to the 1×–4× variations toggle on the comment composer.
