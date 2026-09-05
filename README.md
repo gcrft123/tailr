@@ -17,8 +17,6 @@ https://github.com/user-attachments/assets/bb164693-9f44-4e16-95c4-7357c798ab38
 
 Mark up a running dev server and hand the changes to your coding agent as one batch.
 
-You can review the real application in the browser, mark what's wrong directly on the page, and press Send once. The agent then receives a batch that names each element, resolves it toward source, and pushes changes to the dev server so you can see them live.
-
 ## Quick start
 
 Paste this to your coding agent:
@@ -37,16 +35,14 @@ tell the agent to start a session:
 npx -y @gcrft123/tailr init
 ```
 
-Either way the same thing happens. `init` installs Tailr, registers its MCP
-server, and writes the agent's operating rules into your `AGENTS.md` /
-`CLAUDE.md` — because a setup prompt is read once and then falls out of context,
-while those rules have to hold for the whole session. It is safe to re-run, and
-it only rewrites its own marked-off block. `--no-mcp` and `--no-install` opt out
-of either half; `--file <path>` puts the rules somewhere else.
+Either way, `init` installs Tailr, registers its MCP server, and writes the
+agent's operating rules into your `AGENTS.md` / `CLAUDE.md`. It is safe to
+re-run, and it only rewrites its own marked-off block. `--no-mcp` and
+`--no-install` opt out of either half; `--file <path>` puts the rules somewhere
+else.
 
 The agent then starts a session against your dev server, hands you a review URL,
-and watches for your first batch. [PROMPT.md](PROMPT.md) is what it is following,
-if you want to read it first.
+and watches for your first batch. See [PROMPT.md](PROMPT.md) for what it follows.
 
 ## As a plugin
 
@@ -70,9 +66,7 @@ add hangs and then fails. HTTPS does not. Updating is `/plugin` → **Update**.
 **Cursor**
 
 Import `https://github.com/gcrft123/tailr` as a Team Marketplace (Dashboard →
-Settings → Plugins), or submit the same URL at
-[cursor.com/marketplace/publish](https://cursor.com/marketplace/publish) for the
-public listing. To load it on this machine only, copy `plugin/` to
+Settings → Plugins). To load it on this machine only, copy `plugin/` to
 `~/.cursor/plugins/local/tailr` and reload the window.
 
 **Codex**
@@ -95,9 +89,6 @@ copilot plugin install tailr@tailr
 gemini extensions install https://github.com/gcrft123/tailr
 ```
 
-Gemini clones the repository as the extension. Skills live next to
-`gemini-extension.json` at the repo root so that clone sees them.
-
 **Everywhere else** — Windsurf, OpenCode, Cline, Amp, and the rest of the
 agents that read a global `skills/` directory:
 
@@ -109,9 +100,6 @@ That puts `start` and `review` in each detected agent's skill folder
 (`~/.cursor/skills`, `~/.codex/skills`, `~/.copilot/skills`,
 `~/.gemini/skills`, and so on). It does not register the MCP server; for that,
 use the marketplace or extension command above, or `tailr init` in the project.
-
-The version each catalog advertises is stamped from `package.json` when a
-release is cut, so it moves when Tailr does.
 
 This is an alternative to `tailr init`, not an addition to it. The plugin suits
 someone reviewing across several projects; `tailr init` suits a project that wants
@@ -278,8 +266,8 @@ Tailr deliberately does not guess at causes, it points the reviewer back to you.
 ## As an MCP server
 
 `tailr init` registers this for you, in `.mcp.json` (and `.cursor/mcp.json` if
-the project uses Cursor), and the [Claude plugin](#as-a-claude-plugin) brings it
-along without touching your project at all. By hand, most clients take:
+the project uses Cursor), and the [plugin](#as-a-plugin) brings it along without
+touching your project at all. By hand, most clients take:
 
 ```json
 {
@@ -289,11 +277,11 @@ along without touching your project at all. By hand, most clients take:
 }
 ```
 
-Prefer it to the CLI where you can: a tool description is re-sent to the agent
-on every turn, so the parts of the protocol that matter can't quietly decay out
-of its context the way a pasted prompt does.
+Prefer it to the CLI where you can: tool descriptions stay in the agent's
+context every turn, so the protocol cannot quietly fall out the way a pasted
+prompt does.
 
-It speaks JSON-RPC over stdio with no dependencies, and exposes the same round trip:
+Same round trip as the CLI:
 
 | Tool | What it does |
 |---|---|
@@ -310,15 +298,12 @@ and tell you what to ask the user for rather than failing opaquely.
 
 ## How it holds together
 
-- **One batch at a time.** The server rejects a second batch while a run is open;
-  that is what makes the send lock real rather than advisory.
-- **The reviewer keeps working.** Marks made during a run stay staged and survive
-  the reload afterwards.
+- **One batch at a time.** The server rejects a second batch while a run is open.
 - **A run is always escapable.** If the agent never answers, the reviewer can take
   the batch back and send it again.
 - **A session writes nothing to your repository** except `.tailr/session.json`,
-  which records the running session so the CLI can find it. `tailr init` adds
-  `.tailr/` to `.gitignore` for you.
+  so the CLI can find the running session. `tailr init` adds `.tailr/` to
+  `.gitignore` for you.
 - **`tailr init` is the only thing that edits your files**, and only these: a
   marked-off section in your agent instruction file, a `tailr` entry in
   `.mcp.json`, the `.gitignore` line, and the devDependency. Re-running rewrites
