@@ -103,9 +103,9 @@ typography:
     letterSpacing: "-0.035em"
   page-lede:
     fontFamily: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
-    fontSize: "clamp(17px, 1.5vw, 20px)"
+    fontSize: "clamp(14px, 1.7vw, 20px)"
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: 1.45
     letterSpacing: "-0.01em"
   page-body:
     fontFamily: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
