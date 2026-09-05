@@ -59,6 +59,9 @@
       var data;
       try { data = JSON.parse(ev.data); } catch (e) { return; }
       T.session(data.app);
+      // Bind before sync: a new session clears leftover marks, and those must
+      // not be what a replayed run then tries to serve against.
+      if (data.sessionId) T.bindSession(data.sessionId);
       // Another page in this browser ended the session, or this one did and the
       // server is confirming. Either way there is nothing left to listen to.
       if (data.ending) { ending = true; close(); return T.shutdown(data.app); }

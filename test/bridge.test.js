@@ -220,6 +220,46 @@ test('a set is capped at four versions and its labels are kept short', async (t)
   assert.deepEqual(set.labels.slice(2), ['three', 'four']);
 });
 
+/* ── sliders ─────────────────────────────────────────────── */
+
+test('a slider the agent wired rides the run state to the overlay', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  await s.api('batch', { marks: [{ ref: '01', type: 'comment', slider: true }] });
+  await s.api('pull');
+
+  const named = await s.api('slider', {
+    ref: '01', min: 0, max: 100, value: 40, label: 'Glow', unit: '%'
+  });
+  assert.equal(named.status, 200);
+  assert.deepEqual(named.body.run.sliders['01'], {
+    min: 0, max: 100, step: 1, value: 40, label: 'Glow', unit: '%'
+  });
+
+  const closed = await s.api('done');
+  assert.equal(closed.body.run.sliders['01'].label, 'Glow');
+});
+
+test('a slider needs a ref and a finite min/max range', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  await s.api('batch', oneMark());
+  await s.api('pull');
+
+  assert.equal((await s.api('slider', { min: 0, max: 10 })).status, 400);
+  assert.equal((await s.api('slider', { ref: '01', min: 10, max: 10 })).status, 400);
+  assert.equal((await s.api('slider', { ref: '01', min: 'x', max: 10 })).status, 400);
+});
+
+test('sliders cannot be registered outside an open run', async (t) => {
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  assert.equal((await s.api('slider', { ref: '01', min: 0, max: 1 })).status, 409);
+});
+
 /* ── ending the session ──────────────────────────────────── */
 
 test('the reviewer can end the session, and the process is told to go', async (t) => {
@@ -263,4 +303,18 @@ test('the state says where the application is without Tailr in front of it', asy
   assert.equal(body.app.target, 'http://127.0.0.1:5173');
   assert.equal(body.app.spawned, true,
     'a dev server Tailr started stops with it, and the reviewer has to be told which it is');
+});
+
+test('each Tailr process advertises a session id the overlay can key mark numbers to', async (t) => {
+  const a = await startTailr();
+  t.after(() => a.close());
+  const b = await startTailr();
+  t.after(() => b.close());
+
+  const sa = await a.api('state', null, 'GET');
+  const sb = await b.api('state', null, 'GET');
+  assert.equal(typeof sa.body.sessionId, 'string');
+  assert.ok(sa.body.sessionId.length > 4);
+  assert.notEqual(sa.body.sessionId, sb.body.sessionId,
+    'a new Tailr process must not reuse the previous session id');
 });

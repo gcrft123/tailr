@@ -54,9 +54,12 @@ const TOOLS = [
       'A mark with orphaned:true ' +
       'lost its element before the batch was sent — raise it with the reviewer rather than guessing. ' +
       'A mark with variations:n asks for n versions of that one change, built behind the switch ' +
-      'described by tailr_variants. A "choice" mark carries variantOf (the ref whose versions are ' +
+      'described by tailr_variants. A mark with slider:true asks for a continuous numerical ' +
+      'parameter (glow, depth, scale…) wired behind the switch described by tailr_slider. ' +
+      'A "choice" mark carries variantOf (the ref whose versions are ' +
       'being settled) and variant: keep that version, delete the rest and the switch with them; ' +
-      'variant 0 means keep none and put the element back as it was. ' +
+      'variant 0 means keep none and put the element back as it was. A choice that settles a ' +
+      'slider carries sliderOf and value instead (value null means discard the slider). ' +
       'After pulling you MUST close the run with tailr_done or tailr_fail; until then the reviewer cannot send again.',
     inputSchema: {
       type: 'object',
@@ -95,6 +98,37 @@ const TOOLS = [
         }
       },
       required: ['ref', 'labels'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'tailr_slider',
+    description:
+      'Report the continuous parameter you wired for a mark that asked for a slider. ' +
+      'Build the parameter into the source behind the switch Tailr sets for that mark: the ' +
+      'attribute data-tailr-slide-<ref> on the <html> element, whose value is the number. ' +
+      'Style-only parameters can key straight off it, e.g. ' +
+      '[data-tailr-slide-03] .glow { --intensity: attr(data-tailr-slide-03 number); }; anything that ' +
+      'has to re-render should read document.documentElement.dataset["tailrSlide<ref>"] and listen ' +
+      'for the "tailr:slide" event on document (detail: { ref, value, label, min, max, unit }). ' +
+      'The default value must also be what renders if the attribute is missing. ' +
+      'Call this BEFORE tailr_progress for the same ref, and always before tailr_done.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ref: { type: 'string', description: 'The mark the slider belongs to, e.g. "03".' },
+        min: { type: 'number', description: 'Lower bound of the parameter.' },
+        max: { type: 'number', description: 'Upper bound of the parameter.' },
+        step: { type: 'number', description: 'Optional step size. Defaults to (max-min)/100.' },
+        value: { type: 'number', description: 'Optional starting value. Defaults to the midpoint.' },
+        label: { type: 'string', description: 'Optional short name, e.g. "Glow" or "Bevel depth".' },
+        unit: { type: 'string', description: 'Optional unit shown beside the number, e.g. "px" or "%".' },
+        selector: {
+          type: 'string',
+          description: 'Optional. A CSS selector for the element if your change moved it.'
+        }
+      },
+      required: ['ref', 'min', 'max'],
       additionalProperties: false
     }
   },
@@ -217,6 +251,25 @@ async function runTool(name, args = {}) {
       'on the page after the reload; keeping it comes back as a "choice" mark in a later batch.' };
   }
 
+  if (name === 'tailr_slider') {
+    if (!args.ref || args.min == null || args.max == null) {
+      return { text: 'Give the mark\'s ref, min, and max.', isError: true };
+    }
+    const r = await call('slider', {
+      ref: String(args.ref),
+      min: Number(args.min),
+      max: Number(args.max),
+      step: args.step != null ? Number(args.step) : undefined,
+      value: args.value != null ? Number(args.value) : undefined,
+      label: args.label,
+      unit: args.unit,
+      selector: args.selector
+    });
+    if (!r.ok) return { text: r.data.error || 'Could not register the slider.', isError: true };
+    return { text: `Registered a slider for ${args.ref}. The reviewer scrubs it on the page after ` +
+      'the reload; keeping a value comes back as a "choice" mark with sliderOf and value.' };
+  }
+
   if (name === 'tailr_progress') {
     const refs = args.refs && args.refs.length ? args.refs : (args.ref ? [args.ref] : []);
     if (!refs.length) return { text: 'Give a ref or refs to report.', isError: true };
@@ -273,7 +326,8 @@ export function startMcp() {
             'Tailr hands you batches of visual markup made by someone reviewing a running dev server. ' +
             'The loop is: tailr_wait until a batch is sent, tailr_pull to lease it, tailr_progress as each ' +
             'mark lands, then tailr_done (or tailr_fail with a reason). A mark asking for variations also ' +
-            'needs tailr_variants, before its progress. The reviewer cannot send another ' +
+            'needs tailr_variants before its progress; a mark asking for a slider needs tailr_slider. ' +
+            'The reviewer cannot send another ' +
             'batch until you close the run, and should never have to tell you a batch has arrived — ' +
             'tailr_wait is how you find out.'
         });

@@ -21,7 +21,7 @@ import { readSession, writeSession, clearSession, isAlive } from '../src/server/
 import { waitForBatch } from '../src/server/watch.js';
 
 const argv = process.argv.slice(2);
-const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'progress', 'done', 'fail', 'reset']);
+const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'slider', 'progress', 'done', 'fail', 'reset']);
 
 const dashdash = argv.indexOf('--');
 const devCommand = dashdash === -1 ? null : argv.slice(dashdash + 1);
@@ -185,6 +185,29 @@ async function agent(cmd, rest) {
     return finish(r);
   }
 
+  if (cmd === 'slider') {
+    const ref = rest[0];
+    const min = flag('min', undefined);
+    const max = flag('max', undefined);
+    if (!ref || min === undefined || max === undefined) {
+      process.stderr.write('\n  Usage: tailr slider <ref> --min <n> --max <n> [--step <n>] [--value <n>] [--label <words>] [--unit <u>]\n\n');
+      process.exit(1);
+    }
+    const step = flag('step', undefined);
+    const value = flag('value', undefined);
+    const r = await call('slider', {
+      ref,
+      min: Number(min),
+      max: Number(max),
+      step: step !== undefined ? Number(step) : undefined,
+      value: value !== undefined ? Number(value) : undefined,
+      label: flag('label', undefined),
+      unit: flag('unit', undefined),
+      selector: flag('selector', undefined)
+    });
+    return finish(r);
+  }
+
   if (cmd === 'progress') {
     const ref = rest[0];
     if (!ref) { process.stderr.write('\n  Usage: tailr progress <ref>\n\n'); process.exit(1); }
@@ -227,6 +250,9 @@ function usage() {
     tailr pull [--wait]           lease the pending batch, printed as JSON
     tailr variants <ref> <names>  name the versions you built for a mark that
                                   asked for several, in order
+    tailr slider <ref> --min --max
+                                  report the continuous parameter you wired for
+                                  a mark that asked for a slider
     tailr progress <ref>          one mark applied
     tailr done                    the run finished
     tailr fail [message]          the run returned incomplete
