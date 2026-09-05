@@ -20,6 +20,12 @@ colors:
   shadow-near: "rgba(0, 0, 0, 0.34)"
   served: "rgba(11, 11, 12, 0.30)"
   on-live: "#04231B"
+  yellow: "#FFE023"
+  lemon: "#FAF564"
+  ink-2: "#3A3A3E"
+  on-ink-2: "rgba(255, 255, 255, 0.62)"
+  code-well: "#1A1B1E"
+  page-fill: "#F1F1EC"
 typography:
   display:
     fontFamily: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
@@ -71,6 +77,66 @@ typography:
     fontWeight: 400
     lineHeight: 1.2
     letterSpacing: "-0.01em"
+  wordmark:
+    fontFamily: "'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif"
+    fontSize: "26px"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "0"
+  wordmark-footer:
+    fontFamily: "'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif"
+    fontSize: "15px"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "0"
+  page-headline:
+    fontFamily: "'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif"
+    fontSize: "clamp(40px, 5.2vw, 76px)"
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: "-0.04em"
+  page-display:
+    fontFamily: "'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif"
+    fontSize: "clamp(32px, 3.9vw, 52px)"
+    fontWeight: 700
+    lineHeight: 1.02
+    letterSpacing: "-0.035em"
+  page-lede:
+    fontFamily: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
+    fontSize: "clamp(17px, 1.5vw, 20px)"
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: "-0.01em"
+  page-body:
+    fontFamily: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
+    fontSize: "17px"
+    fontWeight: 400
+    lineHeight: 1.55
+    letterSpacing: "-0.005em"
+  page-body-large:
+    fontFamily: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
+    fontSize: "18px"
+    fontWeight: 400
+    lineHeight: 1.55
+    letterSpacing: "-0.005em"
+  page-body-small:
+    fontFamily: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.55
+    letterSpacing: "-0.005em"
+  page-meta:
+    fontFamily: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
+    fontSize: "13.5px"
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: "-0.005em"
+  page-kbd:
+    fontFamily: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
+    fontSize: "12px"
+    fontWeight: 650
+    lineHeight: 1
+    letterSpacing: "-0.005em"
 rounded:
   ring: "3px"
   badge: "5px"
@@ -80,6 +146,7 @@ rounded:
   island: "19px"
   pill: "999px"
   dot: "50%"
+  page-kbd: "6px"
 spacing:
   hair: "2px"
   xs: "4px"
@@ -279,3 +346,16 @@ Every interactive part ships default, hover, focus, active, disabled. Focus is a
 - No leader lines, no callout balloons, no technical-drawing apparatus. The reference number is a small corner badge and nothing more.
 - No second bar, dock, sidebar, or persistent panel. If it can't be the island, it doesn't ship.
 - No color that doesn't encode state.
+
+## The landing page
+
+The one surface Tailr owns that is not floating chrome and not a notice: `site/`. Every piece of Island chrome on it is a staged replica at the overlay's exact values, so everything above still binds.
+
+What the page adds to the world, and only the page:
+
+- **`yellow`** is the wordmark's own colour, from the source file, and it appears in exactly two places: the "t" and the two dashes of the mark. The mark is set live at the source's own metrics (Bricolage 800, no tracking, the dashes a quarter of an em above the baseline) and never enlarged into a poster: it sits in the masthead at 26px and in the footer at 15px, and the hero is carried by a statement headline instead. The intro video sits as a rounded window on its own **`lemon`** ground with a soft shadow; the page never tries to match that ground, and nothing is painted behind the hero.
+- Two colour fields in sequence: a white page for the hero and the run of showcases, closed by an ink footer bar. Colour commits at region scale, never as accents scattered over a neutral ground.
+- **Bricolage Grotesque** is the display face, because the wordmark is set in it (800, with optical sizing). Section headings use it at 700. Body stays on the system stack, so the page's own type is the same family the island is made of.
+- Secondary text on ink is `on-ink-2`, never gray-on-gray. `page-fill` is the one light fill on the white run: the gesture key chips and the replay control's hover. Showcase body copy runs fluid between `page-body-small` and `page-body-large`.
+- The page carries **one** action, an ink pill in the hero, and never asks for it twice; the only other interactive control is the per-showcase replay. `paper` never appears in the page's own chrome at all — on this surface it exists solely inside the staged Island replicas, where it means what it means everywhere else in Tailr. A blocked clipboard reveals the prompt itself under the pill, selectable, rather than sending the visitor somewhere.
+- Northwind, the demo host app in `demo/`, is quoted on the page as staged fragments at its own values (`#FAFAF8`, `#E4E4DF`, `#3A6FD8`, its tag greens and reds). Those are the demo's tokens, not Tailr's; they are fixtures and are not part of this system.
