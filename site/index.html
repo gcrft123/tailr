@@ -420,6 +420,11 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
    The send stage stays: its island is placed by CSS and renders intact. */
 .no-js .ov,.no-js .composer,.no-js .cur,.no-js .vset,.no-js .sset,.no-js .again{display:none}
 .no-js .stage:not([data-replay=send]){display:none}
+/* and with the stage gone the showcase is one column: leaving the 7fr track
+   empty put every paragraph in a strip beside a void, and the left/right
+   alternation has nothing left to alternate against */
+.no-js .show:not(:has(.stage[data-replay=send])){grid-template-columns:minmax(0,1fr)}
+.no-js .show:not(:has(.stage[data-replay=send])) .text{max-width:34rem;justify-self:start}
 .no-js .agent{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
@@ -1058,7 +1063,14 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
             at(180, function () { cursorTo(s, keep, keep.offsetWidth * .5, keep.offsetHeight * .5); });
             at(640, function () {
               cur.classList.add('click'); keep.classList.add('kept'); keep.textContent = 'Kept';
-              end(900);
+              /* Once the value is kept the slider retreats, the way the real one
+                 minimizes, and the mark is left showing its version tabs. Fixing
+                 this in hold() alone was not enough: hold() is the reduced-motion
+                 and no-JS path, and everyone else sees whatever the replay stops
+                 on — which was the one section headed "Ask for options" resting
+                 with its options dismissed. */
+              at(820, function () { sset.classList.remove('on'); vset.classList.remove('gone'); });
+              end(1240);
             });
             return;
           }
