@@ -14,7 +14,7 @@ body{font-family:ui-sans-serif,-apple-system,'SF Pro Text',system-ui,sans-serif;
 .search::placeholder{color:#9aa1a9}
 .btn{margin-left:auto;height:32px;padding:0 14px;background:#3A6FD8;color:#fff;border-radius:7px;font-size:13px;display:flex;align-items:center}
 .wrap{padding:24px 26px;display:grid;gap:18px}
-.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.cards{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:16px}
 .card{background:#fff;border:1px solid #E4E4DF;border-radius:10px;padding:16px}
 .card .k{font-size:11px;color:#7c838c;text-transform:uppercase;letter-spacing:.05em}
 .card .v{font-size:27px;font-weight:600;margin-top:7px;letter-spacing:-.02em}
@@ -28,8 +28,12 @@ body{font-family:ui-sans-serif,-apple-system,'SF Pro Text',system-ui,sans-serif;
 .tag{font-size:11px;padding:2px 9px;border-radius:11px;background:#E9F0EA;color:#437652}
 .tag.late{background:#F7EAE5;color:#a9543c}
 .hero{background:#fff;border:1px solid #E4E4DF;border-radius:10px;padding:22px}
-.hero h2{font-size:19px;font-weight:600;letter-spacing:-.02em;margin-bottom:6px}
+.hero h2{font-size:31px;font-weight:600;letter-spacing:-.02em;margin-bottom:6px}
 .hero p{font-size:13.5px;color:#5b6169;line-height:1.55;max-width:60ch}
+/* the revenue card leads the row */
+.cards .card:first-child{background:#F4F7FE;border-color:#D6E1F7}
+.cards .card:first-child .k{color:#5b6169}
+.cards .card:first-child .v{font-size:34px}
 </style></head><body>
 <nav class="side">
   <div class="logo">Northwind</div>

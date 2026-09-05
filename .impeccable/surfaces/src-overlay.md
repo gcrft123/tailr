@@ -58,6 +58,7 @@ This section described the withdrawn Callout direction — a rail, numbered ball
 - **Text edit** makes the host's own text editable in place under a faint underlay, with no chrome around it.
 - **The staged list** lives inside the batch pill and expands on hover in the island's growth direction. Rows are keyed to the numbers on the page, each removable and re-editable; a row opens its mark and scrolls the element into view first, which is the only route to editing without a pointer. The action never moves as the panel opens.
 - **A mark that is off screen** is reached through its row, which scrolls it back into view. There is no horizon indicator: an earlier direction pinned off-screen marks to the viewport edge, and the list does that job without drawing anything on a page Tailr does not own.
+- **What the agent built comes back onto the page.** A mark can ask for up to four versions of a change, or for a continuous parameter, and after the reload a pill sits clear above the element — tabs for versions, a drawn range for a parameter. Keeping one is itself a mark, so the scaffolding lives exactly one round trip. Both pills are anchored to the element's corner and flip below it or slide along its edge rather than leaving the viewport, and both are built once and re-stated by class: rewriting a pill would tear out the control under the pointer, and the version pill's width in particular must follow the pointer alone, or the geometry feeds back into the hover that caused it and the page flickers.
 - **Motion** is the identity, and the one place this surface spends. Shape morphs both axes on `cubic-bezier(0.32, 0.72, 0, 1)`, 140–380ms scaled to how far the shape actually travels, and every morph is interruptible — a new transition starts from the shape currently on screen. Content cross-fades 120–140ms a beat behind. Marks land with a 180ms scale-and-settle and never fade in. A running indicator is never re-created by a re-render, because rewriting the node restarts its animation and a spinner that restarts reads as stalling.
 
 ## Constraints
@@ -94,5 +95,4 @@ Two rules earned the hard way. A flex item carrying user text needs `min-width: 
 
 ## Unresolved
 
-- Whether the agent's applied changes are reflected back into the overlay beyond the reload prompt.
 - Batch history, versioning, replay.

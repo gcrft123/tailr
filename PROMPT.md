@@ -80,6 +80,7 @@ The loop is `wait` → `pull` → `progress` per mark → `done` or `fail`.
 | `npx tailr wait` | `tailr_wait` | block until Send is pressed; exit 0 a batch is waiting · 3 timed out, start it again · 2 session ended |
 | `npx tailr pull` | `tailr_pull` | lease the batch, printed as JSON |
 | `npx tailr variants <ref> <names…>` | `tailr_variants` | name the versions you built for one mark |
+| `npx tailr slider <ref> --min --max` | `tailr_slider` | report the continuous parameter you wired for a slider mark |
 | `npx tailr progress <ref>` | `tailr_progress` | report one mark as applied |
 | `npx tailr done` | `tailr_done` | the run finished |
 | `npx tailr fail "reason"` | `tailr_fail` | it returned incomplete |
@@ -94,7 +95,8 @@ reviewer's `comment`.
 - `point` — carries page `x`/`y` instead of an element. The reviewer marked a
   place, not a thing: they may want something new there, or may just be noting
   the spot. Their comment says which.
-- `choice` — the reviewer picked between versions you built. See below.
+- `choice` — the reviewer picked between versions you built, or kept a value
+  on a slider you built. See below.
 
 ### Versions
 
@@ -123,13 +125,43 @@ One to three concrete words each. They are the whole basis on which someone who
 cannot read the diff decides, so `"Two columns"` earns its place and
 `"Option B"` does not.
 
-A `choice` mark closes it. It carries `variantOf` (the ref whose versions are
-being settled) and `variant`:
+### Sliders
+
+A `comment` or `point` mark can carry `"slider": true`. That asks you to make
+the element numerically variable — glow intensity, a bevel depth, a 3d
+parameter, anything the reviewer can scrub. Build one continuous parameter into
+the source, guarded on the switch Tailr sets for that mark: the attribute
+`data-tailr-slide-<ref>` on `<html>`, whose value is the number.
+
+    /* mark 03, intensity driven by the slider */
+    [data-tailr-slide-03] .hero { --glow: attr(data-tailr-slide-03 number) }
+
+The default value must also be what renders when the attribute is absent.
+Anything that has to re-render rather than restyle reads
+`document.documentElement.dataset.tailrSlide03` and listens for the
+`tailr:slide` event on `document`; its `detail` carries
+`{ ref, value, label, min, max, unit }`.
+
+Then report the range, before you report that mark applied:
+
+    npx tailr slider 03 --min 0 --max 100 --value 40 --label "Glow" --unit "%"
+
+A mark may ask for versions and a slider together; do both.
+
+A `choice` mark closes either kind. For versions it carries `variantOf` and
+`variant`:
 
 - `variant: 2` — keep version 2 as the plain, unguarded code. Delete the other
   versions and every `data-tailr-var-<ref>` guard for that ref.
 - `variant: 0` — keep none of them. Remove all the versions and the guards, and
   put the element back the way it was before you built them.
+
+For a slider it carries `sliderOf` and `value`:
+
+- `value: 42` — bake that number into the source as the plain value. Remove the
+  `data-tailr-slide-<ref>` switch.
+- `value: null` (or `variant: 0`) — discard the slider. Remove the switch and
+  put the element back as it was.
 
 ### Rules that matter
 
@@ -150,17 +182,16 @@ being settled) and `variant`:
   actually went wrong — Tailr won't invent an explanation, it points them back
   to you.
 - The guards are scaffolding, not code. They live for exactly one round trip:
-  you write them when a mark asks for versions, and the `choice` mark that comes
-  back is what takes them out. Never leave a guard standing after its choice has
-  landed, and never write one for anything the reviewer didn't ask to see
-  versions of.
+  you write them when a mark asks for versions or a slider, and the `choice`
+  mark that comes back is what takes them out. Never leave a guard standing
+  after its choice has landed, and never write one for anything the reviewer
+  didn't ask to see versions or a slider of.
 - When the source address and the selector disagree, trust the source address.
 - A mark with `"orphaned": true` lost its element before it was sent. Don't
   guess at what was meant — raise it with the reviewer.
 - If a mark is ambiguous, ask rather than picking an interpretation.
 - Run these commands from the project directory; that's how Tailr finds the
   session.
-
 ---
 
 ## 5. Report back

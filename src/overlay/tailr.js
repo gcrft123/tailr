@@ -31,7 +31,9 @@
   var S = {
     marks: [],
     sets: [],           // variations the agent built, waiting to be chosen between
+    slides: [],         // numerical parameters the agent built, waiting to be kept
     seq: 1,
+    sessionId: null,    // the Tailr process this store belongs to; null until bound
     armed: false,
     latched: false,
     hover: null,        // element under cursor while armed
@@ -62,14 +64,15 @@
     try {
       localStorage.setItem(ORIGIN_KEY, JSON.stringify({
         v: STORE_V,
+        sessionId: S.sessionId,
         seq: S.seq,
         marks: S.marks.map(function (m) {
           return {
             id: m.id, n: m.n, type: m.type, route: m.route, selector: m.selector,
             address: m.address, comment: m.comment, before: m.before, after: m.after,
             x: m.x, y: m.y, snippet: m.snippet, tag: m.tag, status: m.status,
-            variations: m.variations, setId: m.setId, variantOf: m.variantOf,
-            variant: m.variant, label: m.label
+            variations: m.variations, slider: m.slider, setId: m.setId, variantOf: m.variantOf,
+            variant: m.variant, sliderOf: m.sliderOf, value: m.value, label: m.label
           };
         }),
         /* A variation set outlives the batch that asked for it: the agent
@@ -80,6 +83,16 @@
             id: s.id, ref: s.ref, route: s.route, selector: s.selector, address: s.address,
             snippet: s.snippet, tag: s.tag, x: s.x, y: s.y, point: s.point,
             labels: s.labels, choice: s.choice
+          };
+        }),
+        /* Same for a numerical slider: the agent wires the parameter, the
+           reviewer reloads into it, then keeps a value. */
+        slides: S.slides.map(function (s) {
+          return {
+            id: s.id, ref: s.ref, route: s.route, selector: s.selector, address: s.address,
+            snippet: s.snippet, tag: s.tag, x: s.x, y: s.y, point: s.point,
+            min: s.min, max: s.max, step: s.step, value: s.value, label: s.label,
+            unit: s.unit, kept: s.kept, open: s.open
           };
         })
       }));
@@ -95,6 +108,7 @@
       var raw = localStorage.getItem(ORIGIN_KEY);
       if (!raw) return;
       var d = JSON.parse(raw);
+      S.sessionId = d.sessionId || null;
       S.seq = d.seq || 1;
       // Before the store carried a version, a mark was orphaned for being on
       // another route — a verdict about where the reviewer was standing, not
@@ -127,6 +141,10 @@
         s.el = (s.selector && s.route === routeKey()) ? safeQuery(s.selector) : null;
         return s;
       });
+      S.slides = (d.slides || []).map(function (s) {
+        s.el = (s.selector && s.route === routeKey()) ? safeQuery(s.selector) : null;
+        return s;
+      });
     } catch (e) {}
   }
   function safeQuery(sel) { try { return document.querySelector(sel); } catch (e) { return null; } }
@@ -147,6 +165,16 @@
      still matches; otherwise let the mark orphan and say so. */
   function sameElement(m, el) {
     if (m.tag && el.tagName !== m.tag) return false;
+    // A text mark changes the string it is anchored to. Match either the
+    // original or the staged after so a reload into the host's source still
+    // finds it, and a page that kept the edit finds it too.
+    if (m.type === 'text') {
+      var now = snippetOf(el);
+      if (now === m.snippet) return true;
+      if (m.after != null && now === snippetOf({ textContent: m.after })) return true;
+      if (m.before != null && now === snippetOf({ textContent: m.before })) return true;
+      return false;
+    }
     return snippetOf(el) === m.snippet;
   }
   /* Orphaning is a claim about the element, so it may only be made about the
@@ -182,6 +210,11 @@
       if (s.el && s.el.isConnected) return;
       s.el = s.selector ? safeQuery(s.selector) : null;
     });
+    S.slides.forEach(function (s) {
+      if (s.point || s.route !== routeKey()) return;
+      if (s.el && s.el.isConnected) return;
+      s.el = s.selector ? safeQuery(s.selector) : null;
+    });
     if (changed) { save(); renderMarks(); renderIsland(); }
   }
 
@@ -197,6 +230,7 @@
       enteredAt = Date.now();
       S.marks.forEach(function (m) { if (m.route === last) m.misses = 0; });
       closeComposer();
+      closeTextEdit(false);
       reconcile(); renderMarks(); renderIsland();
     }
     ['pushState', 'replaceState'].forEach(function (k) {
@@ -360,11 +394,28 @@
         e.preventDefault(); e.stopPropagation();
         return choose(tab.getAttribute('data-set'), Number(tab.getAttribute('data-i')));
       }
+      var slideAct = e.target.closest && e.target.closest(
+        '[data-act="keep-slide"], [data-act="drop-slide"], [data-act="reset-slide"], [data-act="open-slide"]');
+      if (slideAct) {
+        e.preventDefault(); e.stopPropagation();
+        var sid = slideAct.getAttribute('data-slide');
+        var act = slideAct.getAttribute('data-act');
+        if (act === 'drop-slide') return keepSlide(sid, null);
+        if (act === 'reset-slide') return resetSlide(sid);
+        if (act === 'open-slide') return openSlide(sid);
+        var sl = slideFor(sid);
+        return keepSlide(sid, sl ? sl.showing : null);
+      }
       var b = e.target.closest && e.target.closest('[data-mark]');
       if (!b) return;
       e.preventDefault(); e.stopPropagation();
       var m = S.marks.find(function (x) { return x.id === b.getAttribute('data-mark'); });
       if (!m || m.status === 'served') return;
+      // A text mark has no comment to reopen — the edit is the text itself.
+      if (m.type === 'text') {
+        if (m.el && m.el.isConnected) editText(m.el, m);
+        return;
+      }
       var r = isPoint(m)
         ? { left: m.x - scrollX, top: m.y - scrollY, bottom: m.y - scrollY, right: m.x - scrollX }
         : m.el.getBoundingClientRect();
@@ -406,11 +457,21 @@
     if (m && m.type === 'choice') {
       var s = setFor(m.setId);
       if (s) { s.choice = null; showVariant(s); }
+      var sl = S.slides.find(function (x) { return x.ref === m.sliderOf; });
+      if (sl) { delete sl.kept; showSlide(sl); }
     }
     S.marks = S.marks.filter(function (x) { return x.id !== id; });
     save(); renderMarks(); renderIsland();
   }
   function markOnRoute(m) { return m.route === routeKey(); }
+  /* One staged mark of a given type per element. Re-gesturing the same spot
+     reopens what is already there rather than stacking a second number on it. */
+  function markOn(el, type) {
+    if (!el) return null;
+    return S.marks.find(function (m) {
+      return m.type === type && m.status !== 'served' && m.el === el;
+    }) || null;
+  }
 
   /* ── variations ────────────────────────────────────────────
      A mark can ask for several versions of the same change. The agent builds
@@ -508,8 +569,165 @@
     S.sets = S.sets.filter(function (x) { return x.id !== id; });
   }
 
+  /* ── numerical slider ──────────────────────────────────────
+     A mark can ask for a continuous parameter instead of (or as well as)
+     discrete versions — glow intensity, a bevel depth, anything the reviewer
+     wants to scrub. The agent wires one number behind a switch Tailr sets,
+     reports its range, and the reviewer keeps a value the same way they keep
+     a version: as a mark in the next batch. */
+  function slideAttr(ref) { return 'data-tailr-slide-' + ref; }
+  function slideFor(id) { return S.slides.find(function (s) { return s.id === id; }); }
+
+  function showSlide(s, value) {
+    var v = value != null ? value : (typeof s.kept === 'number' ? s.kept : s.value);
+    if (v < s.min) v = s.min;
+    if (v > s.max) v = s.max;
+    s.showing = v;
+    document.documentElement.setAttribute(slideAttr(s.ref), String(v));
+    try {
+      document.dispatchEvent(new CustomEvent('tailr:slide', {
+        detail: { ref: s.ref, value: v, label: s.label || null, min: s.min, max: s.max, unit: s.unit || null }
+      }));
+    } catch (e) {}
+  }
+  function showAllSlides() { S.slides.forEach(function (s) { showSlide(s); }); }
+
+  /** The agent reporting the parameter it wired. Idempotent on reconnect. */
+  function addSlide(ref, opts) {
+    opts = opts || {};
+    var min = Number(opts.min);
+    var max = Number(opts.max);
+    if (!isFinite(min) || !isFinite(max) || max <= min) return null;
+    var step = Number(opts.step);
+    if (!isFinite(step) || step <= 0) step = (max - min) / 100;
+    var value = opts.value != null ? Number(opts.value) : (min + max) / 2;
+    if (!isFinite(value)) value = min;
+    if (value < min) value = min;
+    if (value > max) value = max;
+    var label = opts.label ? String(opts.label).trim().slice(0, 32) : '';
+    var unit = opts.unit ? String(opts.unit).trim().slice(0, 8) : '';
+    var selector = opts.selector ? String(opts.selector).slice(0, 400) : '';
+
+    var s = S.slides.find(function (x) { return x.ref === ref; });
+    if (s) {
+      s.min = min; s.max = max; s.step = step; s.value = value;
+      s.label = label; s.unit = unit;
+      if (selector) { s.selector = selector; s.el = null; }
+      if (typeof s.kept !== 'number') showSlide(s, value);
+      save(); renderMarks(); renderIsland();
+      return s;
+    }
+    var m = S.marks.find(function (x) { return pad(x.n) === ref; });
+    if (!m) return null;
+    s = {
+      id: 's' + Date.now() + Math.random().toString(36).slice(2, 6),
+      ref: ref, route: m.route, selector: selector || m.selector, address: m.address,
+      snippet: m.snippet, tag: m.tag, x: m.x, y: m.y, point: isPoint(m),
+      min: min, max: max, step: step, value: value, label: label, unit: unit,
+      el: selector ? null : (m.el || null)
+    };
+    S.slides.push(s);
+    save(); showSlide(s); renderMarks(); renderIsland();
+    return s;
+  }
+
+  /** Keep value `v` of a slider — or, at null, keep none of it. */
+  function keepSlide(id, v) {
+    var s = slideFor(id);
+    if (!s || S.locked) return;
+    var existing = S.marks.find(function (m) {
+      return m.type === 'choice' && m.sliderOf === s.ref && m.status !== 'served';
+    });
+    // Keeping the value already kept takes the keep back, the way clicking the
+    // version already chosen does: a misclick costs nothing and an undecided
+    // slider stays undecided. The value stays where the reviewer put it —
+    // reverting to the default is what Reset is for.
+    if (typeof v === 'number' && s.kept === v) {
+      delete s.kept; delete s.open;
+      if (existing) removeMark(existing.id);
+      showSlide(s, v); save(); renderMarks(); renderIsland();
+      return;
+    }
+    if (v == null) {
+      // Discarding when already discarded takes the discard back.
+      if (s.kept === null) {
+        delete s.kept;
+        if (existing) removeMark(existing.id);
+        showSlide(s); save(); renderMarks(); renderIsland();
+        return;
+      }
+      s.kept = null;
+      delete s.open;
+      showSlide(s, s.value);
+      var discard = 'Discard the slider on ' + s.ref + ' and put the element back as it was.';
+      if (existing) {
+        existing.value = null; existing.variant = 0; existing.label = null; existing.comment = discard;
+        save(); renderMarks(); renderIsland();
+      } else {
+        addMark('choice', s.el, {
+          setId: null, sliderOf: s.ref, value: null, variant: 0, label: null,
+          comment: discard, route: s.route, selector: s.selector, address: s.address,
+          snippet: s.snippet, tag: s.tag, x: s.x, y: s.y
+        });
+      }
+      return;
+    }
+    s.kept = v;
+    s.open = false;
+    showSlide(s, v);
+    var name = s.label || 'value';
+    var comment = 'Keep ' + name + ' at ' + formatSlide(s, v) + ' on ' + s.ref + '.';
+    if (existing) {
+      existing.value = v; existing.variant = undefined; existing.label = name; existing.comment = comment;
+      save(); renderMarks(); renderIsland();
+    } else {
+      addMark('choice', s.el, {
+        setId: null, sliderOf: s.ref, value: v, label: name,
+        comment: comment, route: s.route, selector: s.selector, address: s.address,
+        snippet: s.snippet, tag: s.tag, x: s.x, y: s.y
+      });
+    }
+  }
+
+  /** Put the parameter back to the default the agent reported, undecided. */
+  function resetSlide(id) {
+    var s = slideFor(id);
+    if (!s || S.locked) return;
+    var existing = S.marks.find(function (m) {
+      return m.type === 'choice' && m.sliderOf === s.ref && m.status !== 'served';
+    });
+    if (existing) removeMark(existing.id);
+    delete s.kept; delete s.open;
+    showSlide(s, s.value);
+    save(); renderMarks(); renderIsland();
+  }
+
+  /* Minimized is a view, not a decision, so it belongs to the page rather than
+     to the island — but it survives a reload, because a pill that reopened
+     itself every time the agent's changes landed would undo the point of it. */
+  function openSlide(id) {
+    var s = slideFor(id);
+    if (!s || S.locked) return;
+    s.open = true;
+    save(); renderMarks();
+  }
+
+  function formatSlide(s, v) {
+    var n = Number(v);
+    var text = (Math.abs(s.step) >= 1 && n === Math.round(n)) ? String(Math.round(n))
+      : String(Math.round(n * 1000) / 1000);
+    return s.unit ? text + s.unit : text;
+  }
+
+  function dropSlide(id) {
+    var s = slideFor(id);
+    if (!s) return;
+    document.documentElement.removeAttribute(slideAttr(s.ref));
+    S.slides = S.slides.filter(function (x) { return x.id !== id; });
+  }
+
   /* ── on-page rendering ─────────────────────────────────── */
-  var nodes = {}, vnodes = {}, reconcileTimer = null, vLeaveT = null;
+  var nodes = {}, vnodes = {}, snodes = {}, reconcileTimer = null, vLeaveT = null;
   function renderMarks() {
     wake();
     var seen = {};
@@ -537,8 +755,10 @@
       }
       n.className = 'mark t-' + m.type + (m.status === 'served' ? ' served' : '') +
         (isPoint(m) ? ' point' : '') +
-        // the reference number is redundant while its own composer is open
-        (composer && composer.mark.id === m.id ? ' composing' : '');
+        // the reference number is redundant while its own composer or inline
+        // editor is open, where the number is already in the chrome
+        (composer && composer.mark.id === m.id ? ' composing' : '') +
+        (textEdit && textEdit.mark.id === m.id ? ' composing' : '');
       n.querySelector('.badge').textContent = pad(m.n);
       position(n, m);
     });
@@ -546,6 +766,7 @@
       if (!seen[id]) { nodes[id].remove(); delete nodes[id]; }
     });
     renderSets();
+    renderSlides();
   }
 
   /* The chooser sits on the element it belongs to, because the whole point is
@@ -563,6 +784,7 @@
         n.innerHTML = '<div class="ring"></div><div class="pt"></div><div class="vpill"></div>';
         layer.appendChild(n);
         vnodes[s.id] = n;
+        n.__pill = n.querySelector('.vpill');
         if (!reduced) n.animate(
           [{ transform: 'scale(.94)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
           { duration: 200, easing: EASE });
@@ -571,7 +793,8 @@
       // hovered, so which version is lit is a class toggle, never a rebuild.
       if (n.__sig !== s.labels.join('|')) {
         n.__sig = s.labels.join('|');
-        n.querySelector('.vpill').innerHTML = tabsHtml(s, 'vtab');
+        n.__pill.innerHTML = tabsHtml(s, 'vtab');
+        unfit(n);
       }
       var tabs = n.querySelectorAll('.vtab');
       for (var i = 0; i < tabs.length; i++) {
@@ -585,6 +808,146 @@
       if (!seen[id]) { vnodes[id].remove(); delete vnodes[id]; }
     });
   }
+
+  /* A continuous parameter sits on its element the way a version pill does:
+     clear above it, scrubbing live into the page, Keep committing a value. */
+  function renderSlides() {
+    var seen = {};
+    S.slides.forEach(function (s) {
+      if (s.route !== routeKey()) return;
+      if (!s.point && !(s.el && s.el.isConnected)) return;
+      seen[s.id] = 1;
+      var n = snodes[s.id];
+      var fresh = !n;
+      var showing = s.showing != null ? s.showing : (typeof s.kept === 'number' ? s.kept : s.value);
+      if (fresh) {
+        n = document.createElement('div');
+        n.className = 'slide';
+        n.innerHTML = '<div class="ring"></div><div class="pt"></div><div class="spill"></div>';
+        layer.appendChild(n);
+        snodes[s.id] = n;
+        n.__pill = n.querySelector('.spill');
+        if (!reduced) n.animate(
+          [{ transform: 'scale(.94)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
+          { duration: 200, easing: EASE });
+        bindSlidePill(n, s);
+      }
+      /* Only the range the agent reported is structural. Every state the
+         reviewer can reach — kept, minimized, the value showing — is a class
+         or a text node, because rewriting the pill would tear out the control
+         under the pointer. That is the same reason the version pill above is
+         never rebuilt for a choice. */
+      var sig = [s.min, s.max, s.step, s.label, s.unit].join('|');
+      if (n.__sig !== sig) {
+        n.__sig = sig;
+        n.__pill.innerHTML = slidePillHtml(s, showing);
+        unfit(n);
+      }
+      n.__slide = s;
+      var mini = typeof s.kept === 'number' && !s.open;
+      var was = n.classList.contains('mini');
+      var from = (!fresh && was !== mini && !reduced) ? n.__pill.getBoundingClientRect() : null;
+      // Measured from the shape on screen, then stopped: a toggle caught
+      // mid-morph resumes from where it got to, and the shape the pill is
+      // about to be placed at is the settled one rather than a frame of the
+      // animation it interrupted.
+      if (from && n.__pill.__anim) { n.__pill.__anim.cancel(); n.__pill.__anim = null; }
+      n.className = 'slide' + (s.point ? ' point' : '') + (S.locked ? ' locked' : '') +
+        (mini ? ' mini' : '');
+      if (was !== mini) unfit(n);
+      syncSlideInputs(n, s, showing);
+      // Placed at its final shape first, so the morph grows into a position
+      // that is already correct rather than dragging the pill across the page.
+      position(n, s);
+      if (from) morph(n.__pill, from);
+    });
+    Object.keys(snodes).forEach(function (id) {
+      if (!seen[id]) { snodes[id].remove(); delete snodes[id]; }
+    });
+  }
+
+  var RESET_ICON = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">' +
+    '<path d="M2.6 7a4.4 4.4 0 1 0 1.3-3.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+    '<path d="M2.6 2.8v2.8h2.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
+
+  /* Both faces are built once and swapped by class. The minimized one carries
+     the reference number as an inline chip, the way the composer header does —
+     an overhanging corner badge is for naming an element, and this names a
+     value the reviewer has already committed to. */
+  function slidePillHtml(s, showing) {
+    var lab = s.label ? '<span class="slide-lab">' + esc(s.label) + '</span>' : '';
+    return '<div class="sfull">' + lab +
+      '<input class="slide-range" type="range" min="' + s.min + '" max="' + s.max +
+      '" step="' + s.step + '" value="' + showing + '"' +
+      ' aria-label="' + esc(s.label || 'Value') + '">' +
+      '<input class="slide-num" type="number" min="' + s.min + '" max="' + s.max +
+      '" step="' + s.step + '" value="' + showing + '"' +
+      ' aria-label="' + esc(s.label || 'Value') + ' number">' +
+      (s.unit ? '<span class="slide-unit">' + esc(s.unit) + '</span>' : '') +
+      '<button class="slide-keep" data-act="keep-slide" data-slide="' + s.id + '"' +
+      ' type="button">Keep</button>' +
+      '<button class="slide-reset" data-act="reset-slide" data-slide="' + s.id + '"' +
+      ' type="button" title="Reset to default" aria-label="Reset slider ' +
+      esc(s.ref) + ' to default">' + RESET_ICON + '</button></div>' +
+      '<button class="smini" data-act="open-slide" data-slide="' + s.id + '" type="button">' +
+      '<span class="c-badge">' + esc(s.ref) + '</span>' +
+      '<span class="smini-v"></span></button>';
+  }
+
+  function bindSlidePill(n, s) {
+    n.addEventListener('input', function (e) {
+      var t = e.target;
+      if (!t || (!t.classList.contains('slide-range') && !t.classList.contains('slide-num'))) return;
+      var cur = n.__slide || s;
+      var v = Number(t.value);
+      if (!isFinite(v)) return;
+      showSlide(cur, v);
+      syncSlideInputs(n, cur, v);
+    });
+    n.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t || !t.classList.contains('slide-num')) return;
+      var cur = n.__slide || s;
+      var v = Number(t.value);
+      if (!isFinite(v)) { t.value = cur.showing; return; }
+      if (v < cur.min) v = cur.min;
+      if (v > cur.max) v = cur.max;
+      showSlide(cur, v);
+      syncSlideInputs(n, cur, v);
+    });
+  }
+
+  function syncSlideInputs(n, s, showing) {
+    var range = n.querySelector('.slide-range');
+    var num = n.querySelector('.slide-num');
+    if (range && Number(range.value) !== showing) range.value = showing;
+    if (num && document.activeElement !== num && Number(num.value) !== showing) num.value = showing;
+    var keep = n.querySelector('.slide-keep');
+    if (keep) keep.classList.toggle('on', typeof s.kept === 'number' && s.kept === showing);
+    // The minimized face states the value that was committed, not the one the
+    // range happens to be resting on.
+    var mv = n.querySelector('.smini-v');
+    var text = formatSlide(s, typeof s.kept === 'number' ? s.kept : showing);
+    if (mv && mv.textContent !== text) {
+      mv.textContent = text;
+      var mb = n.querySelector('.smini');
+      if (mb) {
+        mb.title = 'Reopen ' + (s.label || 'this slider');
+        mb.setAttribute('aria-label', 'Reopen slider ' + s.ref + ', kept at ' + text);
+      }
+      // A new number is a new shape, but only while that face is the one
+      // being measured — scrubbing an open pill must not re-measure anything.
+      if (n.classList.contains('mini')) unfit(n);
+    }
+    /* A sent batch locks the page. The pill is no longer rebuilt when that
+       happens, so the disabled state has to be written rather than baked into
+       the markup — where it used to go stale and leave the controls live to
+       anything that did not go through the pointer. */
+    var ctl = n.querySelectorAll('input,button');
+    for (var i = 0; i < ctl.length; i++) ctl[i].disabled = !!S.locked;
+  }
+
   /* One tab per version. The number is always there; the words the agent gave
      it arrive on hover, widening the pill rather than covering the page. */
   function tabsHtml(s, cls, focusable) {
@@ -604,16 +967,55 @@
   // the mark that asked for it.
   function isPoint(m) { return m.point === true || m.type === 'point' || m.type === 'insert'; }
   function position(n, m) {
+    var hl, ht, hw = 0, hh = 0;
     if (isPoint(m)) {
-      n.style.transform = 'translate(' + (m.x - scrollX) + 'px,' + (m.y - scrollY) + 'px)';
+      hl = m.x - scrollX; ht = m.y - scrollY;
       n.style.width = n.style.height = '0px';
-      return;
+    } else {
+      if (!m.el || !m.el.isConnected) return;
+      var r = m.el.getBoundingClientRect();
+      hl = r.left; ht = r.top; hw = r.width; hh = r.height;
+      n.style.width = hw + 'px';
+      n.style.height = hh + 'px';
     }
-    if (!m.el || !m.el.isConnected) return;
-    var r = m.el.getBoundingClientRect();
-    n.style.transform = 'translate(' + r.left + 'px,' + r.top + 'px)';
-    n.style.width = r.width + 'px';
-    n.style.height = r.height + 'px';
+    n.style.transform = 'translate(' + hl + 'px,' + ht + 'px)';
+    if (n.__pill) fitPill(n, hl, ht, hw, hh);
+  }
+
+  /* A pill sits clear above its element; against a viewport edge it flips below
+     or slides along, the way the composer does. Its shape is measured once and
+     then only arithmetic: measuring every frame costs a forced layout in
+     someone else's page, and it would feed the version pill's hover growth back
+     into its own position — the exact loop the width rule exists to prevent. */
+  var EDGE = 8, GAP = 8;
+  function unfit(n) { n.__box = null; n.__l = n.__t = null; }
+  function fitPill(n, hl, ht, hw, hh) {
+    var pill = n.__pill;
+    // The element moving is what the transform above handles; the element
+    // changing size means the page re-laid out, and a re-layout is the one
+    // thing that can have changed the pill's own shape without going through
+    // a render. Measured shapes do not survive it.
+    if (n.__hw !== hw || n.__hh !== hh) { n.__hw = hw; n.__hh = hh; unfit(n); }
+    var box = n.__box;
+    if (!box) {
+      // Cleared, not restored: the write below lands in this same frame, so
+      // the preferred offsets are never painted.
+      pill.style.left = ''; pill.style.top = '';
+      var w = pill.offsetWidth, h = pill.offsetHeight;
+      if (!w || !h) return;
+      box = n.__box = { left: pill.offsetLeft, top: pill.offsetTop, w: w, h: h };
+    }
+    var left = box.left, top = box.top;
+    if (hl + left + box.w > innerWidth - EDGE) left = innerWidth - EDGE - box.w - hl;
+    if (hl + left < EDGE) left = EDGE - hl;
+    if (ht + top < EDGE) {
+      var below = hh + GAP;
+      top = (ht + below + box.h <= innerHeight - EDGE) ? below : EDGE - ht;
+    } else if (ht + top + box.h > innerHeight - EDGE) {
+      top = Math.max(EDGE - ht, innerHeight - EDGE - box.h - ht);
+    }
+    if (n.__l !== left) { n.__l = left; pill.style.left = left + 'px'; }
+    if (n.__t !== top) { n.__t = top; pill.style.top = top + 'px'; }
   }
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
@@ -630,12 +1032,28 @@
       var v = vnodes[S.sets[j].id];
       if (v) { position(v, S.sets[j]); live = true; }
     }
+    for (var k = 0; k < S.slides.length; k++) {
+      var sn = snodes[S.slides[k].id];
+      if (sn) { position(sn, S.slides[k]); live = true; }
+    }
     if (S.armed && S.hover) { drawHover(S.hover); live = true; }
     if (composer) live = true;
     if (!live) { raf = null; return; }
     raf = requestAnimationFrame(tick);
   }
   function wake() { if (raf === null) raf = requestAnimationFrame(tick); }
+  /* A measured shape is only as good as the layout it was measured in. The
+     viewport resizing changes the room the pill has; the page finishing its
+     load, or a webfont arriving, changes the pill itself — and Tailr mounts
+     early enough to be measured before either. */
+  function unfitAll() {
+    Object.keys(vnodes).forEach(function (id) { unfit(vnodes[id]); });
+    Object.keys(snodes).forEach(function (id) { unfit(snodes[id]); });
+    wake();
+  }
+  addEventListener('resize', unfitAll);
+  addEventListener('load', unfitAll);
+  try { if (document.fonts) document.fonts.ready.then(unfitAll); } catch (e) {}
 
   /* ── hover inspector ───────────────────────────────────── */
   var hoverEl = document.createElement('div');
@@ -683,7 +1101,15 @@
 
   /* ── composer (a textbox ON the element) ───────────────── */
   var composer = null;
+  var textEdit = null;   // { mark, el, bar, start } while an inline text edit is open
+  var SLIDER_ICON = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">' +
+    /* end stops + track read as a range; the thumb sits on top so it stays sharp at 14px */
+    '<path d="M2 4.5v5M12 4.5v5M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+    '<circle cx="8.5" cy="7" r="2.75" fill="currentColor"/>' +
+    '<circle cx="8.5" cy="7" r="1.1" fill="#0B0B0C"/></svg>';
+
   function openComposer(m, anchorRect, editing) {
+    closeTextEdit(true);
     closeComposer();
     var c = document.createElement('div');
     c.className = 'composer';
@@ -694,7 +1120,9 @@
       '<textarea rows="2" placeholder="' + placeholderFor(m.type) + '"></textarea>' +
       '<div class="c-foot"><button class="ghost" data-act="cancel">' +
       (editing ? 'Delete' : 'Discard') + '</button>' +
-      (canVary(m) ? '<button class="mult" data-act="mult"></button>' : '') +
+      (canVary(m) ? '<button class="mult" data-act="mult" type="button"></button>' +
+        '<button class="mult slide-tog" data-act="slide" type="button" aria-pressed="false">' +
+        SLIDER_ICON + '</button>' : '') +
       '<button class="paper" data-act="save">' + (editing ? 'Save' : 'Add') + '</button></div>';
     // Position before it is in the document, so it never flashes at the origin.
     place(c, anchorRect);
@@ -714,8 +1142,11 @@
     // a menu: four is the whole range, and a menu over someone else's page for
     // a number between one and four is more chrome than the number is worth.
     var want = Math.min(VAR_MAX, Math.max(1, m.variations || 1));
-    var mult = c.querySelector('.mult');
+    var wantSlide = !!m.slider;
+    var mult = c.querySelector('.mult:not(.slide-tog)');
+    var slideTog = c.querySelector('.slide-tog');
     drawMult();
+    drawSlide();
     function drawMult() {
       if (!mult) return;
       mult.className = 'mult' + (want > 1 ? ' on' : '');
@@ -727,10 +1158,26 @@
         ? 'The agent makes one change. Click to ask for versions to choose between.'
         : 'The agent builds ' + want + ' versions and you pick one on the page.';
     }
+    function drawSlide() {
+      if (!slideTog) return;
+      slideTog.className = 'mult slide-tog' + (wantSlide ? ' on' : '');
+      slideTog.setAttribute('aria-pressed', wantSlide ? 'true' : 'false');
+      slideTog.setAttribute('aria-label', wantSlide
+        ? 'Slider on. The agent makes this numerically variable.'
+        : 'Ask for a slider. The agent makes this numerically variable.');
+      slideTog.title = wantSlide
+        ? 'On — the agent wires a number you can scrub on the page. Click to turn off.'
+        : 'Off — click to ask the agent for a continuous parameter (glow, depth, scale…).';
+    }
 
     c.addEventListener('click', function (e) {
       var a = e.target.getAttribute && e.target.getAttribute('data-act');
+      if (!a && e.target.closest) {
+        var btn = e.target.closest('[data-act]');
+        a = btn && btn.getAttribute('data-act');
+      }
       if (a === 'mult') { want = want >= VAR_MAX ? 1 : want + 1; drawMult(); return; }
+      if (a === 'slide') { wantSlide = !wantSlide; drawSlide(); return; }
       if (a === 'save') commit();
       if (a === 'cancel') { editing ? removeMark(m.id) : cancel(); if (editing) closeComposer(); }
     });
@@ -749,7 +1196,10 @@
       if (!composer || composer.mark.id !== m.id) return;
       m.comment = ta.value.trim();
       if (!m.comment && m.type !== 'remove') { removeMark(m.id); closeComposer(); return; }
-      if (canVary(m)) m.variations = want > 1 ? want : undefined;
+      if (canVary(m)) {
+        m.variations = want > 1 ? want : undefined;
+        m.slider = wantSlide || undefined;
+      }
       save(); closeComposer(); renderMarks(); renderIsland();
     }
   }
@@ -818,9 +1268,27 @@
     return node;
   }
 
-  function editText(el) {
-    var before = el.textContent;
-    var m = addMark('text', el, { before: before, after: before });
+  function editText(el, existing) {
+    // Re-opening an edit already in progress on this mark is a no-op, not a
+    // second editor stacked on the first.
+    if (textEdit && textEdit.mark.el === el) return;
+    closeTextEdit(false);
+    closeComposer();
+
+    var m = existing || markOn(el, 'text');
+    var reopening = !!m;
+    var start;
+    if (m) {
+      // A reload puts the host's original string back. Put the staged after on
+      // the element before editing so the reviewer sees what they already wrote,
+      // and so Escape returns to that rather than wiping the mark.
+      if (m.after != null && el.textContent !== m.after) el.textContent = m.after;
+      start = el.textContent;
+    } else {
+      start = el.textContent;
+      m = addMark('text', el, { before: start, after: start });
+    }
+
     el.setAttribute('data-tailr-editing', '');
     el.contentEditable = 'true';
     // App-like pages routinely set user-select:none, which leaves a
@@ -832,23 +1300,109 @@
     el.style.setProperty('-webkit-user-select', 'text', 'important');
     el.focus();
     var sel = getSelection(); sel.selectAllChildren(el);
-    function end() {
-      el.removeAttribute('contenteditable');
-      el.removeAttribute('data-tailr-editing');
-      if (priorStyle === null) el.removeAttribute('style'); else el.setAttribute('style', priorStyle);
-      el.removeEventListener('blur', end);
-      el.removeEventListener('keydown', key);
-      m.after = el.textContent;
-      if (m.after === m.before) removeMark(m.id);
-      else { save(); renderMarks(); renderIsland(); }
+
+    // A first edit needs no chrome — the text is the answer. Reopening one
+    // does: Escape alone cannot both cancel the tweak and delete the mark, so
+    // a small bar carries Delete (revert to the original) and Done.
+    var bar = null;
+    if (reopening) {
+      bar = document.createElement('div');
+      bar.className = 'text-bar';
+      bar.innerHTML =
+        '<span class="c-badge">' + pad(m.n) + '</span>' +
+        '<button class="ghost" data-act="delete" type="button">Delete</button>' +
+        '<button class="paper" data-act="done" type="button">Done</button>';
+      placeTextBar(bar, el.getBoundingClientRect());
+      layer.appendChild(bar);
+      if (!reduced) bar.animate([{ opacity: 0, transform: 'translateY(4px) scale(.98)' },
+        { opacity: 1, transform: 'translateY(0) scale(1)' }], { duration: 200, easing: EASE });
+      bar.addEventListener('mousedown', function (e) {
+        // Keep focus on the editable; a mousedown on Done would blur first and
+        // commit before the click handler runs.
+        e.preventDefault();
+      });
+      bar.addEventListener('click', function (e) {
+        var a = e.target.getAttribute && e.target.getAttribute('data-act');
+        if (a === 'done') { e.preventDefault(); closeTextEdit(true); }
+        if (a === 'delete') { e.preventDefault(); dropTextEdit(); }
+      });
     }
-    function key(e) {
+
+    textEdit = { mark: m, el: el, bar: bar, start: start, priorStyle: priorStyle };
+    renderMarks();
+
+    function onBlur() {
+      // Clicks on the bar are handled above and never blur-commit.
+      closeTextEdit(true);
+    }
+    function onKey(e) {
       e.stopPropagation();
-      if (e.key === 'Escape') { el.textContent = before; el.blur(); }
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        // Abandon this edit session: put the text back to how it began.
+        el.textContent = start;
+        closeTextEdit(false);
+      }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); closeTextEdit(true); }
     }
-    el.addEventListener('blur', end);
-    el.addEventListener('keydown', key);
+    el.addEventListener('blur', onBlur);
+    el.addEventListener('keydown', onKey);
+    textEdit.onBlur = onBlur;
+    textEdit.onKey = onKey;
+  }
+
+  function placeTextBar(bar, r) {
+    var w = 168, gap = 8;
+    var left = Math.min(Math.max(8, r.left), innerWidth - w - 8);
+    var top = r.bottom + gap;
+    if (top + 44 > innerHeight) top = Math.max(8, r.top - 44 - gap);
+    bar.style.left = left + 'px';
+    bar.style.top = top + 'px';
+  }
+
+  /** Finish an inline text edit. `keep` false abandons the session without
+      writing a new after — Delete uses dropTextEdit to revert the original. */
+  function closeTextEdit(keep) {
+    if (!textEdit) return;
+    var te = textEdit;
+    var el = te.el;
+    var m = te.mark;
+    el.removeEventListener('blur', te.onBlur);
+    el.removeEventListener('keydown', te.onKey);
+    el.removeAttribute('contenteditable');
+    el.removeAttribute('data-tailr-editing');
+    if (te.priorStyle === null) el.removeAttribute('style');
+    else el.setAttribute('style', te.priorStyle);
+    if (te.bar) te.bar.remove();
+    textEdit = null;
+    if (!keep) {
+      el.textContent = te.start;
+      // A brand-new mark that never left the original string is not a mark.
+      if (te.start === m.before) removeMark(m.id);
+      else { m.after = te.start; m.snippet = snippetOf(el); save(); renderMarks(); renderIsland(); }
+      return;
+    }
+    m.after = el.textContent;
+    if (m.after === m.before) removeMark(m.id);
+    else { m.snippet = snippetOf(el); save(); renderMarks(); renderIsland(); }
+  }
+
+  /** Delete an existing text mark from its reopen bar: restore the original. */
+  function dropTextEdit() {
+    if (!textEdit) return;
+    var id = textEdit.mark.id;
+    var te = textEdit;
+    var el = te.el;
+    el.removeEventListener('blur', te.onBlur);
+    el.removeEventListener('keydown', te.onKey);
+    el.removeAttribute('contenteditable');
+    el.removeAttribute('data-tailr-editing');
+    if (te.priorStyle === null) el.removeAttribute('style');
+    else el.setAttribute('style', te.priorStyle);
+    if (te.bar) te.bar.remove();
+    textEdit = null;
+    // removeMark restores before onto the element.
+    removeMark(id);
   }
 
   /* ── island ──────────────────────────────────────────────
@@ -1026,13 +1580,15 @@
   function renderIsland() {
     if (!IS) buildIsland();
     var count = staged().length;
-    var undecided = S.sets.filter(function (s) { return s.choice == null; }).length;
+    var undecided = S.sets.filter(function (s) { return s.choice == null; }).length +
+      S.slides.filter(function (s) { return s.kept === undefined; }).length;
     var needsReload = !!(S.agent && S.agent.phase === 'done');
     var sig = [count, S.locked, S.armed, S.expanded, needsReload, S.teach, S.learn.welcomed,
       S.ending, S.dirty, S.app && S.app.target,
       S.agent ? S.agent.phase : '-', S.agent ? S.agent.served.length : 0,
       S.marks.map(function (m) { return m.id + m.status; }).join(','),
-      S.sets.map(function (s) { return s.id + s.choice; }).join(',')].join('|');
+      S.sets.map(function (s) { return s.id + s.choice; }).join(','),
+      S.slides.map(function (s) { return s.id + s.kept; }).join(',')].join('|');
     if (sig === renderIsland._sig) return;
     renderIsland._sig = sig;
 
@@ -1041,8 +1597,8 @@
 
     // A set nobody has chosen between is unfinished work: the island cannot go
     // back to resting on it, or the versions sit in the source unmentioned.
-    var dormant = count === 0 && !needsReload && !S.sets.length;
-    var teaching = S.teach || (S.expanded === 'batch' && count === 0 && !S.sets.length);
+    var dormant = count === 0 && !needsReload && !S.sets.length && !S.slides.length;
+    var teaching = S.teach || (S.expanded === 'batch' && count === 0 && !S.sets.length && !S.slides.length);
     var welcoming = teaching && !S.learn.welcomed;
     // The dismiss belongs to the welcome, not to any one row state — a reviewer
     // arriving while a finished run is still on the server must still be able
@@ -1061,7 +1617,7 @@
     } else {
       var label = needsReload ? 'Needs refresh'
         : S.locked ? 'Sent'
-        : count === 0 ? (undecided === 1 ? 'Pick a version' : 'Pick versions')
+        : count === 0 ? (undecided === 1 ? 'Pick a value' : 'Pick values')
         : count === 1 ? 'Send' : 'Send batch';
       IS.row.innerHTML = dismiss +
         (count ? '<span class="count">' + count + '</span>' : '') +
@@ -1070,7 +1626,7 @@
 
     // Ending holds the panel open on its own: it is a question being asked, and
     // it must not close because the pointer wandered off the pill.
-    var open = !!S.ending || (S.expanded === 'batch' && (count > 0 || S.sets.length > 0)) || teaching;
+    var open = !!S.ending || (S.expanded === 'batch' && (count > 0 || S.sets.length > 0 || S.slides.length > 0)) || teaching;
     IS.batch.className = 'pill batch ' +
       // nothing staged but versions waiting: the pill is a prompt, not a Send
       (S.ending ? 'locked' : dormant ? 'dormant' : (needsReload || S.locked || count === 0) ? 'locked' : 'ready') +
@@ -1139,7 +1695,7 @@
        { width: to.width + 'px', height: to.height + 'px' }],
       { duration: dur, easing: EASE });
     el.__fades = [];
-    var inner = el.querySelectorAll('.list, .body');
+    var inner = el.querySelectorAll('.list, .body, .sfull, .smini');
     for (var i = 0; i < inner.length; i++) {
       if (!inner[i].firstChild) continue;
       el.__fades.push(inner[i].animate(
@@ -1262,6 +1818,10 @@
       h += '<div class="grp">Versions the agent built — keep one</div>';
       S.sets.forEach(function (s) { h += setRowHtml(s); });
     }
+    if (S.slides.length) {
+      h += '<div class="grp">Sliders the agent built — keep a value</div>';
+      S.slides.forEach(function (s) { h += slideRowHtml(s); });
+    }
     if (orph.length) {
       h += '<div class="grp bad">Orphaned — element no longer on the page</div>';
       orph.forEach(function (m) { h += rowHtml(m, true); });
@@ -1285,6 +1845,24 @@
       '" data-i="0" title="Keep none of them" aria-label="Keep none of the versions of ' +
       esc(s.ref) + '">×</button></div>';
   }
+  /* The row carries what the pill on the page carries, plus the one thing the
+     page deliberately leaves out: turning the slider down altogether, which
+     lives here for the same reason a version set's × does. */
+  function slideRowHtml(s) {
+    var showing = s.showing != null ? s.showing : (typeof s.kept === 'number' ? s.kept : s.value);
+    return '<div class="li sli">' +
+      '<span class="li-n">' + esc(s.ref) + '</span>' +
+      '<span class="li-a">' + esc(s.label || s.address) + '</span>' +
+      '<span class="slide-row-val">' + esc(formatSlide(s, showing)) + '</span>' +
+      '<button class="slide-keep' + (typeof s.kept === 'number' && s.kept === showing ? ' on' : '') +
+      '" data-act="keep-slide" data-slide="' + s.id + '" type="button">Keep</button>' +
+      '<button class="slide-reset" data-act="reset-slide" data-slide="' + s.id +
+      '" type="button" title="Reset to default" aria-label="Reset slider ' +
+      esc(s.ref) + ' to default">' + RESET_ICON + '</button>' +
+      '<button class="li-x' + (s.kept === null ? ' on' : '') + '" data-act="drop-slide" data-slide="' +
+      s.id + '" title="Keep none of it" aria-label="Discard the slider on ' +
+      esc(s.ref) + '">×</button></div>';
+  }
   function rowHtml(m, orphan) {
     var text = m.type === 'text' ? '“' + esc(m.before) + '” → “' + esc(m.after) + '”' : esc(m.comment || m.snippet);
     // The on-page badge is deliberately small so it never covers what it labels,
@@ -1297,10 +1875,11 @@
     var attrs = editable
       ? ' role="button" tabindex="0" data-act="edit" data-id="' + m.id + '" title="Edit mark ' + pad(m.n) + '"'
       : '';
+    var flags = (m.variations > 1 ? '<span class="li-v">' + m.variations + '×</span>' : '') +
+      (m.slider ? '<span class="li-v">slider</span>' : '');
     return '<div class="li' + (orphan ? ' orph' : '') + (editable ? ' editable' : '') + '"' + attrs + '>' +
       '<span class="li-n ' + m.type + '">' + pad(m.n) + '</span>' +
-      '<span class="li-k">' + kindLabel(m.type) +
-      (m.variations > 1 ? '<span class="li-v">' + m.variations + '×</span>' : '') + '</span>' +
+      '<span class="li-k">' + kindLabel(m.type) + flags + '</span>' +
       '<span class="li-a">' + esc(m.address) + '</span>' +
       '<span class="li-c" title="' + text.replace(/"/g, '&quot;') + '">' + text + '</span>' +
       '<button class="li-x" data-act="drop" data-id="' + m.id +
@@ -1334,7 +1913,9 @@
           selector: m.selector, element: m.snippet, comment: m.comment,
           before: m.before, after: m.after, x: m.x, y: m.y, orphaned: m.status === 'orphan',
           variations: m.variations > 1 ? m.variations : undefined,
-          variantOf: m.variantOf, variant: m.variant, label: m.label };
+          slider: m.slider || undefined,
+          variantOf: m.variantOf, variant: m.variant, label: m.label,
+          sliderOf: m.sliderOf, value: m.value };
       })
     };
   }
@@ -1346,7 +1927,13 @@
     m.status = 'served';
     // The versions have been settled in the source, so the switch that chose
     // between them is not a thing on this page any more.
-    if (m.type === 'choice') dropSet(m.setId);
+    if (m.type === 'choice') {
+      if (m.setId) dropSet(m.setId);
+      if (m.sliderOf) {
+        var sl = S.slides.find(function (x) { return x.ref === m.sliderOf; });
+        if (sl) dropSlide(sl.id);
+      }
+    }
     if (S.agent && S.agent.served.indexOf(ref) === -1) S.agent.served.push(ref);
     save(); renderMarks(); renderIsland();
   }
@@ -1356,8 +1943,10 @@
      versions still guarded in their source, the switches on the page, what is
      in this browser, and the process in front of their dev server. */
   function undecided() { return S.sets.filter(function (s) { return s.choice == null; }); }
+  function undecidedSlides() { return S.slides.filter(function (s) { return s.kept === undefined; }); }
   function cleanupWork() {
-    return staged().filter(function (m) { return m.type === 'choice'; }).length + undecided().length;
+    return staged().filter(function (m) { return m.type === 'choice'; }).length +
+      undecided().length + undecidedSlides().length;
   }
 
   function endSession() {
@@ -1365,6 +1954,7 @@
     // the last chance to say what happens to them, and the only answer Tailr can
     // give on the reviewer's behalf without guessing is: take them all out.
     undecided().forEach(function (s) { choose(s.id, 0); });
+    undecidedSlides().forEach(function (s) { keepSlide(s.id, null); });
     var batch = staged().filter(function (m) { return m.type === 'choice'; });
     if (!batch.length || S.locked) {
       // A run already open means the batch cannot be handed over. Say so on the
@@ -1393,11 +1983,13 @@
     if (app) S.app = app;
     if (S.ending === 'ended') return;
     closeComposer();
+    closeTextEdit(false);
     S.latched = false; arm(false);
     if (reconcileTimer) { clearInterval(reconcileTimer); reconcileTimer = null; }
     S.sets.forEach(function (s) { document.documentElement.removeAttribute(varAttr(s.ref)); });
+    S.slides.forEach(function (s) { document.documentElement.removeAttribute(slideAttr(s.ref)); });
     S.ending = 'ended';
-    S.marks = []; S.sets = []; S.seq = 1; S.agent = null; S.locked = false; S.expanded = null;
+    S.marks = []; S.sets = []; S.slides = []; S.seq = 1; S.sessionId = null; S.agent = null; S.locked = false; S.expanded = null;
     try {
       localStorage.removeItem(ORIGIN_KEY);
       localStorage.removeItem(LEARN_KEY);
@@ -1412,6 +2004,13 @@
       var v = variants[ref];
       var labels = (v && v.labels) || [];
       if (labels.length > 1) addSet(ref, labels, v.selector);
+    });
+  }
+  function syncSliders(sliders) {
+    if (!sliders) return;
+    Object.keys(sliders).forEach(function (ref) {
+      var v = sliders[ref];
+      if (v && v.min != null && v.max != null) addSlide(ref, v);
     });
   }
   function abandon() {
@@ -1473,7 +2072,7 @@
       else if (S.latched) { S.latched = false; arm(false); }
       else if (S.expanded) { S.expanded = null; renderIsland(); }
     }
-    if (!S.latched || composer || into) return;
+    if (!S.latched || composer || textEdit || into) return;
     // latched-mode verbs + structural walking
     var el = S.hover;
     if (!el) return;
@@ -1482,9 +2081,18 @@
     if (k === 'arrowdown' && el.firstElementChild) { S.hover = el.firstElementChild; e.preventDefault(); }
     if (k === 'arrowright' && el.nextElementSibling) { S.hover = el.nextElementSibling; e.preventDefault(); }
     if (k === 'arrowleft' && el.previousElementSibling) { S.hover = el.previousElementSibling; e.preventDefault(); }
-    if (k === 'c') { e.preventDefault(); openComposer(addMark('comment', el), el.getBoundingClientRect()); }
+    if (k === 'c') {
+      e.preventDefault();
+      var existing = markOn(el, 'comment');
+      if (existing) openComposer(existing, el.getBoundingClientRect(), true);
+      else openComposer(addMark('comment', el), el.getBoundingClientRect());
+    }
     if (k === 'r') { e.preventDefault(); addMark('remove', el); }
-    if (k === 'e') { e.preventDefault(); var h = textHost(el); if (h) editText(h); }
+    if (k === 'e') {
+      e.preventDefault();
+      var h = textHost(el);
+      if (h) editText(h);
+    }
   }
   function onKeyUp(e) {
     if (e.key === 'Alt') { e.preventDefault(); if (!S.latched) arm(false); }
@@ -1548,6 +2156,7 @@
   function onClick(e) {
     if (!guard(e)) return;
     if (composer) { composer.commit(); return; }
+    if (textEdit) { closeTextEdit(true); return; }
     if (e.shiftKey) {
       placePoint(e);
       return;
@@ -1556,7 +2165,9 @@
     clearTimeout(clickTimer);
     clickTimer = setTimeout(function () {
       clickTimer = null;
-      openComposer(addMark('comment', el), rect);
+      var existing = markOn(el, 'comment');
+      if (existing) openComposer(existing, rect, true);
+      else openComposer(addMark('comment', el), rect);
     }, 260);
   }
   function onDbl(e) {
@@ -1567,6 +2178,7 @@
     // rather than being answered with nothing at all.
     if (!host) return;
     clearTimeout(clickTimer); clickTimer = null;
+    // An element that already carries a text mark is reopened, not stacked.
     editText(host);
   }
 
@@ -1574,6 +2186,13 @@
     var m = S.marks.find(function (x) { return x.id === id; });
     if (!m || m.status === 'served') return;
     setExpanded(null);
+    if (m.type === 'text') {
+      if (m.el && m.el.isConnected) {
+        m.el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+        setTimeout(function () { editText(m.el, m); }, reduced ? 0 : 320);
+      }
+      return;
+    }
     var open = function () {
       var r = isPoint(m)
         ? { left: m.x - scrollX, top: m.y - scrollY, bottom: m.y - scrollY, right: m.x - scrollX }
@@ -1596,6 +2215,14 @@
       if (a === 'drop') { clearTimeout(leaveT); removeMark(b.getAttribute('data-id')); }
       if (a === 'edit') editMark(b.getAttribute('data-id'));
       if (a === 'pick') { clearTimeout(leaveT); choose(b.getAttribute('data-set'), Number(b.getAttribute('data-i'))); }
+      if (a === 'keep-slide') {
+        clearTimeout(leaveT);
+        var ks = slideFor(b.getAttribute('data-slide'));
+        keepSlide(b.getAttribute('data-slide'), ks ? ks.showing : null);
+      }
+      if (a === 'drop-slide') { clearTimeout(leaveT); keepSlide(b.getAttribute('data-slide'), null); }
+      if (a === 'reset-slide') { clearTimeout(leaveT); resetSlide(b.getAttribute('data-slide')); }
+      if (a === 'open-slide') { clearTimeout(leaveT); openSlide(b.getAttribute('data-slide')); }
       if (a === 'reload') location.reload();
       if (a === 'resend') { S.agent = null; S.locked = false; renderIsland(); }
       if (a === 'abandon') abandon();
@@ -1639,6 +2266,21 @@
       if (!app || (S.app && S.app.target === app.target && S.app.spawned === app.spawned)) return;
       S.app = app; renderIsland();
     },
+    /* The server names each process. Marks and their numbers belong to that
+       process: a new Tailr session must not continue a previous one's count. */
+    bindSession: function (id) {
+      if (!id || S.sessionId === id) return;
+      var had = S.sessionId != null || S.marks.length || S.sets.length || S.slides.length || S.seq > 1;
+      S.sessionId = id;
+      if (had) {
+        closeComposer();
+        closeTextEdit(false);
+        S.sets.slice().forEach(function (s) { dropSet(s.id); });
+        S.slides.slice().forEach(function (s) { dropSlide(s.id); });
+        S.marks = []; S.seq = 1; S.agent = null; S.locked = false; S.expanded = null;
+      }
+      save(); renderMarks(); renderIsland();
+    },
     shutdown: shutdown,
     sync: function (run) {
       if (!run) {
@@ -1650,6 +2292,7 @@
       // Variations first: a set is built from the mark that asked for it, and
       // reporting that mark applied is what eventually takes the mark away.
       syncVariants(run.variants);
+      syncSliders(run.sliders);
       if (run.phase === 'working') {
         S.locked = true;
         S.watched = run.id;
@@ -1678,9 +2321,11 @@
     },
     clear: function () {
       closeComposer();
+      closeTextEdit(false);
       // Reference numbers start over, so every switch keyed to an old one has to
       // go with them or the next mark 03 inherits a stranger's versions.
       S.sets.slice().forEach(function (s) { dropSet(s.id); });
+      S.slides.slice().forEach(function (s) { dropSlide(s.id); });
       S.marks = []; S.seq = 1; S.agent = null; S.locked = false;
       save(); renderMarks(); renderIsland();
     },
@@ -1697,6 +2342,7 @@
       document.removeEventListener('dblclick', onDbl, true);
       document.documentElement.removeAttribute('data-tailr-armed');
       S.sets.forEach(function (s) { document.documentElement.removeAttribute(varAttr(s.ref)); });
+      S.slides.forEach(function (s) { document.documentElement.removeAttribute(slideAttr(s.ref)); });
       host.remove();
       delete window.__tailr;
     },
@@ -1718,6 +2364,7 @@
   // Before anything is drawn: the page has to come up in the version the
   // reviewer left it on, not flash version one and then correct itself.
   showAllVariants();
+  showAllSlides();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
   else mount();
   root.addEventListener('click', islandClick);
@@ -1766,7 +2413,7 @@
   background:#0B0B0C;box-shadow:0 0 0 2px rgba(255, 255, 255, 0.92)}
 /* Clear of the element rather than half over it, the way the reference badges
    sit: this one is a control, and it is large enough to hide the thing it is
-   offering versions of. */
+   offering versions of. Near a viewport edge, fitPill flips or slides it. */
 .vpill{position:absolute;left:-1px;top:-26px;display:flex;align-items:center;gap:2px;padding:2px;
   pointer-events:auto;background:#0B0B0C;border-radius:999px;
   box-shadow:0 4px 14px rgba(0, 0, 0, 0.34),0 0 0 1px rgba(255, 255, 255, 0.10)}
@@ -1792,6 +2439,74 @@
 .vtab:hover,.vt:hover{color:#FFFFFF}
 .vtab.on:hover,.vt.on:hover{color:#0B0B0C}
 
+/* numerical slider — continuous parameter on the element, like a version pill.
+   Preferred clear above it; fitPill flips or slides it against a viewport edge. */
+.slide{position:absolute;top:0;left:0;pointer-events:none;will-change:transform}
+.slide .ring{position:absolute;inset:0;border-radius:3px;
+  box-shadow:0 0 0 1px rgba(11, 11, 12, 0.30), 0 0 0 2px rgba(255, 255, 255, 0.65)}
+.slide .pt{display:none}
+.slide.point .ring{display:none}
+.slide.point .pt{display:block;position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;
+  background:#0B0B0C;box-shadow:0 0 0 2px rgba(255, 255, 255, 0.92)}
+/* One object that changes width. Both faces are 32px tall, so the gap above
+   the element stays 8px whichever one is showing, and the morph is width only.
+   It clips like the island's pills do, so content never overhangs the shape
+   while that width is travelling. */
+.spill{position:absolute;left:-1px;top:-40px;transform:none;display:flex;align-items:center;
+  pointer-events:auto;background:#0B0B0C;border-radius:999px;color:#fff;overflow:hidden;
+  box-shadow:0 4px 14px rgba(0, 0, 0, 0.34),0 0 0 1px rgba(255, 255, 255, 0.10);
+  white-space:nowrap}
+.slide.point .spill{left:10px}
+.slide.locked .spill{pointer-events:none;opacity:.5}
+.sfull{display:flex;align-items:center;gap:6px;height:32px;padding:0 6px 0 10px}
+.smini{display:none;align-items:center;gap:6px;height:32px;padding:0 12px 0 8px;
+  border:none;border-radius:999px;background:transparent;color:#fff;font:inherit;cursor:pointer}
+.smini:hover{background:rgba(255, 255, 255, 0.06)}
+.smini-v{font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.slide.mini .sfull{display:none}
+.slide.mini .smini{display:flex}
+.slide-lab{font-size:10.5px;font-weight:650;letter-spacing:-.005em;color:rgba(255,255,255,0.56);
+  max-width:72px;overflow:hidden;text-overflow:ellipsis}
+/* Track and thumb are drawn here rather than left to the platform, so the
+   control reads as Tailr's on every browser and on any host page. */
+.slide-range{-webkit-appearance:none;appearance:none;width:104px;height:18px;margin:0;padding:0;
+  background:transparent;cursor:pointer;vertical-align:middle}
+.slide-range:focus{outline:none}
+.slide-range:focus-visible{outline:2px solid #2FD4A8;outline-offset:1px;border-radius:999px}
+.slide-range::-webkit-slider-runnable-track{height:4px;border-radius:999px;
+  background:rgba(255,255,255,0.18)}
+.slide-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;
+  margin-top:-5px;border-radius:50%;background:#F2EDE1;border:none;
+  box-shadow:0 1px 3px rgba(0,0,0,0.35)}
+.slide-range::-moz-range-track{height:4px;border-radius:999px;background:rgba(255,255,255,0.18);
+  border:none}
+.slide-range::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#F2EDE1;
+  border:none;box-shadow:0 1px 3px rgba(0,0,0,0.35)}
+.slide-num{width:44px;height:22px;border:none;outline:none;border-radius:999px;padding:0 6px;
+  background:rgba(255,255,255,0.12);color:#fff;font-size:11px;font-weight:700;
+  font-variant-numeric:tabular-nums;text-align:center;
+  -moz-appearance:textfield;appearance:textfield}
+.slide-num::-webkit-outer-spin-button,.slide-num::-webkit-inner-spin-button{
+  -webkit-appearance:none;margin:0}
+.slide-num:focus{box-shadow:0 0 0 2px rgba(47, 212, 168, 0.55)}
+.slide-unit{font-size:10px;font-weight:650;color:rgba(255,255,255,0.56)}
+/* Keep goes paper once it is the value being kept, the way the chosen version
+   tab does: before that it is an offer, not a commitment. */
+.slide-keep{height:22px;padding:0 10px;font-size:11px;
+  background:rgba(255, 255, 255, 0.12);color:#fff;transition:background .12s,color .12s}
+.slide-keep:hover{background:rgba(255, 255, 255, 0.18)}
+.slide-keep.on{background:#F2EDE1;color:#0B0B0C}
+.slide-reset{width:22px;height:22px;border:none;border-radius:999px;background:transparent;
+  color:rgba(255,255,255,0.56);cursor:pointer;padding:0;display:inline-flex;
+  align-items:center;justify-content:center;flex:0 0 auto}
+.slide-reset:hover{color:#fff;background:rgba(255,255,255,0.12)}
+.slide-reset svg{display:block}
+.slide-row-val{font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;min-width:36px}
+.sli .slide-keep{flex:0 0 auto}
+.sli .slide-reset{flex:0 0 auto;color:rgba(255, 255, 255, 0.56)}
+.slide-tog{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px;min-width:34px}
+.slide-tog svg{display:block;flex:0 0 auto}
+
 /* composer — a textbox ON the element */
 .composer{position:absolute;width:268px;pointer-events:auto;background:#0B0B0C;
   border-radius:12px;padding:10px;color:#fff;
@@ -1808,6 +2523,16 @@
 .composer textarea::-webkit-scrollbar{width:0;display:none}
 .composer textarea::placeholder{color:rgba(255, 255, 255, 0.56)}
 .composer textarea:focus{box-shadow:0 0 0 2px rgba(47, 212, 168, 0.55)}
+
+/* text reopen bar — Delete + Done when an existing text mark is reopened.
+   A full pill, with the reference number as a corner badge the way a comment
+   mark wears it — not an inline chip inside the bar. */
+.text-bar{position:absolute;display:flex;align-items:center;gap:6px;padding:5px 8px 5px 8px;
+  pointer-events:auto;background:#0B0B0C;color:#fff;border-radius:999px;
+  box-shadow:0 10px 34px rgba(0, 0, 0, 0.34),0 0 0 1px rgba(255, 255, 255, 0.10)}
+.text-bar .c-badge{position:absolute;left:-1px;top:-9px;margin:0;background:#0B0B0C;color:#fff;
+  box-shadow:0 0 0 1px rgba(255, 255, 255, 0.65)}
+.text-bar button{height:26px;padding:0 12px;font-size:12px}
 .c-foot{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
 /* how many versions to ask for — one tap apart from the send that commits it */
 .mult{background:rgba(255, 255, 255, 0.06);color:rgba(255, 255, 255, 0.56);padding:6px 10px;

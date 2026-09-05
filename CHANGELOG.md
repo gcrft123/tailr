@@ -13,6 +13,17 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ### Added
 
+- A slider companion to the 1×–4× variations toggle on the comment composer.
+  Turn it on to ask the agent for a continuous parameter (glow, depth, scale…).
+  The agent wires it behind `data-tailr-slide-<ref>`, reports the range with
+  `tailr slider` / `tailr_slider`, and the reviewer scrubs it on the page before
+  keeping a value — the same round trip versions use. The pill's track and thumb
+  are drawn rather than left to the platform, and the number beside them has no
+  spinner arrows: this is a value to scrub, not a form to fill in. **Keep**
+  minimizes the pill to that value with its reference number, which reopens it,
+  and **Reset** puts the parameter back to the default the agent reported.
+  Keeping the value already kept takes the keep back, the way clicking the
+  version already chosen does.
 - `/tailr:start` is a slash-command skill. Typing it starts a session against
   the dev server and begins watching for the first batch; the model will not
   fire it on its own. The review loop stays a background skill, loaded when a
@@ -27,8 +38,34 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
   without a marketplace of their own take the skills globally through
   `npx skills add gcrft123/tailr -g`.
 
+### Changed
+
+- Mark reference numbers reset with each Tailr session. The server names the
+  process; the overlay drops leftover marks from a previous process and starts
+  the count at 01 again.
+- Clicking the badge on a text mark reopens the inline editor, with a Delete /
+  Done bar so the staged change can be revised or reverted. Double-clicking
+  text that already has a mark, and commenting an element that already has a
+  comment, reopen the existing mark instead of stacking a new one.
+- A slider's row in the staged list carries what its pill carries — Keep, lit
+  when that value is the one being kept, and Reset — plus the `×` that turns the
+  slider down altogether, which stays in the list for the same reason a version
+  set's does.
+
 ### Fixed
 
+- Version and slider pills on an element in the corner of the viewport no longer
+  render offscreen. Both flip below the element, or slide along its edge, the way
+  the comment composer already did. A slider pill also follows its element while
+  the page scrolls, which it never did.
+- The slider pill is no longer rebuilt when the reviewer keeps a value, so the
+  button under the pointer survives being clicked and keyboard focus stays where
+  it was. Both faces of the pill are now built once and swapped by class, which
+  is what lets the change of shape animate at all — and it is the rule the
+  version pill above it has always followed.
+- A sent batch now disables a slider pill's controls rather than only greying
+  them, and Keep reads as kept: its lit state used to be the same paper as its
+  resting state, so it could not be told apart.
 - The Claude Code app would not add Tailr from this repository. It looks for a
   plugin at the repo root (`.claude-plugin/plugin.json`, `.mcp.json`, skills)
   and the `owner/repo` marketplace shorthand clones over SSH, which the app

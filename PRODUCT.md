@@ -98,12 +98,13 @@ If the agent never answers the cleanup batch, the reviewer can still leave. Tail
 
 ### Confirmed variation model
 
-A comment on an element, or on a spot, can ask for **up to four versions of the same change**, built together so the reviewer compares them on the running page rather than in prose. This is the one place where the agent's work is reflected back into the overlay beyond the reload prompt.
+A comment on an element, or on a spot, can ask for **up to four versions of the same change**, built together so the reviewer compares them on the running page rather than in prose. The same mark can also ask for a **continuous slider** — a numerical parameter the reviewer scrubs on the page (glow intensity, bevel depth, geometry). Both are the places where the agent's work is reflected back into the overlay beyond the reload prompt.
 
 - The versions are built into the source at once, each guarded on a switch only Tailr sets: `data-tailr-var-<ref>` on the `<html>` element. Version 1 is also what renders when the attribute is absent, so the application is never broken for anyone not looking through Tailr.
+- A slider is one number behind `data-tailr-slide-<ref>`, with a range the agent reports. The default value is what renders when the attribute is absent.
 - The agent names each version in one to three words. Those names are the entire basis on which someone who cannot read the diff decides, so they describe the version rather than enumerate it.
-- **The guards are scaffolding, and they live for exactly one round trip.** Keeping a version is itself a mark: it goes into the next batch, and it is what takes the losing versions and the switch out of the source. A reviewer must never be able to reach a state where versions are staged in their repository with nothing in Tailr that would remove them — which is why an unresolved set keeps the island awake, and why turning the whole set down is an offered action rather than something achieved by ignoring it.
-- Removals and inline text edits have no versions. A deletion has one outcome, and an inline edit is the reviewer writing the answer themselves.
+- **The guards are scaffolding, and they live for exactly one round trip.** Keeping a version or a slider value is itself a mark: it goes into the next batch, and it is what takes the losing versions or the switch out of the source. A reviewer must never be able to reach a state where versions or sliders are staged in their repository with nothing in Tailr that would remove them — which is why an unresolved set keeps the island awake, and why turning the whole set down is an offered action rather than something achieved by ignoring it.
+- Removals and inline text edits have no versions or sliders. A deletion has one outcome, and an inline edit is the reviewer writing the answer themselves.
 
 ### Explicitly undecided
 

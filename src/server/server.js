@@ -35,6 +35,10 @@ export function createServer({ target, onReady, onExit, spawned = false }) {
   const upstreamPort = Number(upstream.port || (secure ? 443 : 80));
 
   /* ── run state ─────────────────────────────────────────── */
+  /* One id per process. The overlay keys its mark numbers to it, so a new
+     Tailr session starts the reference count over rather than continuing
+     whatever a previous process left in the browser. */
+  const sessionId = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const state = {
     batch: null,      // { id, sentAt, marks }  — waiting or in flight
     run: null,        // { id, phase, served:[], total, error, leasedAt }
@@ -49,10 +53,12 @@ export function createServer({ target, onReady, onExit, spawned = false }) {
   }
   function publicState() {
     return {
+      sessionId,
       run: state.run && {
         id: state.run.id, phase: state.run.phase, served: state.run.served,
         total: state.run.total, error: state.run.error || null,
-        variants: state.run.variants
+        variants: state.run.variants,
+        sliders: state.run.sliders
       },
       pending: !!(state.batch && state.run && state.run.phase === 'working' && !state.run.leasedAt),
       ending: state.ending,
@@ -138,7 +144,7 @@ export function createServer({ target, onReady, onExit, spawned = false }) {
       state.seq += 1;
       const id = 'r' + state.seq;
       state.batch = { id, sentAt: body.sentAt || new Date().toISOString(), origin: body.origin, marks };
-      state.run = { id, phase: 'working', served: [], total: marks.length, leasedAt: null, variants: {} };
+      state.run = { id, phase: 'working', served: [], total: marks.length, leasedAt: null, variants: {}, sliders: {} };
       publish();
       process.stdout.write(`\n  ⌁ batch ${id} — ${marks.length} mark${marks.length === 1 ? '' : 's'} waiting. Run: tailr pull\n`);
       return json(res, 200, { id, total: marks.length });
@@ -166,6 +172,36 @@ export function createServer({ target, onReady, onExit, spawned = false }) {
       if (labels.length < 2) return json(res, 400, { error: 'A set of variations needs at least two labels.' });
       state.run.variants[ref] = { labels: labels.slice(0, 4) };
       if (body.selector) state.run.variants[ref].selector = String(body.selector).slice(0, 400);
+      publish();
+      return json(res, 200, publicState());
+    }
+
+    /* A continuous parameter the agent wired for a mark that asked for a
+       slider. Min/max are required; the overlay turns them into the control
+       the reviewer scrubs after reload. */
+    if (path === 'slider' && req.method === 'POST') {
+      const body = await readBody(req);
+      if (!state.run || state.run.phase !== 'working') return json(res, 409, { error: 'No open run.' });
+      const ref = String(body.ref || '').trim();
+      const min = Number(body.min);
+      const max = Number(body.max);
+      if (!ref) return json(res, 400, { error: 'Give the ref of the mark the slider belongs to.' });
+      if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+        return json(res, 400, { error: 'A slider needs finite min and max, with max greater than min.' });
+      }
+      let step = Number(body.step);
+      if (!Number.isFinite(step) || step <= 0) step = (max - min) / 100;
+      let value = body.value != null ? Number(body.value) : (min + max) / 2;
+      if (!Number.isFinite(value)) value = min;
+      if (value < min) value = min;
+      if (value > max) value = max;
+      const entry = {
+        min, max, step, value,
+        label: body.label ? String(body.label).trim().replace(/\s+/g, ' ').slice(0, 32) : '',
+        unit: body.unit ? String(body.unit).trim().slice(0, 8) : ''
+      };
+      if (body.selector) entry.selector = String(body.selector).slice(0, 400);
+      state.run.sliders[ref] = entry;
       publish();
       return json(res, 200, publicState());
     }
