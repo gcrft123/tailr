@@ -31,7 +31,7 @@ No eyebrows, no card grids, no icon tiles, no invented users, numbers or testimo
 
 ## States
 
-Video loading and paused (reduced motion shows the poster and a play button); reduced motion and no JS hold each replay's end state with no pointer; copy success and clipboard failure, both announced in the page's one live region; narrow widths stack text over stage, scale the staged island, drop the fixture columns that carry no mark, and move the replay control onto its own line. The page body never scrolls sideways: verified at 320, 360, 375, 390, 412 and 430. Without hover, a disc's first press reveals its label and the second copies.
+Video loading and paused (reduced motion shows the poster and a play button); reduced motion holds each replay's end state with no pointer, resting on the edited word and on the version tabs rather than past them; with no JS the five geometry-dependent stages stand down and their paragraphs carry the showcase, while the send stage renders its island from CSS; copy success and clipboard failure, both announced in the page's one live region; narrow widths stack text over stage, scale the staged island, drop the fixture columns that carry no mark, and move the replay control onto its own line. The page body never scrolls sideways: verified at 320, 360, 375, 390, 412 and 430. Without hover, a disc's first press reveals its label and the second copies.
 
 ## Unresolved
 
