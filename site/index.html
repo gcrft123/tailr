@@ -92,8 +92,9 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .headline{margin:0 auto;max-width:15ch;font:700 clamp(40px,5.2vw,76px)/1 var(--display);font-optical-sizing:auto;letter-spacing:-.04em;text-wrap:balance}
 /* each sentence on its own line where there is room; balanced wrapping below */
 @media (min-width:760px){.headline{max-width:none}.headline .line{display:block}}
-/* keep the lede on one line; scale type down before wrapping */
+/* keep the lede on one line at tablet+; narrow phones may wrap to avoid overflow */
 .lede{margin:22px auto 0;width:max-content;max-width:min(100%,52rem);font:400 clamp(14px,1.7vw,20px)/1.45 var(--ui);letter-spacing:-.01em;color:var(--ink-2);white-space:nowrap}
+@media (max-width:480px){.lede{white-space:normal;text-wrap:balance;width:auto;max-width:var(--measure)}}
 .hero .act{display:flex;justify-content:center;margin-top:28px}
 /* shown only when the browser refuses the clipboard: the prompt, selectable */
 .fallback{margin:18px auto 0;max-width:var(--measure);padding:14px 16px;border-radius:12px;background:var(--page-fill);
