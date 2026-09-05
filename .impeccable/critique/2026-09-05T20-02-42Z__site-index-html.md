@@ -10,6 +10,7 @@ target_fingerprint: "sha256:f4549b683956572072d3fbdc643ca8a37ca6486ee0879a91937a
 target_path: /home/user/tailr/site/index.html
 timestamp: 2026-09-05T20-02-42Z
 slug: site-index-html
+closed: true
 ---
 Method: dual-agent (A: design review with visual inspection · B: detector + measured browser evidence). Both ran isolated; A finished before detector output entered synthesis.
 
