@@ -21,3 +21,6 @@ npm-debug.log*
 # Demo video (Remotion project and renders), kept out of the package and the repo
 video/
 tailr logo transparent.png
+
+# Landing page build output (site/build.mjs)
+site/dist/

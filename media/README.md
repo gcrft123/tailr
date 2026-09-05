@@ -9,6 +9,7 @@ meant to be linked from a page.
 | `tailr-intro.mp4` | The intro, framed close on the page being marked up. This is the one the README links. |
 | `tailr-intro-website.mp4` | The same intro framed wide, with the whole app in shot. For a landing page hero. |
 | `tailr-intro-poster.jpg` | Frame 16.5s of the intro with a play badge, used as the README thumbnail. |
+| `tailr-intro-website-poster.jpg` | The first frame of the wide encode, so the landing page hero has the right yellow under it before the video plays. |
 
 Both videos are 1920×1080, 60fps, H.264 High, no audio, `faststart` so a browser
 can start playing before the file finishes downloading. To re-encode a master:

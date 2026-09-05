@@ -1,0 +1,13 @@
+{
+  // The landing page: static assets only, no Worker script.
+  // Build first (`npm run site`), then `npx wrangler deploy -c site/wrangler.jsonc`.
+  "name": "tailr-site",
+  "compatibility_date": "2026-09-04",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "trytailr.app", "custom_domain": true }
+  ]
+}
