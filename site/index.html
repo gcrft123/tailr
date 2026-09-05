@@ -169,6 +169,8 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   .show:nth-of-type(even) .stage{order:1}
 }
 @media (max-width:899px){.show{grid-template-columns:minmax(0,1fr);gap:28px}.show .stage{order:2}}
+/* five chips will not sit on one line on a phone */
+@media (max-width:560px){.show .g{flex-wrap:wrap;gap:6px 6px}}
 
 /* a stage is a piece of Northwind, on the page, wearing the real chrome */
 .stage{position:relative;min-width:0;min-height:clamp(280px,32vw,360px);display:grid;align-content:center;overflow:visible}
@@ -178,8 +180,24 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .stage .again:active{scale:.96}
 .stage.done .again{opacity:1}
 .stage .again:hover{background:var(--page-fill);color:var(--ink)}
+/* stacked, the stage has no slack to the right of the island for a floating
+   label, so the replay takes its own line under the fragment */
+@media (max-width:899px){
+  .stage .again{position:static;justify-self:end;margin-top:14px;padding:9px 12px}
+}
 [data-replay=comment] .scene,[data-replay=spot] .scene{padding-bottom:150px}
-.scene{position:relative;padding:34px 12px;--cx:0px;--cy:0px}
+/* min-width:0 because the scene is a grid item: left on auto its minimum is the
+   fragment's min-content, and a phone-width page is pushed sideways by it */
+.scene{position:relative;min-width:0;padding:34px 12px;--cx:0px;--cy:0px}
+/* Every horizontal pixel goes to the fragment once the showcase is stacked, and
+   the two fixture columns that carry no mark give way before the ones that do.
+   Northwind would drop them at this width itself. */
+@media (max-width:560px){
+  .scene{padding-left:0;padding-right:0}
+  .nw .search{display:none}
+  .nw .row{gap:10px;padding:12px}
+  .nw .row .i{display:none}
+}
 .nw{font-family:var(--ui);color:#1c1f23;letter-spacing:0;font-size:13px}
 .nw .top{display:flex;align-items:center;gap:14px;height:58px;padding:0 clamp(12px,2vw,20px);background:#fff;
   border:1px solid #E4E4DF;border-radius:10px}
@@ -199,7 +217,12 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .nw .ph span{display:inline-block;padding:0 2px;margin:0 -2px;border-radius:3px}
 .nw .row{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid #F4F4F0;font-size:13px}
 .nw .row:last-child{border-bottom:0}
-.nw .row .n{width:130px}.nw .row .i{width:80px;color:#7c838c}.nw .row .amt{margin-left:auto;font-variant-numeric:tabular-nums}
+/* the two text columns hold their desktop widths but are allowed to give way
+   rather than floor the fragment's min-content width above a phone viewport */
+.nw .row .n,.nw .row .i{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nw .row .n{flex:0 1 130px}.nw .row .i{flex:0 1 80px;color:#7c838c}
+.nw .row .tag{flex:0 0 auto}
+.nw .row .amt{margin-left:auto;flex:0 0 auto;font-variant-numeric:tabular-nums}
 .nw .tag{font-size:11px;padding:2px 9px;border-radius:11px;background:#E9F0EA;color:#437652}
 .nw .tag.late{background:#F7EAE5;color:#a9543c}
 .nw .hero-card{background:#fff;border:1px solid #E4E4DF;border-radius:10px;padding:22px}
@@ -228,7 +251,9 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   color:#fff;border-radius:5px;font:400 10.5px/1 var(--mono);letter-spacing:-.01em;white-space:nowrap;
   box-shadow:0 0 0 1px rgba(255,255,255,.5)}
 
-.composer{position:absolute;left:0;top:0;width:268px;background:#0B0B0C;border-radius:12px;padding:10px;color:#fff;
+/* 268px is the overlay's own width; below that the scene is narrower than the
+   composer and the replica gives way rather than hang off the page */
+.composer{position:absolute;left:0;top:0;width:min(268px,100%);background:#0B0B0C;border-radius:12px;padding:10px;color:#fff;
   box-shadow:0 10px 34px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.10);font-family:var(--ui);letter-spacing:0;
   opacity:0;transform:scale(.94);transform-origin:top left;pointer-events:none}
 .play .composer.on{opacity:1;transform:none;transition:opacity .2s var(--ease),transform .24s var(--ease)}
@@ -339,6 +364,11 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 @media (max-width:1040px) and (min-width:900px){.island{transform:scale(.72)}}
 @media (max-width:640px){.island{transform:scale(.78)}}
 @media (max-width:480px){.island{transform:scale(.6)}}
+@media (max-width:380px){.island{transform:scale(.52)}}
+/* The island is absolutely positioned, so a narrow scene would shrink-to-fit it
+   and the panel would clip its own list. It keeps its real width and leans on
+   the scale above instead, which is what the replica has to preserve. */
+@media (max-width:899px){.island{width:max-content}}
 .agent.open .abody{display:block}
 .btitle{font-size:13px;font-weight:650;letter-spacing:-.005em;margin-bottom:4px}
 .bmeta{font-size:12px;line-height:1.45;color:rgba(255,255,255,.56)}
@@ -400,10 +430,10 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   transition-timing-function:var(--ease);transition-delay:var(--d)}
 /* :focus-visible rather than :focus-within, or a disc that was clicked keeps
    its focus after the pointer leaves and pins the fan open */
-.ew:hover .ag,.ew:has(:focus-visible) .ag,.ew.open .ag{translate:var(--x) var(--y);scale:1;opacity:1;rotate:var(--r);pointer-events:auto}
+.ew:hover .ag,.ew:has(:focus-visible) .ag,.ew.open .ag,.ag.peek{translate:calc(var(--x) * var(--k,1)) calc(var(--y) * var(--k,1));scale:1;opacity:1;rotate:var(--r);pointer-events:auto}
 /* once it is out, the pointer has to be able to travel to it without the fan
    folding away underneath: this is the reach it keeps while open */
-.reach{position:absolute;left:50%;bottom:100%;width:820px;height:260px;translate:-50% 0;pointer-events:none;z-index:0}
+.reach{position:absolute;left:50%;bottom:100%;width:min(820px,100vw);height:260px;translate:-50% 0;pointer-events:none;z-index:0}
 .ew:hover .reach,.ew.open .reach{pointer-events:auto}
 .dot{position:relative;display:grid;place-items:center;width:100%;height:100%;border-radius:50%;overflow:hidden;
   background:var(--white);color:var(--c);
@@ -411,7 +441,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   transition:scale 200ms var(--ease)}
 /* whichever disc is being read has to clear its neighbours, or its label opens
    underneath them */
-.ag:hover,.ag:focus-visible,.ag.done{z-index:3}
+.ag:hover,.ag:focus-visible,.ag.done,.ag.peek{z-index:3}
 .ag:hover .dot,.ag:focus-visible .dot{scale:1.09}
 .ag:active .dot{scale:1.02}
 .fan .lg{display:block;width:24px;height:24px;transition:opacity 160ms var(--ease)}
@@ -437,11 +467,25 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .call em.no{color:#FFB4A8}
 /* a little slack around each disc, so the click target is larger than the mark */
 .ag::before{content:'';position:absolute;inset:-5px;border-radius:50%}
-/* .done keeps the label up after a click, which is the only confirmation a
-   touch visitor gets: there is no hover to have shown it the action first */
-.ag:hover .call,.ag:focus-visible .call,.ag.done .call{opacity:1;translate:-50% 0}
-@media (max-width:1120px){.fan{scale:.74}.everywhere{padding-top:200px}}
-@media (max-width:700px){.fan{scale:.52}.everywhere{padding-top:150px}}
+/* .peek is the label a press opens where there is no hover to open it, and
+   .done is the same label carrying the result after a copy */
+.ag:hover .call,.ag:focus-visible .call,.ag.done .call,.ag.peek .call{opacity:1;translate:-50% 0}
+/* The fan tightens by pulling the discs in, never by shrinking them: --k scales
+   the spread and leaves every disc at its full 52px, so the target a thumb has
+   to find is the same size on a phone as it is on a desktop. */
+@media (max-width:1120px){.fan{--k:.74}.everywhere{padding-top:200px}}
+@media (max-width:700px){.fan{--k:.52}.everywhere{padding-top:150px}}
+@media (max-width:420px){.fan{--k:.42}.everywhere{padding-top:132px}}
+/* the label has to stay on the page even when its disc is near an edge */
+.call{max-width:min(72vw,260px)}
+.call b{overflow:hidden;text-overflow:ellipsis}
+
+/* the clipboard-blocked recovery, the same shape the hero pill's has */
+.ewfall{margin:26px auto 0;max-width:var(--measure);padding:14px 16px;border-radius:12px;background:var(--page-fill);
+  font:400 13.5px/1.6 var(--ui);color:var(--ink);text-align:left}
+.ewfall[hidden]{display:none}
+.ewfall b{display:block;margin-bottom:6px;font-weight:650}
+.ewfall code{display:block;font:400 13px/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}
 
 /* ── footer ──────────────────────────────────────────────── */
 .siteft{background:var(--ink);color:var(--on-ink-2);padding:30px var(--gutter)}
@@ -643,7 +687,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
     </div>
   </section>
 
-  <section class="everywhere">
+  <section class="everywhere" aria-label="Set Tailr up in your agent">
     <div class="ew">
       <button class="gpill" type="button" aria-expanded="false">
         <span>Tailr works everywhere</span>
@@ -654,23 +698,21 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
            reading order and the visual order can disagree here without cost -->
       <div class="fan">
         <span class="reach"></span>
-        <button class="ag" type="button" style="--x:-338px;--y:-64px;--r:-12deg;--d:96ms;--c:#01A4FF" data-n="Warp"><span class="dot"><svg class="lg"><use href="#lg-warp"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Warp</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-272px;--y:-108px;--r:7deg;--d:42ms;--c:#0B0B0C" data-n="JetBrains"><span class="dot"><svg class="lg"><use href="#lg-jetbrains"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>JetBrains</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-206px;--y:-78px;--r:-5deg;--d:78ms;--c:#0B0B0C" data-n="v0"><span class="dot"><svg class="lg"><use href="#lg-v0"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>v0</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-148px;--y:-138px;--r:10deg;--d:18ms;--c:#F26207" data-n="Replit"><span class="dot"><svg class="lg"><use href="#lg-replit"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Replit</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-88px;--y:-96px;--r:-8deg;--d:60ms;--c:#084CCF" data-n="Zed"><span class="dot"><svg class="lg"><use href="#lg-zed"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Zed</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-28px;--y:-152px;--r:5deg;--d:0ms;--c:#D97757" data-n="Claude Code" data-i="claude"><span class="dot"><svg class="lg"><use href="#lg-claude"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Claude Code</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:33px;--y:-108px;--r:-6deg;--d:30ms;--c:#0B0B0C" data-n="Cursor" data-i="cursor"><span class="dot"><svg class="lg"><use href="#lg-cursor"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cursor</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:92px;--y:-158px;--r:9deg;--d:8ms;--c:#0B0B0C" data-n="Codex" data-i="codex"><span class="dot"><svg class="lg"><use href="#lg-codex"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Codex</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:150px;--y:-104px;--r:-4deg;--d:66ms;--c:#0B0B0C" data-n="GitHub Copilot" data-i="copilot"><span class="dot"><svg class="lg"><use href="#lg-copilot"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>GitHub Copilot</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:210px;--y:-142px;--r:6deg;--d:24ms" data-n="Gemini CLI" data-i="gemini"><span class="dot"><svg class="lg" viewBox="0 0 24 24"><linearGradient id="gemB" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285F4"/><stop offset=".52" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient><path fill="url(#gemB)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Gemini CLI</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:272px;--y:-80px;--r:-10deg;--d:84ms;--c:#0B0B0C" data-n="Windsurf"><span class="dot"><svg class="lg"><use href="#lg-windsurf"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Windsurf</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:334px;--y:-116px;--r:4deg;--d:50ms;--c:#18181B" data-n="Cline"><span class="dot"><svg class="lg"><use href="#lg-cline"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cline</b><em>Copy prompt</em></span></button>
+        <button class="ag" type="button" style="--x:-236px;--y:-84px;--r:-9deg;--d:84ms;--c:#18181B" data-n="Cline"><span class="dot"><svg class="lg"><use href="#lg-cline"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cline</b><em>Add skills</em></span></button>
+        <button class="ag" type="button" style="--x:-166px;--y:-140px;--r:6deg;--d:36ms;--c:#0B0B0C" data-n="Windsurf"><span class="dot"><svg class="lg"><use href="#lg-windsurf"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Windsurf</b><em>Add skills</em></span></button>
+        <button class="ag" type="button" style="--x:-88px;--y:-96px;--r:-6deg;--d:66ms;--c:#0B0B0C" data-i="copilot" data-n="GitHub Copilot"><span class="dot"><svg class="lg"><use href="#lg-copilot"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>GitHub Copilot</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:-8px;--y:-156px;--r:4deg;--d:0ms;--c:#D97757" data-i="claude" data-n="Claude Code"><span class="dot"><svg class="lg"><use href="#lg-claude"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Claude Code</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:72px;--y:-100px;--r:-5deg;--d:54ms;--c:#0B0B0C" data-i="cursor" data-n="Cursor"><span class="dot"><svg class="lg"><use href="#lg-cursor"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cursor</b><em>Copy URL</em></span></button>
+        <button class="ag" type="button" style="--x:150px;--y:-148px;--r:8deg;--d:18ms;--c:#0B0B0C" data-i="codex" data-n="Codex"><span class="dot"><svg class="lg"><use href="#lg-codex"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Codex</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:228px;--y:-88px;--r:-10deg;--d:72ms" data-i="gemini" data-n="Gemini CLI"><span class="dot"><svg class="lg" viewBox="0 0 24 24"><linearGradient id="gemB" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285F4"/><stop offset=".52" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient><path fill="url(#gemB)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Gemini CLI</b><em>Install</em></span></button>
       </div>
     </div>
+    <p class="ewfall" id="ewFallback" hidden><b></b><code></code></p>
   </section>
 
 </main>
+
+<p class="sr" id="say" role="status" aria-live="polite"></p>
 
 <footer class="siteft">
   <div class="foot">
@@ -731,6 +773,20 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
       navigator.clipboard.writeText(text).then(function () { then(true); }, function () { then(legacyCopy(text)); });
     } else then(legacyCopy(text));
   }
+  /* The copy result is a label swap, which a screen reader has no reason to
+     re-read. It is announced instead, in the one live region on the page. */
+  var live = document.getElementById('say');
+  function say(msg) { if (live) { live.textContent = ''; setTimeout(function () { live.textContent = msg; }, 60); } }
+  /* A blocked clipboard in the fan gets the same recovery the hero pill has:
+     the text itself, on the page, selectable. */
+  var ewfall = document.getElementById('ewFallback');
+  function showManual(name, text) {
+    if (!ewfall) return;
+    ewfall.querySelector('b').textContent = 'Your browser blocked the copy. Select this and copy it yourself — ' + name + '.';
+    ewfall.querySelector('code').textContent = text;
+    ewfall.hidden = false;
+    ewfall.scrollIntoView({ block: 'nearest' });
+  }
   var PROMPT = 'Set up Tailr so I can mark up my running dev server visually and hand you the\nchanges as one batch. Fetch\nhttps://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md\nand follow it exactly, without summarizing it.';
   Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function (btn) {
     var label = btn.querySelector('.label'), was = label.textContent, t;
@@ -743,6 +799,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
         // A blocked clipboard has to leave the visitor somewhere to go: the
         // prompt itself, on the page, selectable.
         if (!ok && fallback) { fallback.hidden = false; fallback.scrollIntoView({ block: 'nearest' }); }
+        say(ok ? 'Prompt copied. Paste it to your agent.' : 'Copy blocked. The prompt is on the page below the button.');
       }
       copyText(PROMPT, done);
     });
@@ -756,35 +813,56 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
     gp.addEventListener('click', function () {
       gp.setAttribute('aria-expanded', ew.classList.toggle('open') ? 'true' : 'false');
     });
-    /* Five hosts take Tailr straight from the repo, each in its own dialect.
-       The rest have no install surface, so they get the prompt instead and let
-       their own agent run the setup. */
+    /* Four hosts take Tailr from the marketplace in their own dialect; these
+       are the README's commands verbatim, and they have to stay that way.
+       Claude Code needs the git URL rather than the owner/repo shorthand: the
+       app clones the shorthand over SSH with nothing to answer the host-key
+       prompt with, so the add hangs. */
     var INSTALL = {
-      claude: '/plugin marketplace add gcrft123/tailr\n/plugin install tailr@tailr',
-      cursor: 'cursor-agent plugin marketplace add gcrft123/tailr',
-      codex: 'codex mcp add tailr -- npx -y @gcrft123/tailr mcp',
-      copilot: 'code --add-mcp \'{"name":"tailr","command":"npx","args":["-y","@gcrft123/tailr","mcp"]}\'',
+      claude: '/plugin marketplace add https://github.com/gcrft123/tailr.git\n/plugin install tailr@tailr',
+      codex: 'codex plugin marketplace add https://github.com/gcrft123/tailr.git\ncodex plugin add tailr@tailr',
+      copilot: 'copilot plugin marketplace add gcrft123/tailr\ncopilot plugin install tailr@tailr',
       gemini: 'gemini extensions install https://github.com/gcrft123/tailr'
     };
-    var SETUP = 'Set up Tailr in this project by running: npx -y @gcrft123/tailr init';
+    /* Everything that reads a global skills directory, per the README. */
+    var SKILLS = 'npx skills add gcrft123/tailr -g';
+    // Cursor has no command: the README's route is importing this URL as a
+    // Team Marketplace, so the disc hands over the URL and says so.
+    var CURSOR = 'https://github.com/gcrft123/tailr';
+    // Without hover there is nothing to read a disc by before pressing it, so
+    // the first tap opens its label and only the second one copies.
+    var touch = matchMedia('(hover: none)').matches, peeked = null;
     Array.prototype.forEach.call(ew.querySelectorAll('.ag'), function (ag) {
       var who = ag.querySelector('.call b'), act = ag.querySelector('.call em');
       var was = act.textContent, key = ag.dataset.i, t;
-      var text = key ? INSTALL[key] : SETUP;
-      ag.setAttribute('aria-label',
-        (key ? 'Copy the Tailr install command for ' : 'Copy the Tailr setup prompt for ') + ag.dataset.n);
+      var text = key === 'cursor' ? CURSOR : key ? INSTALL[key] : SKILLS;
+      var what = key === 'cursor' ? 'Copy the Tailr marketplace URL for '
+        : key ? 'Copy the Tailr install command for ' : 'Copy the Tailr skills command for ';
+      ag.setAttribute('aria-label', what + ag.dataset.n);
       ag.addEventListener('click', function () {
+        if (touch && peeked !== ag) {
+          if (peeked) peeked.classList.remove('peek');
+          peeked = ag; ag.classList.add('peek');
+          return;
+        }
         copyText(text, function (ok) {
           // the name has served its purpose by now; the result is the whole message
-          act.textContent = ok ? (key ? 'Copied command' : 'Copied prompt') : 'Copy failed';
+          act.textContent = ok ? 'Copied' : 'Copy failed';
           act.className = ok ? 'ok' : 'no';
           who.hidden = true;
-          if (ok) ag.classList.add('done');
+          // .done draws the tick, so it belongs to the success only; a failure
+          // still has to hold its label up, which is what .peek does
+          ag.classList.add(ok ? 'done' : 'peek');
+          // the same recovery the hero pill has: what could not be copied is
+          // put on the page, selectable, rather than left as a dead end
+          if (!ok) showManual(ag.dataset.n, text);
+          say((ok ? 'Copied ' : 'Copy blocked for ') + ag.dataset.n);
           clearTimeout(t);
           t = setTimeout(function () {
             act.textContent = was; act.className = ''; who.hidden = false;
-            ag.classList.remove('done');
-          }, 2000);
+            ag.classList.remove('done', 'peek');
+            if (peeked === ag) peeked = null;
+          }, 2400);
         });
       });
     });
@@ -802,8 +880,10 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
       var r = rectIn(scene, t);
       if (n.classList.contains('composer')) {
         var place = n.getAttribute('data-place') || 'below-left';
-        var x = place === 'below-right' ? r.x + r.w - 268 : r.x;
-        x = Math.max(0, Math.min(x, scene.clientWidth - 268));
+        // measured, not the 268px literal: the composer narrows with the scene
+        var cw = n.offsetWidth;
+        var x = place === 'below-right' ? r.x + r.w - cw : r.x;
+        x = Math.max(0, Math.min(x, scene.clientWidth - cw));
         n.style.translate = x + 'px ' + (r.y + r.h + 10) + 'px';
         return;
       }
