@@ -1,0 +1,1046 @@
+<!doctype html>
+<!--
+  Tailr — landing page.
+
+  THESIS: The page shows the loop instead of describing it. It refuses the
+    feature-card marketing page: every showcase is a fragment of a real app
+    wearing the real Island chrome, performing its gesture.
+  OWN-WORLD: White page, the wordmark small in the masthead with its yellow t
+    and dashes exactly as the source sets them, a statement headline in
+    Bricolage Grotesque, the intro video as a rounded window on its own lemon
+    ground with a soft shadow; a white run of alternating Northwind fragments
+    wearing the real Island chrome, closed by an ink footer. System UI body.
+    Ink, paper, teal and redline are DESIGN.md's, unchanged.
+  STORY: Read the claim, watch the loop, copy the prompt that starts it. The
+    one action is in the hero and the page never asks for it twice.
+  FIRST VIEWPORT: masthead, headline, one-line description and the ink pill,
+    with the top of the video window in view beneath them.
+  FORM: user-pinned structure (heading, video, description, alternating
+    showcases), confirmed in shape. No seed was rolled.
+
+  Built by site/build.mjs into site/dist alongside the intro video.
+-->
+<html lang="en" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tailr</title>
+<meta name="description" content="Mark up a running dev server and hand the changes to your coding agent as one batch.">
+<meta property="og:title" content="Tailr">
+<meta property="og:description" content="Mark up a running dev server and hand the changes to your coding agent as one batch.">
+<meta property="og:image" content="media/tailr-intro-website-poster.jpg">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&display=swap">
+<script>document.documentElement.classList.remove('no-js');</script>
+<style>
+/* ── tokens ──────────────────────────────────────────────── */
+:root{
+  --yellow:#FFE023;
+  --ink:#0B0B0C;
+  --ink-2:#3A3A3E;
+  --paper:#F2EDE1;
+  --live:#2FD4A8;
+  --on-live:#04231B;
+  --red:#E8483C;
+    --white:#FFFFFF;
+  --on-ink-2:rgba(255,255,255,.62);
+  --page-fill:#F1F1EC;
+  --lemon:#FAF564;              /* the intro video's own backdrop, under the window only */
+  --hair:rgba(255,255,255,.10);
+  --display:'Bricolage Grotesque',ui-sans-serif,-apple-system,'SF Pro Display','Segoe UI',system-ui,sans-serif;
+  /* the symbol faces are the tail of the stack so ⌥ and ⎇ resolve everywhere */
+  --ui:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif,'Segoe UI Symbol','Apple Symbols';
+  --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --ease:cubic-bezier(0.32,0.72,0,1);
+  --ease-out:cubic-bezier(0.22,1,0.36,1);
+  --gutter:clamp(20px,5vw,72px);
+  --measure:34rem;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--white);color:var(--ink);font:400 17px/1.55 var(--ui);letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+h1,h2,h3,p{margin:0}
+a{color:inherit}
+button{font:inherit;color:inherit;letter-spacing:inherit}
+:focus-visible{outline:2px solid var(--live);outline-offset:3px}
+::selection{background:var(--yellow);color:var(--ink)}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ── masthead and hero ───────────────────────────────────── */
+.masthead{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:22px var(--gutter)}
+.masthead .links{display:flex;gap:22px;font:500 14px/1 var(--ui)}
+.masthead .links a{text-decoration:none;color:var(--ink-2)}
+.masthead .links a:hover{color:var(--ink)}
+
+/* the wordmark, set live exactly as the source file defines it: Bricolage 800,
+   no tracking, two italic dashes sitting a third of an em above the baseline */
+.mark{display:inline-flex;align-items:baseline;font:800 1em/1 var(--display);font-optical-sizing:auto;letter-spacing:0;color:var(--ink);text-decoration:none;white-space:nowrap}
+.mark .dashes{display:inline-flex;gap:.074em;margin-right:.123em;align-self:baseline;transform:translateY(-.25em)}
+.mark .dashes i{display:block;width:.54em;height:.123em;background:var(--yellow);transform:skewX(-12deg);transform-origin:left bottom}
+.mark .t{color:var(--yellow)}
+/* the yellow is all but invisible on the white page, so on that one background
+   the whole mark casts — inherited to the letters, drawn again for the dashes,
+   which are backgrounds and take no text-shadow */
+.masthead .mark{font-size:26px;text-shadow:0 1px 4px rgba(11,11,12,.34)}
+.masthead .mark .dashes i{box-shadow:0 1px 4px rgba(11,11,12,.34)}
+
+.hero{background:var(--white);color:var(--ink);padding:clamp(40px,7vh,88px) var(--gutter) clamp(56px,8vh,96px);text-align:center}
+.headline{margin:0 auto;max-width:15ch;font:700 clamp(40px,5.2vw,76px)/1 var(--display);font-optical-sizing:auto;letter-spacing:-.04em;text-wrap:balance}
+/* each sentence on its own line where there is room; balanced wrapping below */
+@media (min-width:760px){.headline{max-width:none}.headline .line{display:block}}
+.lede{margin:22px auto 0;max-width:var(--measure);font:400 clamp(17px,1.5vw,20px)/1.5 var(--ui);letter-spacing:-.01em;color:var(--ink-2);text-wrap:balance}
+.hero .act{display:flex;justify-content:center;margin-top:28px}
+/* shown only when the browser refuses the clipboard: the prompt, selectable */
+.fallback{margin:18px auto 0;max-width:var(--measure);padding:14px 16px;border-radius:12px;background:var(--page-fill);
+  font:400 13.5px/1.6 var(--ui);color:var(--ink);text-align:left;overflow-wrap:anywhere;user-select:all}
+.fallback[hidden]{display:none}
+.fallback b{display:block;margin-bottom:6px;font-weight:650;user-select:none}
+
+/* the hero enters as one moment: headline, description, action, then the window */
+.ready .headline,.ready .lede,.ready .act,.ready .film{animation:enter .4s ease-out both}
+.ready .lede{animation-delay:.1s}.ready .act{animation-delay:.2s}.ready .film{animation-delay:.3s}
+@keyframes enter{from{opacity:0;transform:translateY(12px);filter:blur(4px)}to{opacity:1;transform:none;filter:blur(0)}}
+
+/* the video is a window on the page: the island's panel radius, a hairline, a soft shadow.
+   Its lemon ground is its own; the page never tries to match it. */
+.film{position:relative;margin:clamp(36px,5vh,52px) auto 0;max-width:1120px;border-radius:16px;overflow:hidden;background:var(--lemon);
+  box-shadow:0 30px 80px rgba(0,0,0,.16),0 8px 24px rgba(0,0,0,.08),0 0 0 1px rgba(0,0,0,.06)}
+.film video,.film img{display:block;width:100%;height:auto;aspect-ratio:16/9}
+.film .play{position:absolute;inset:0;margin:auto;width:76px;height:76px;border:0;border-radius:50%;
+  background:var(--ink);color:var(--white);z-index:2;cursor:pointer;display:none;place-items:center;
+  box-shadow:0 12px 40px rgba(0,0,0,.28)}
+.film .play svg{width:26px;height:26px;transform:translateX(2px)}
+.film .play{transition-property:scale;transition-duration:150ms;transition-timing-function:ease-out}
+.film .play:active{scale:.96}
+.film.paused .play{display:grid}
+
+/* the page's own primary: ink on white, paper inside the island only */
+.pill{display:inline-flex;align-items:center;gap:10px;height:44px;padding:0 20px 0 18px;border:0;border-radius:999px;
+  background:var(--ink);color:var(--white);font:650 14.5px/1 var(--ui);letter-spacing:-.005em;cursor:pointer;
+  text-decoration:none;box-shadow:0 8px 30px rgba(0,0,0,.18),0 0 0 1px rgba(255,255,255,.1);
+  transition-property:translate,scale,box-shadow;transition-duration:150ms;transition-timing-function:ease-out}
+.pill:hover{translate:0 -1px;box-shadow:0 12px 34px rgba(0,0,0,.22),0 0 0 1px rgba(255,255,255,.14)}
+.pill:active{scale:.96}
+.pill .ic{position:relative;width:16px;height:16px;flex:0 0 auto}
+.pill .ic svg{position:absolute;inset:0;width:16px;height:16px}
+/* copy → check: one glyph unwinds as the other draws itself on, both normalised
+   to pathLength 1 so the stroke travels at a single rate */
+.pill .ic .copy-g{opacity:.8}
+.pill .ic .copy-g *,.pill .ic .check-g path{stroke-dasharray:1;
+  transition:stroke-dashoffset 280ms cubic-bezier(0.2,0,0,1)}
+.pill .ic .copy-g *{stroke-dashoffset:0}
+.pill .ic .check-g path{stroke-dashoffset:1;transition-delay:120ms}
+.pill[data-state="copied"] .ic .copy-g *{stroke-dashoffset:1;transition-delay:0s}
+.pill[data-state="copied"] .ic .check-g path{stroke-dashoffset:0;stroke:var(--live)}
+
+/* the agents the prompt is written for, stacked at the closing edge */
+.pill .agents{display:inline-flex;align-items:center;margin-left:6px}
+.pill .agents i{display:grid;place-items:center;width:20px;height:20px;margin-left:-6px;border-radius:50%;
+  background:var(--white);color:var(--c);box-shadow:0 0 0 1.5px var(--ink);
+  transition:scale 220ms var(--ease) calc(var(--i) * 24ms)}
+.pill .agents i:first-child{margin-left:0}
+.pill .agents .lg{display:block;width:11px;height:11px}
+.pill[data-state="copied"] .agents i{scale:.92}
+
+/* ── showcases ───────────────────────────────────────────── */
+.run{padding:clamp(72px,10vh,128px) var(--gutter) clamp(48px,8vh,96px);max-width:1280px;margin:0 auto}
+.show{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(28px,5vw,88px);align-items:center;
+  padding:clamp(40px,7vh,88px) 0}
+.show + .show{border-top:1px solid #ECECE7}
+.show .text{max-width:30rem}
+.show h2{font:700 clamp(32px,3.9vw,52px)/1.02 var(--display);font-optical-sizing:auto;letter-spacing:-.035em;
+  text-wrap:balance;margin-bottom:18px}
+.show p{color:var(--ink-2);font-size:clamp(16px,1.5vw,18px);line-height:1.55}
+.show p + p{margin-top:12px}
+.show .g{display:inline-flex;align-items:center;gap:6px;margin-top:20px;font:650 13px/1 var(--ui);color:var(--ink)}
+.show .g kbd{font:650 12px/1 var(--ui);padding:5px 7px;border-radius:6px;background:var(--page-fill);color:var(--ink);
+  box-shadow:inset 0 -1px 0 rgba(0,0,0,.12)}
+.show .g kbd.ic{display:inline-flex;align-items:center;padding:4px 6px}
+.show .g kbd.ic svg{display:block}
+@media (min-width:900px){
+  .show:nth-of-type(even){grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+  .show:nth-of-type(even) .text{order:2;justify-self:end}
+  .show:nth-of-type(even) .stage{order:1}
+}
+@media (max-width:899px){.show{grid-template-columns:minmax(0,1fr);gap:28px}.show .stage{order:2}}
+
+/* a stage is a piece of Northwind, on the page, wearing the real chrome */
+.stage{position:relative;min-width:0;min-height:clamp(280px,32vw,360px);display:grid;align-content:center;overflow:visible}
+.stage.done{cursor:pointer}
+.stage .again{position:absolute;right:0;bottom:-6px;padding:6px 10px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);font:650 12px/1 var(--ui);cursor:pointer;opacity:0;
+  transition-property:opacity,scale,background-color,color;transition-duration:150ms;transition-timing-function:ease-out}
+.stage .again:active{scale:.96}
+.stage.done .again{opacity:1}
+.stage .again:hover{background:var(--page-fill);color:var(--ink)}
+[data-replay=comment] .scene,[data-replay=spot] .scene{padding-bottom:150px}
+.scene{position:relative;padding:34px 12px;--cx:0px;--cy:0px}
+.nw{font-family:var(--ui);color:#1c1f23;letter-spacing:0;font-size:13px}
+.nw .top{display:flex;align-items:center;gap:14px;height:58px;padding:0 clamp(12px,2vw,20px);background:#fff;
+  border:1px solid #E4E4DF;border-radius:10px}
+.nw .h1{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.nw .search{flex:1 1 120px;min-width:0;max-width:260px;height:32px;background:#F4F4F1;border:1px solid #E4E4DF;border-radius:7px;
+  padding:0 11px;font-size:13px;color:#9aa1a9;display:flex;align-items:center;margin-left:8px}
+.nw .btn{margin-left:auto;height:32px;padding:0 14px;background:#3A6FD8;color:#fff;border-radius:7px;
+  font-size:13px;display:flex;align-items:center;white-space:nowrap}
+.nw .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.nw .card{background:#fff;border:1px solid #E4E4DF;border-radius:10px;padding:16px;min-width:0}
+.nw .k{font-size:11px;color:#7c838c;text-transform:uppercase;letter-spacing:.05em}
+.nw .v{font-size:27px;font-weight:600;margin-top:7px;letter-spacing:-.02em}
+.nw .d{font-size:12px;color:#3f8a5f;margin-top:3px}
+.nw .d.bad{color:#b4553f}
+.nw .panel{background:#fff;border:1px solid #E4E4DF;border-radius:10px;overflow:hidden}
+.nw .ph{padding:14px 16px;border-bottom:1px solid #EFEFEB;font-size:14px;font-weight:600;letter-spacing:-.01em}
+.nw .ph span{display:inline-block;padding:0 2px;margin:0 -2px;border-radius:3px}
+.nw .row{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid #F4F4F0;font-size:13px}
+.nw .row:last-child{border-bottom:0}
+.nw .row .n{width:130px}.nw .row .i{width:80px;color:#7c838c}.nw .row .amt{margin-left:auto;font-variant-numeric:tabular-nums}
+.nw .tag{font-size:11px;padding:2px 9px;border-radius:11px;background:#E9F0EA;color:#437652}
+.nw .tag.late{background:#F7EAE5;color:#a9543c}
+.nw .hero-card{background:#fff;border:1px solid #E4E4DF;border-radius:10px;padding:22px}
+/* --hs is only set on the stage where a slider is driving it */
+.nw .hero-card h3{font-size:var(--hs,19px);font-weight:600;letter-spacing:-.02em;margin:0 0 6px;display:inline-block}
+.nw .hero-card p{font-size:13.5px;color:#5b6169;line-height:1.55;max-width:60ch}
+
+/* the Island chrome, at its real values (see DESIGN.md) */
+.ov{position:absolute;left:0;top:0;pointer-events:none;font-family:var(--ui);letter-spacing:0;color:#fff}
+/* marks land with the overlay's own scale-and-settle, 180ms, never a fade alone */
+.ov.mark{opacity:0;transform:scale(.94);transform-origin:center}
+.play .ov.mark.on{opacity:1;transform:none;transition:opacity .08s linear,transform .18s var(--ease)}
+.ov .ring{position:absolute;inset:0;border-radius:3px;box-shadow:0 0 0 1px #0B0B0C,0 0 0 2px rgba(255,255,255,.92)}
+.ov.remove .ring{box-shadow:0 0 0 1.5px #E8483C,0 0 0 2.5px rgba(255,255,255,.92)}
+.ov.served .ring{box-shadow:0 0 0 1px rgba(11,11,12,.28),0 0 0 2px rgba(255,255,255,.5)}
+.ov .badge{position:absolute;left:-1px;top:-9px;min-width:17px;height:17px;padding:0 4px;display:flex;align-items:center;
+  justify-content:center;background:#0B0B0C;color:#fff;border-radius:5px;font-size:10px;font-weight:700;
+  font-variant-numeric:tabular-nums;box-shadow:0 0 0 1px rgba(255,255,255,.65)}
+.ov.remove .badge{background:#E8483C}
+.ov.point .ring{display:none}
+.ov.point .pt{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#0B0B0C;
+  box-shadow:0 0 0 2px rgba(255,255,255,.92)}
+.ov.point .badge{left:10px;top:-8px}
+.ov.composing .badge{opacity:0}
+.ov .addr{position:absolute;left:0;top:-19px;height:17px;display:flex;align-items:center;padding:0 6px;background:#0B0B0C;
+  color:#fff;border-radius:5px;font:400 10.5px/1 var(--mono);letter-spacing:-.01em;white-space:nowrap;
+  box-shadow:0 0 0 1px rgba(255,255,255,.5)}
+
+.composer{position:absolute;left:0;top:0;width:268px;background:#0B0B0C;border-radius:12px;padding:10px;color:#fff;
+  box-shadow:0 10px 34px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.10);font-family:var(--ui);letter-spacing:0;
+  opacity:0;transform:scale(.94);transform-origin:top left;pointer-events:none}
+.play .composer.on{opacity:1;transform:none;transition:opacity .2s var(--ease),transform .24s var(--ease)}
+.c-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.c-badge{min-width:17px;height:17px;padding:0 4px;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.12);border-radius:5px;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums}
+.c-kind{font-size:11px;font-weight:650;letter-spacing:-.005em}
+.c-addr{margin-left:auto;font:400 10.5px/1 var(--mono);color:rgba(255,255,255,.56);max-width:130px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.c-box{min-height:52px;background:rgba(255,255,255,.06);border-radius:9px;padding:8px;font-size:12.5px;line-height:1.45;
+  box-shadow:0 0 0 2px rgba(47,212,168,.55)}
+.c-box .ph{color:rgba(255,255,255,.56)}
+.c-box .typed:empty + .ph{display:inline}.c-box .typed:not(:empty) + .ph{display:none}
+.c-box .caret{display:inline-block;width:1px;height:1em;background:#fff;vertical-align:-2px;margin-left:1px;
+  animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.c-foot{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+.c-foot b,.c-foot i{display:inline-flex;align-items:center;font-size:12px;font-weight:650;border-radius:999px;padding:6px 14px;
+  font-style:normal;letter-spacing:-.005em}
+.c-foot .ghost{color:rgba(255,255,255,.56)}
+.c-foot .mult{background:rgba(255,255,255,.06);color:rgba(255,255,255,.56);padding:6px 10px;font-variant-numeric:tabular-nums}
+.c-foot .mult.on{background:rgba(255,255,255,.18);color:#fff}
+.c-foot .paper{background:#F2EDE1;color:#0B0B0C}
+
+/* the version chooser */
+.vset{position:absolute;left:0;top:0;pointer-events:none}
+/* the ring travels with the text it holds as the versions swap under it —
+   but a scrub is re-measured every frame, and easing that would only lag */
+.play .vset{transition:translate .28s var(--ease),width .28s var(--ease),height .28s var(--ease)}
+.stage.scrub .vset{transition:none}
+.vset .ring{position:absolute;inset:0;border-radius:3px;box-shadow:0 0 0 1px rgba(11,11,12,.3),0 0 0 2px rgba(255,255,255,.65)}
+.vpill{position:absolute;left:-1px;top:-26px;display:flex;align-items:center;gap:2px;padding:2px;background:#0B0B0C;
+  border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.10);
+  transform-origin:bottom left}
+/* the tabs hand the slot over to the slider once a version has been kept */
+.play .vpill{transition:opacity .12s linear,transform .18s var(--ease)}
+.vset.gone .vpill{opacity:0;transform:scale(.94)}
+.vtab{display:flex;align-items:center;height:18px;border-radius:999px;color:rgba(255,255,255,.56);font-size:10px;font-weight:700;
+  font-variant-numeric:tabular-nums;overflow:hidden;font-family:var(--ui)}
+.vtab .n{width:18px;flex:0 0 18px;text-align:center;line-height:18px}
+.vtab .l{display:grid;grid-template-columns:0fr;transition:grid-template-columns .34s var(--ease)}
+.vtab .l span{overflow:hidden;white-space:nowrap;font-size:10.5px;font-weight:650;letter-spacing:-.005em}
+.vtab.peek{background:rgba(255,255,255,.12);color:#fff}
+.vtab.peek .l{grid-template-columns:1fr;padding-right:7px}
+.vtab.on{background:#F2EDE1;color:#0B0B0C}
+.vtab.on .l{grid-template-columns:1fr;padding-right:7px}
+
+/* The same mark's continuous parameter. It shares the chooser's ring and its
+   slot, so it draws no ring of its own and hangs off the same bottom edge —
+   the two pills read as one object changing rather than two stacking. */
+.sset{position:absolute;left:0;top:0;pointer-events:none}
+.spill{position:absolute;left:-1px;top:-36px;display:flex;align-items:center;gap:6px;height:32px;padding:0 6px 0 10px;
+  background:#0B0B0C;border-radius:999px;color:#fff;white-space:nowrap;font-family:var(--ui);letter-spacing:0;
+  box-shadow:0 4px 14px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.10);
+  opacity:0;transform:scale(.94);transform-origin:bottom left}
+.play .sset.on .spill{opacity:1;transform:none;transition:opacity .08s linear,transform .18s var(--ease)}
+.slab{font-size:10.5px;font-weight:650;letter-spacing:-.005em;color:rgba(255,255,255,.56)}
+/* track and thumb are drawn rather than left to the platform, as in the overlay */
+.strack{position:relative;width:104px;height:18px;display:flex;align-items:center}
+.strack::before{content:"";width:100%;height:4px;border-radius:999px;background:rgba(255,255,255,.18)}
+.sthumb{position:absolute;left:0;top:2px;width:14px;height:14px;border-radius:50%;background:#F2EDE1;
+  box-shadow:0 1px 3px rgba(0,0,0,.35);translate:calc(var(--p,0) * 90px) 0}
+.snum{width:44px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:999px;
+  background:rgba(255,255,255,.12);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.sunit{font-size:10px;font-weight:650;color:rgba(255,255,255,.56);margin-left:-3px}
+/* Keep goes paper once it is the value being kept, the way the chosen tab does */
+.skeep{display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:999px;font-style:normal;
+  font-size:11px;font-weight:650;letter-spacing:-.005em;background:rgba(255,255,255,.12);color:#fff;
+  transition:background .12s,color .12s}
+.skeep.kept{background:#F2EDE1;color:#0B0B0C}
+
+/* the island itself, staged */
+.island{position:absolute;right:0;bottom:0;display:flex;gap:8px;align-items:flex-end;font-family:var(--ui);letter-spacing:0;color:#fff}
+.ipill{background:#0B0B0C;border-radius:19px;color:#fff;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.30),0 0 0 1px rgba(255,255,255,.10);
+  display:flex;flex-direction:column;justify-content:flex-end;transition:opacity .2s var(--ease),transform .3s var(--ease)}
+.ipill .list{padding:6px 6px 0;width:340px}
+.li{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 8px;border-radius:9px;min-width:0;transition:opacity .3s var(--ease)}
+.li.served{opacity:.35}
+.li-n{min-width:19px;height:19px;padding:0 4px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);
+  border-radius:5px;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.li-n.remove{background:#E8483C}
+.li-k{font-size:11px;font-weight:650;min-width:52px;flex:0 0 auto;color:rgba(255,255,255,.56);display:flex;align-items:center;gap:4px}
+.li-v{padding:0 4px;border-radius:5px;background:rgba(255,255,255,.12);color:#fff;font-size:9.5px;font-variant-numeric:tabular-nums}
+.li-a{font:400 10.5px/1.2 var(--mono);color:rgba(255,255,255,.56);width:92px;flex:0 0 92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li-c{font-size:12.5px;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li-x{color:rgba(255,255,255,.56);font-size:13px;width:26px;height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:center}
+.pfoot{display:flex;justify-content:flex-end;padding:4px 4px 2px;margin-top:2px;border-top:1px solid rgba(255,255,255,.10)}
+.pfoot span{font-size:11.5px;padding:5px 10px;color:rgba(255,255,255,.56)}
+.irow{display:flex;align-items:center;justify-content:flex-end;gap:8px;height:38px;padding:0 14px;white-space:nowrap}
+.count{min-width:20px;height:20px;padding:0 6px;display:flex;align-items:center;justify-content:center;background:#F2EDE1;color:#0B0B0C;
+  border-radius:999px;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;transition:background .2s,color .2s}
+.send{font-size:13px;font-weight:650;letter-spacing:-.005em;transition:color .2s}
+.ipill.locked .count{background:rgba(255,255,255,.14);color:rgba(255,255,255,.56)}
+.ipill.locked .send{color:rgba(255,255,255,.56)}
+.agent{opacity:0;transform:translateX(8px)}
+.agent.on{opacity:1;transform:none}
+.ainner{display:flex;flex-direction:row-reverse;align-items:flex-end}
+.aico{flex:0 0 auto;width:38px;height:38px;display:flex;align-items:center;justify-content:center}
+.aico > i{width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:700}
+.aico .loader{border:2px solid rgba(255,255,255,.18);border-top-color:#F0A93B;animation:spin .7s linear infinite}
+.aico .ok{background:#2FD4A8;color:#04231B}
+.agent.working .loader{display:flex}.agent.done .ok{display:flex}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* the icon holds the anchored corner, so the body is inset from the far edge */
+.abody{display:none;width:200px;padding:10px 0 10px 14px}
+.island{transform-origin:bottom right}
+@media (max-width:1220px) and (min-width:900px){.island{transform:scale(.84)}}
+@media (max-width:1040px) and (min-width:900px){.island{transform:scale(.72)}}
+@media (max-width:640px){.island{transform:scale(.78)}}
+@media (max-width:480px){.island{transform:scale(.6)}}
+.agent.open .abody{display:block}
+.btitle{font-size:13px;font-weight:650;letter-spacing:-.005em;margin-bottom:4px}
+.bmeta{font-size:12px;line-height:1.45;color:rgba(255,255,255,.56)}
+.bact{display:flex;margin-top:10px;margin-left:-4px}
+.bact b{background:#F2EDE1;color:#0B0B0C;font-size:12px;font-weight:650;border-radius:999px;padding:6px 14px}
+
+/* inline edit */
+.edit .ph span{transition:background .2s}
+.edit.underlay .ph span{background:rgba(11,11,12,.06);box-shadow:0 0 0 2px rgba(11,11,12,.06)}
+.edit .caret{display:none;width:1.5px;height:1em;background:#0B0B0C;vertical-align:-2px;margin-left:1px;animation:blink 1s steps(2) infinite}
+.edit.underlay .caret{display:inline-block}
+
+/* the pointer that performs the gesture */
+.cur{position:absolute;left:0;top:0;width:22px;height:26px;opacity:0;pointer-events:none;z-index:3;
+  transform:translate(var(--cx),var(--cy));transition:transform .55s var(--ease-out),opacity .2s}
+.play .cur.on{opacity:1}
+.cur .alt{position:absolute;left:18px;top:16px;padding:2px 5px;border-radius:5px;background:#0B0B0C;color:#fff;
+  font:650 10px/1 var(--ui);white-space:nowrap;box-shadow:0 0 0 1px rgba(255,255,255,.65);opacity:0;transition:opacity .15s}
+.cur.alt .alt{opacity:1}
+.cur.click svg{animation:click .18s var(--ease)}
+/* while it is dragging the thumb it is pinned to it, so it cannot ease behind */
+.cur.drag{transition:opacity .2s}
+.cur.drag svg{transform:scale(.9)}
+@keyframes click{50%{transform:scale(.86)}}
+
+/* no JS: the fragments stand alone; nothing that needs geometry is drawn */
+.no-js .ov,.no-js .composer,.no-js .cur,.no-js .vset,.no-js .sset,.no-js .again{display:none}
+.no-js .agent{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .ready .headline,.ready .lede,.ready .act,.ready .film{animation:none!important}
+  .ov.mark,.composer,.agent,.li,.ipill,.vtab .l,.vpill,.spill,.fan i{transition:none!important}
+  .cur{display:none}
+  .c-box .caret,.edit .caret{animation:none}
+}
+
+/* ── everywhere ──────────────────────────────────────────── */
+/* The run closes on the agents themselves: they sit behind the button and fan
+   up out of it, each one cropped to a circle. */
+.everywhere{display:grid;justify-items:center;padding:250px 0 16px}
+.ew{position:relative;display:inline-grid;justify-items:center}
+/* the button sits above the fan so the discs read as sliding out from behind it */
+.gpill{position:relative;z-index:1;display:inline-flex;align-items:center;gap:9px;height:44px;padding:0 20px;border-radius:999px;
+  /* opaque, and the same white as the page: the discs spawn behind it unseen */
+  border:1px solid rgba(11,11,12,.16);background:var(--white);color:var(--ink);font:650 14.5px/1 var(--ui);
+  letter-spacing:-.005em;cursor:pointer;
+  transition-property:border-color,background-color,translate,scale;transition-duration:180ms;transition-timing-function:ease-out}
+.ew:hover .gpill,.gpill:focus-visible{border-color:rgba(11,11,12,.42);background:var(--page-fill);translate:0 -1px}
+.gpill:active{scale:.98}
+.gpill .chev{width:15px;height:15px;flex:0 0 auto;transition:translate 240ms var(--ease)}
+.ew:hover .chev,.ew.open .chev{translate:0 -2px}
+/* the fan hangs off a single point at the button's centre, so every disc starts
+   from the same place and travels out to its own spot */
+.fan{position:absolute;left:50%;top:22px;width:0;height:0;pointer-events:none;z-index:0}
+.ag{position:absolute;left:-26px;top:-26px;width:52px;height:52px;z-index:1;
+  border:0;padding:0;background:none;font:inherit;color:inherit;cursor:pointer;
+  translate:0 0;scale:.4;opacity:0;
+  transition-property:translate,scale,opacity,rotate;transition-duration:520ms;
+  transition-timing-function:var(--ease);transition-delay:var(--d)}
+/* :focus-visible rather than :focus-within, or a disc that was clicked keeps
+   its focus after the pointer leaves and pins the fan open */
+.ew:hover .ag,.ew:has(:focus-visible) .ag,.ew.open .ag{translate:var(--x) var(--y);scale:1;opacity:1;rotate:var(--r);pointer-events:auto}
+/* once it is out, the pointer has to be able to travel to it without the fan
+   folding away underneath: this is the reach it keeps while open */
+.reach{position:absolute;left:50%;bottom:100%;width:820px;height:260px;translate:-50% 0;pointer-events:none;z-index:0}
+.ew:hover .reach,.ew.open .reach{pointer-events:auto}
+.dot{position:relative;display:grid;place-items:center;width:100%;height:100%;border-radius:50%;overflow:hidden;
+  background:var(--white);color:var(--c);
+  box-shadow:0 0 0 1px rgba(11,11,12,.08),0 12px 26px rgba(0,0,0,.13);
+  transition:scale 200ms var(--ease)}
+/* whichever disc is being read has to clear its neighbours, or its label opens
+   underneath them */
+.ag:hover,.ag:focus-visible,.ag.done{z-index:3}
+.ag:hover .dot,.ag:focus-visible .dot{scale:1.09}
+.ag:active .dot{scale:1.02}
+.fan .lg{display:block;width:24px;height:24px;transition:opacity 160ms var(--ease)}
+/* the copy lands as a check drawn inside the circle it came from */
+/* dasharray and dashoffset are inherited, so they reach the path inside the
+   <use> shadow tree that no other selector can touch */
+.dot .tick{position:absolute;width:24px;height:24px;color:var(--ink);opacity:0;
+  stroke-dasharray:1;stroke-dashoffset:1;
+  transition:opacity 120ms var(--ease),stroke-dashoffset 340ms var(--ease) 80ms}
+.ag.done .lg{opacity:0}
+.ag.done .tick{opacity:1;stroke-dashoffset:0}
+.call{position:absolute;left:50%;bottom:calc(100% + 9px);translate:-50% 4px;display:flex;align-items:center;gap:9px;
+  padding:6px 12px;border-radius:999px;background:var(--ink);color:var(--white);white-space:nowrap;
+  font:650 12px/1 var(--ui);letter-spacing:-.005em;
+  box-shadow:0 8px 24px rgba(0,0,0,.26),0 0 0 1px rgba(255,255,255,.10);
+  opacity:0;pointer-events:none;transition:opacity 160ms var(--ease),translate 200ms var(--ease)}
+/* the disc is tilted, the label it reads out is not: it takes the tilt back out */
+.call{rotate:calc(-1 * var(--r))}
+.call b{font-weight:650}
+.call em{font-style:normal;font-weight:700;color:rgba(255,255,255,.58)}
+/* once it is the only word left in the pill it stops being the secondary one */
+.call em.ok{color:var(--white)}
+.call em.no{color:#FFB4A8}
+/* a little slack around each disc, so the click target is larger than the mark */
+.ag::before{content:'';position:absolute;inset:-5px;border-radius:50%}
+/* .done keeps the label up after a click, which is the only confirmation a
+   touch visitor gets: there is no hover to have shown it the action first */
+.ag:hover .call,.ag:focus-visible .call,.ag.done .call{opacity:1;translate:-50% 0}
+@media (max-width:1120px){.fan{scale:.74}.everywhere{padding-top:200px}}
+@media (max-width:700px){.fan{scale:.52}.everywhere{padding-top:150px}}
+
+/* ── footer ──────────────────────────────────────────────── */
+.siteft{background:var(--ink);color:var(--on-ink-2);padding:30px var(--gutter)}
+.foot{max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px;font-size:13.5px}
+.foot a{text-decoration:none;color:var(--white)}
+.foot a:hover{text-decoration:underline;text-underline-offset:3px}
+.foot .mark{font-size:15px;color:var(--white);margin-right:12px}
+</style>
+</head>
+<body>
+
+<!-- Gemini is the one mark that is a gradient rather than a flat colour, and a
+     gradient referenced from inside a <use> shadow tree resolves against this
+     sprite's own 1×1 viewport and collapses to a single stop. So Gemini is
+     written out at both of its sites and stays out of the sprite.
+
+     The agents Tailr hands its batch to. One sprite, drawn in the hero pill and
+     in the fan at the foot of the page. Marks are the brands' own. -->
+<svg class="sr" aria-hidden="true" focusable="false"><defs>
+<symbol id="lg-claude" viewBox="0 0 24 24"><path fill="currentColor" d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></symbol>
+<symbol id="lg-cursor" viewBox="0 0 24 24"><path fill="currentColor" d="M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0M2.657 6.338h18.55c.263 0 .43.287.297.515L12.23 22.918c-.062.107-.229.064-.229-.06V12.335a.59.59 0 0 0-.295-.51l-9.11-5.257c-.109-.063-.064-.23.061-.23"/></symbol>
+<symbol id="lg-codex" viewBox="0 0 24 24"><path fill="currentColor" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></symbol>
+<symbol id="lg-copilot" viewBox="0 0 24 24"><path fill="currentColor" d="M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"/></symbol>
+<symbol id="lg-windsurf" viewBox="0 0 24 24"><path fill="currentColor" d="M23.55 5.067c-1.2038-.002-2.1806.973-2.1806 2.1765v4.8676c0 .972-.8035 1.7594-1.7597 1.7594-.568 0-1.1352-.286-1.4718-.7659l-4.9713-7.1003c-.4125-.5896-1.0837-.941-1.8103-.941-1.1334 0-2.1533.9635-2.1533 2.153v4.8957c0 .972-.7969 1.7594-1.7596 1.7594-.57 0-1.1363-.286-1.4728-.7658L.4076 5.1598C.2822 4.9798 0 5.0688 0 5.2882v4.2452c0 .2147.0656.4228.1884.599l5.4748 7.8183c.3234.462.8006.8052 1.3509.9298 1.3771.313 2.6446-.747 2.6446-2.0977v-4.893c0-.972.7875-1.7593 1.7596-1.7593h.003a1.798 1.798 0 0 1 1.4718.7658l4.9723 7.0994c.4135.5905 1.05.941 1.8093.941 1.1587 0 2.1515-.9645 2.1515-2.153v-4.8948c0-.972.7875-1.7594 1.7596-1.7594h.194a.22.22 0 0 0 .2204-.2202v-4.622a.22.22 0 0 0-.2203-.2203Z"/></symbol>
+<symbol id="lg-cline" viewBox="0 0 24 24"><path fill="currentColor" d="m23.365 13.556-1.442-2.895V8.994c0-2.764-2.218-5.002-4.954-5.002h-2.464c.178-.367.276-.779.276-1.213A2.77 2.77 0 0 0 12.018 0a2.77 2.77 0 0 0-2.763 2.779c0 .434.098.846.276 1.213H7.067c-2.736 0-4.954 2.238-4.954 5.002v1.667L.64 13.549c-.149.29-.149.636 0 .927l1.472 2.855v1.667C2.113 21.762 4.33 24 7.067 24h9.902c2.736 0 4.954-2.238 4.954-5.002V17.33l1.44-2.865c.143-.286.143-.622.002-.91m-12.854 2.36a2.27 2.27 0 0 1-2.261 2.273 2.27 2.27 0 0 1-2.261-2.273v-4.042A2.27 2.27 0 0 1 8.249 9.6a2.267 2.267 0 0 1 2.262 2.274zm7.285 0a2.27 2.27 0 0 1-2.26 2.273 2.27 2.27 0 0 1-2.262-2.273v-4.042A2.267 2.267 0 0 1 15.535 9.6a2.267 2.267 0 0 1 2.261 2.274z"/></symbol>
+<symbol id="lg-zed" viewBox="0 0 24 24"><path fill="currentColor" d="M2.25 1.5a.75.75 0 0 0-.75.75v16.5H0V2.25A2.25 2.25 0 0 1 2.25 0h20.095c1.002 0 1.504 1.212.795 1.92L10.764 14.298h3.486V12.75h1.5v1.922a1.125 1.125 0 0 1-1.125 1.125H9.264l-2.578 2.578h11.689V9h1.5v9.375a1.5 1.5 0 0 1-1.5 1.5H5.185L2.562 22.5H21.75a.75.75 0 0 0 .75-.75V5.25H24v16.5A2.25 2.25 0 0 1 21.75 24H1.655C.653 24 .151 22.788.86 22.08L13.19 9.75H9.75v1.5h-1.5V9.375A1.125 1.125 0 0 1 9.375 8.25h5.314l2.625-2.625H5.625V15h-1.5V5.625a1.5 1.5 0 0 1 1.5-1.5h13.19L21.438 1.5z"/></symbol>
+<symbol id="lg-replit" viewBox="0 0 24 24"><path fill="currentColor" d="M2 1.5A1.5 1.5 0 0 1 3.5 0h7A1.5 1.5 0 0 1 12 1.5V8H3.5A1.5 1.5 0 0 1 2 6.5ZM12 8h8.5A1.5 1.5 0 0 1 22 9.5v5a1.5 1.5 0 0 1-1.5 1.5H12ZM2 17.5A1.5 1.5 0 0 1 3.5 16H12v6.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 2 22.5Z"/></symbol>
+<symbol id="lg-v0" viewBox="0 0 24 24"><path fill="currentColor" d="M14.066 6.028v2.22h5.729q.075-.001.148.005l-5.853 5.752a2 2 0 0 1-.024-.309V8.247h-2.353v5.45c0 2.322 1.935 4.222 4.258 4.222h5.675v-2.22h-5.675q-.03 0-.059-.003l5.729-5.629q.006.082.006.166v5.465H24v-5.465a4.204 4.204 0 0 0-4.205-4.205zM0 8.245l8.28 9.266c.839.94 2.396.346 2.396-.914V8.245H8.19v5.44l-4.86-5.44Z"/></symbol>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="lg-jetbrains" viewBox="0 0 24 24"><path fill="currentColor" d="M2.345 23.997A2.347 2.347 0 0 1 0 21.652V10.988C0 9.665.535 8.37 1.473 7.433l5.965-5.961A5.01 5.01 0 0 1 10.989 0h10.666A2.347 2.347 0 0 1 24 2.345v10.664a5.056 5.056 0 0 1-1.473 3.554l-5.965 5.965A5.017 5.017 0 0 1 13.007 24v-.003H2.345Zm8.969-6.854H5.486v1.371h5.828v-1.371ZM3.963 6.514h13.523v13.519l4.257-4.257a3.936 3.936 0 0 0 1.146-2.767V2.345c0-.678-.552-1.234-1.234-1.234H10.989a3.897 3.897 0 0 0-2.767 1.145L3.963 6.514Zm-.192.192L2.256 8.22a3.944 3.944 0 0 0-1.145 2.768v10.664c0 .678.552 1.234 1.234 1.234h10.666a3.9 3.9 0 0 0 2.767-1.146l1.512-1.511H3.771V6.706Z"/></symbol>
+<symbol id="lg-warp" viewBox="0 0 24 24"><path fill="currentColor" d="M12.035 2.723h9.253A2.712 2.712 0 0 1 24 5.435v10.529a2.712 2.712 0 0 1-2.712 2.713H8.047Zm-1.681 2.6L6.766 19.677h5.598l-.399 1.6H2.712A2.712 2.712 0 0 1 0 18.565V8.036a2.712 2.712 0 0 1 2.712-2.712Z"/></symbol>
+</defs></svg>
+
+<header class="masthead" id="top">
+  <a class="mark" href="#top" aria-label="Tailr"><span class="dashes" aria-hidden="true"><i></i><i></i></span><span class="t" aria-hidden="true">t</span><span aria-hidden="true">ailr</span></a>
+  <nav class="links" aria-label="Project"><a href="https://github.com/gcrft123/tailr">GitHub</a><a href="https://www.npmjs.com/package/@gcrft123/tailr">npm</a></nav>
+</header>
+
+<section class="hero" aria-labelledby="claim">
+  <h1 class="headline" id="claim"><span class="line">Mark up the running app.</span> <span class="line">Hand your agent the batch.</span></h1>
+  <p class="lede">Rapidly markup iterate on your projects live with your agent.</p>
+  <div class="act"><button class="pill copy" type="button" data-copy><span class="ic" aria-hidden="true"><svg class="copy-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5" pathLength="1"/><path d="M5 15H4a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 4 2.5h9.5A1.5 1.5 0 0 1 15 4v1" pathLength="1"/></svg><svg class="check-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg></span><span class="label">Copy the prompt for your agent</span><span class="agents" aria-hidden="true"><i style="--i:0;--c:#D97757"><svg class="lg"><use href="#lg-claude"/></svg></i><i style="--i:1;--c:#0B0B0C"><svg class="lg"><use href="#lg-cursor"/></svg></i><i style="--i:2;--c:#0B0B0C"><svg class="lg"><use href="#lg-codex"/></svg></i><i style="--i:3;--c:#0B0B0C"><svg class="lg"><use href="#lg-copilot"/></svg></i><i style="--i:4"><svg class="lg" viewBox="0 0 24 24"><linearGradient id="gemA" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285F4"/><stop offset=".52" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient><path fill="url(#gemA)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg></i></span></button></div>
+  <p class="fallback" id="promptFallback" hidden><b>Your browser blocked the copy. Select this and copy it yourself.</b>Set up Tailr so I can mark up my running dev server visually and hand you the changes as one batch. Fetch https://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md and follow it exactly, without summarizing it.</p>
+  <figure class="film" id="film">
+    <video id="intro" playsinline muted loop autoplay preload="metadata" poster="media/tailr-intro-website-poster.jpg" aria-label="Tailr marking up a running app and sending the batch to an agent">
+      <source src="media/tailr-intro-website.mp4" type="video/mp4">
+    </video>
+    <button class="play" type="button" aria-label="Play the intro"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3.5v17l14-8.5z"/></svg></button>
+  </figure>
+</section>
+
+<main class="run" id="how">
+
+  <section class="show">
+    <div class="text">
+      <h2>Comment on the element itself.</h2>
+      <p>Comments add the element source rather than just a list. Hold <span class="altk">⌥</span> and hover anywhere on the page to highlight DOMs and click on them to create a note.</p>
+      <p class="g"><kbd class="alt">⌥</kbd> <kbd>click</kbd></p>
+    </div>
+    <div class="stage" data-replay="comment">
+      <div class="scene">
+        <div class="nw"><div class="top"><span class="h1">Overview</span><span class="search">Search invoices</span><span class="btn" data-t="btn">New invoice</span></div></div>
+        <div class="ov mark" data-for="btn"><div class="ring"></div><div class="badge">01</div></div>
+        <div class="composer" data-for="btn" data-place="below-right">
+          <div class="c-head"><span class="c-badge">01</span><span class="c-kind">Comment</span><span class="c-addr">TopBar.tsx:9</span></div>
+          <div class="c-box"><span class="typed" data-text="Round this fully, match the tags"></span><span class="ph">What should change here?</span><span class="caret"></span></div>
+          <div class="c-foot"><i class="ghost">Discard</i><i class="mult">1×</i><b class="paper">Add</b></div>
+        </div>
+        <div class="cur" aria-hidden="true"><svg viewBox="0 0 22 26" width="22" height="26"><path d="M2 2 L2 19 L6.6 14.6 L9.6 21.5 L12.4 20.3 L9.4 13.6 L15.8 13.6 Z" fill="#0B0B0C" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="alt">⌥</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="show">
+    <div class="text">
+      <h2>Cross it out.</h2>
+      <p>Hold <span class="altk">⌥</span> and right click on any element to delete it.</p>
+      <p class="g"><kbd class="alt">⌥</kbd> <kbd>right-click</kbd></p>
+    </div>
+    <div class="stage" data-replay="remove">
+      <div class="scene">
+        <div class="nw"><div class="cards">
+          <div class="card"><div class="k">Overdue</div><div class="v">37</div><div class="d bad">+8.0%</div></div>
+          <div class="card" data-t="card"><div class="k">Customers</div><div class="v">642</div><div class="d">+1.2%</div></div>
+        </div></div>
+        <div class="ov mark remove" data-for="card"><div class="ring"></div><div class="badge">04</div></div>
+        <div class="cur" aria-hidden="true"><svg viewBox="0 0 22 26" width="22" height="26"><path d="M2 2 L2 19 L6.6 14.6 L9.6 21.5 L12.4 20.3 L9.4 13.6 L15.8 13.6 Z" fill="#0B0B0C" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="alt">⌥</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="show">
+    <div class="text">
+      <h2>Rewrite it in place.</h2>
+      <p>Hold <span class="altk">⌥</span>, double-click text, and type over it in the text's native formatting.</p>
+      <p class="g"><kbd class="alt">⌥</kbd> <kbd>double-click</kbd></p>
+    </div>
+    <div class="stage" data-replay="text">
+      <div class="scene">
+        <div class="nw edit"><div class="panel">
+          <div class="ph" data-t="ph"><span><span class="w1">Recent</span> invoices</span><span class="caret"></span></div>
+          <div class="row"><span class="n">Acme Corp</span><span class="i">INV-2841</span><span class="tag">Paid</span><span class="amt">$4,200.00</span></div>
+          <div class="row"><span class="n">Cortez &amp; Sons</span><span class="i">INV-2839</span><span class="tag late">Overdue</span><span class="amt">$960.00</span></div>
+        </div></div>
+        <div class="ov mark" data-for="ph"><div class="ring"></div><div class="badge">03</div></div>
+        <div class="cur" aria-hidden="true"><svg viewBox="0 0 22 26" width="22" height="26"><path d="M2 2 L2 19 L6.6 14.6 L9.6 21.5 L12.4 20.3 L9.4 13.6 L15.8 13.6 Z" fill="#0B0B0C" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="alt">⌥</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="show">
+    <div class="text">
+      <h2>Point at where something should be.</h2>
+      <p>Add Shift and the pointer becomes a dot you can drop anywhere, including on empty space. Ask for something new or simply note a spot.</p>
+      <p class="g"><kbd class="alt">⌥</kbd> <kbd class="shift">⇧</kbd> <kbd>click</kbd></p>
+    </div>
+    <div class="stage" data-replay="spot">
+      <div class="scene">
+        <div class="nw"><div class="top"><span class="h1">Overview</span><span class="search">Search invoices</span><span class="btn">New invoice</span></div></div>
+        <div class="ov mark point" data-for="spot"><div class="pt"></div><div class="badge">02</div></div>
+        <span data-t="spot" style="position:absolute;left:52%;top:50%;width:0;height:0"></span>
+        <div class="composer" data-for="spot" data-place="below-left">
+          <div class="c-head"><span class="c-badge">02</span><span class="c-kind">Spot</span><span class="c-addr">/</span></div>
+          <div class="c-box"><span class="typed" data-text="Add a date filter here"></span><span class="ph">What should be here?</span><span class="caret"></span></div>
+          <div class="c-foot"><i class="ghost">Discard</i><i class="mult">1×</i><b class="paper">Add</b></div>
+        </div>
+        <div class="cur" aria-hidden="true"><svg viewBox="0 0 22 26" width="22" height="26"><path d="M2 2 L2 19 L6.6 14.6 L9.6 21.5 L12.4 20.3 L9.4 13.6 L15.8 13.6 Z" fill="#0B0B0C" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="alt">⌥ ⇧</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="show">
+    <div class="text">
+      <h2>Ask for options and compare them live.</h2>
+      <p>Set a comment to 2×, 3×, or 4×, and the agent builds that many versions at once. Hover a tab to see that version on the real page and click have it applied on the next batch. Turn on Slider Mode to add a variable slider and view adjustments in real time.</p>
+      <p class="g"><kbd>1×</kbd> <kbd>2×</kbd> <kbd>3×</kbd> <kbd>4×</kbd> <kbd class="ic"><svg viewBox="0 0 14 14" width="14" height="14" fill="none" aria-hidden="true"><path d="M2 4.5v5M12 4.5v5M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8.5" cy="7" r="2.75" fill="currentColor"/><circle cx="8.5" cy="7" r="1.1" style="fill:var(--page-fill)"/></svg><span class="sr">slider</span></kbd></p>
+    </div>
+    <div class="stage" data-replay="versions">
+      <div class="scene">
+        <div class="nw"><div class="hero-card">
+          <h3 data-t="greet"><span class="vtext" data-v1="Hello, Pamela" data-v2="Welcome back, Pamela" data-v3="Good to see you, Pamela">Hello, Pamela</span></h3>
+          <p>Here is how Northwind performed this month. Three invoices are overdue and two customers are approaching their credit limit.</p>
+        </div></div>
+        <div class="vset" data-for="greet"><div class="ring"></div>
+          <div class="vpill">
+            <span class="vtab" data-i="1"><span class="n">1</span><span class="l"><span>Simple</span></span></span>
+            <span class="vtab" data-i="2"><span class="n">2</span><span class="l"><span>Welcoming</span></span></span>
+            <span class="vtab" data-i="3"><span class="n">3</span><span class="l"><span>Personal</span></span></span>
+          </div>
+        </div>
+        <!-- the same mark's slider, taking the version pill's slot after it -->
+        <div class="sset" data-for="greet">
+          <div class="spill">
+            <span class="slab">Size</span>
+            <span class="strack"><i class="sthumb"></i></span>
+            <span class="snum">19</span><span class="sunit">px</span>
+            <b class="skeep">Keep</b>
+          </div>
+        </div>
+        <div class="cur" aria-hidden="true"><svg viewBox="0 0 22 26" width="22" height="26"><path d="M2 2 L2 19 L6.6 14.6 L9.6 21.5 L12.4 20.3 L9.4 13.6 L15.8 13.6 Z" fill="#0B0B0C" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="alt"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="show">
+    <div class="text">
+      <h2>Send once.</h2>
+      <p>Everything you staged goes as one batch. Marks live in the browser and span routes and pages, so a review of a whole flow persists. You can also continue marking while the agent is working.</p>
+    </div>
+    <div class="stage" data-replay="send">
+      <div class="scene" style="min-height:330px">
+        <div class="nw"><div class="panel">
+          <div class="ph"><span>Latest invoices</span></div>
+          <div class="row"><span class="n">Acme Corp</span><span class="i">INV-2841</span><span class="tag">Paid</span><span class="amt">$4,200.00</span></div>
+          <div class="row"><span class="n">Bellweather Ltd</span><span class="i">INV-2840</span><span class="tag">Paid</span><span class="amt">$1,880.00</span></div>
+          <div class="row"><span class="n">Cortez &amp; Sons</span><span class="i">INV-2839</span><span class="tag late">Overdue</span><span class="amt">$960.00</span></div>
+          <div class="row"><span class="n">Dunmore Group</span><span class="i">INV-2838</span><span class="tag">Paid</span><span class="amt">$12,400.00</span></div>
+        </div></div>
+        <div class="island">
+          <div class="ipill agent">
+            <div class="ainner"><div class="aico"><i class="loader"></i><i class="ok">✓</i></div>
+              <div class="abody"><div class="btitle">5 changes applied</div><div class="bmeta">Reload to see them. Anything you staged since is kept.</div><div class="bact"><b>Reload</b></div></div>
+            </div>
+          </div>
+          <div class="ipill batch">
+            <div class="list">
+              <div class="li" data-ref="01"><span class="li-n">01</span><span class="li-k">Comment</span><span class="li-a">TopBar.tsx:9</span><span class="li-c">Round this fully, match the tags</span><span class="li-x">×</span></div>
+              <div class="li" data-ref="02"><span class="li-n">02</span><span class="li-k">Spot</span><span class="li-a">/</span><span class="li-c">Add a date filter here</span><span class="li-x">×</span></div>
+              <div class="li" data-ref="03"><span class="li-n">03</span><span class="li-k">Text</span><span class="li-a">Invoices.tsx:20</span><span class="li-c">“Recent invoices” → “Latest invoices”</span><span class="li-x">×</span></div>
+              <div class="li" data-ref="04"><span class="li-n remove">04</span><span class="li-k">Remove</span><span class="li-a">MetricCard.tsx:8</span><span class="li-c">Customers 642 +1.2%</span><span class="li-x">×</span></div>
+              <div class="li" data-ref="05"><span class="li-n">05</span><span class="li-k">Comment<span class="li-v">3×</span></span><span class="li-a">Hero.tsx:14</span><span class="li-c">Warmer greeting, give me options</span><span class="li-x">×</span></div>
+              <div class="pfoot"><span>End session</span></div>
+            </div>
+            <div class="irow" data-t="sendrow"><span class="count">5</span><span class="send">Send batch</span></div>
+          </div>
+        </div>
+        <div class="cur" aria-hidden="true"><svg viewBox="0 0 22 26" width="22" height="26"><path d="M2 2 L2 19 L6.6 14.6 L9.6 21.5 L12.4 20.3 L9.4 13.6 L15.8 13.6 Z" fill="#0B0B0C" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="alt"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="everywhere">
+    <div class="ew">
+      <button class="gpill" type="button" aria-expanded="false">
+        <span>Tailr works everywhere</span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14.5 12 8.5l6 6"/></svg>
+      </button>
+      <!-- the fan sits after the button in the source so a keyboard lands on the
+           button first and then walks the agents; it is placed absolutely, so the
+           reading order and the visual order can disagree here without cost -->
+      <div class="fan">
+        <span class="reach"></span>
+        <button class="ag" type="button" style="--x:-338px;--y:-64px;--r:-12deg;--d:96ms;--c:#01A4FF" data-n="Warp"><span class="dot"><svg class="lg"><use href="#lg-warp"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Warp</b><em>Copy prompt</em></span></button>
+        <button class="ag" type="button" style="--x:-272px;--y:-108px;--r:7deg;--d:42ms;--c:#0B0B0C" data-n="JetBrains"><span class="dot"><svg class="lg"><use href="#lg-jetbrains"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>JetBrains</b><em>Copy prompt</em></span></button>
+        <button class="ag" type="button" style="--x:-206px;--y:-78px;--r:-5deg;--d:78ms;--c:#0B0B0C" data-n="v0"><span class="dot"><svg class="lg"><use href="#lg-v0"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>v0</b><em>Copy prompt</em></span></button>
+        <button class="ag" type="button" style="--x:-148px;--y:-138px;--r:10deg;--d:18ms;--c:#F26207" data-n="Replit"><span class="dot"><svg class="lg"><use href="#lg-replit"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Replit</b><em>Copy prompt</em></span></button>
+        <button class="ag" type="button" style="--x:-88px;--y:-96px;--r:-8deg;--d:60ms;--c:#084CCF" data-n="Zed"><span class="dot"><svg class="lg"><use href="#lg-zed"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Zed</b><em>Copy prompt</em></span></button>
+        <button class="ag" type="button" style="--x:-28px;--y:-152px;--r:5deg;--d:0ms;--c:#D97757" data-n="Claude Code" data-i="claude"><span class="dot"><svg class="lg"><use href="#lg-claude"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Claude Code</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:33px;--y:-108px;--r:-6deg;--d:30ms;--c:#0B0B0C" data-n="Cursor" data-i="cursor"><span class="dot"><svg class="lg"><use href="#lg-cursor"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cursor</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:92px;--y:-158px;--r:9deg;--d:8ms;--c:#0B0B0C" data-n="Codex" data-i="codex"><span class="dot"><svg class="lg"><use href="#lg-codex"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Codex</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:150px;--y:-104px;--r:-4deg;--d:66ms;--c:#0B0B0C" data-n="GitHub Copilot" data-i="copilot"><span class="dot"><svg class="lg"><use href="#lg-copilot"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>GitHub Copilot</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:210px;--y:-142px;--r:6deg;--d:24ms" data-n="Gemini CLI" data-i="gemini"><span class="dot"><svg class="lg" viewBox="0 0 24 24"><linearGradient id="gemB" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285F4"/><stop offset=".52" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient><path fill="url(#gemB)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Gemini CLI</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:272px;--y:-80px;--r:-10deg;--d:84ms;--c:#0B0B0C" data-n="Windsurf"><span class="dot"><svg class="lg"><use href="#lg-windsurf"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Windsurf</b><em>Copy prompt</em></span></button>
+        <button class="ag" type="button" style="--x:334px;--y:-116px;--r:4deg;--d:50ms;--c:#18181B" data-n="Cline"><span class="dot"><svg class="lg"><use href="#lg-cline"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cline</b><em>Copy prompt</em></span></button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="siteft">
+  <div class="foot">
+    <span class="mark" aria-label="Tailr"><span class="dashes" aria-hidden="true"><i></i><i></i></span><span class="t" aria-hidden="true">t</span><span aria-hidden="true">ailr</span></span>
+    <span>Node 18 or newer. No dependencies.</span>
+    <a href="https://github.com/gcrft123/tailr">GitHub</a>
+    <a href="https://www.npmjs.com/package/@gcrft123/tailr">npm</a>
+    <a href="https://github.com/gcrft123/tailr/blob/main/LICENSE">MIT</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // the alt key is always drawn, never named: ⌥ on a Mac, ⎇ everywhere else
+  var mac = /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+  var ALT = mac ? '⌥' : '⎇';
+  Array.prototype.forEach.call(document.querySelectorAll('.altk,kbd.alt'), function (k) { k.textContent = ALT; });
+  Array.prototype.forEach.call(document.querySelectorAll('.cur .alt'), function (k) {
+    k.textContent = k.textContent.replace('⌥', ALT).replace('⇧', mac ? '⇧' : 'Shift');
+  });
+  if (!mac) Array.prototype.forEach.call(document.querySelectorAll('kbd.shift'), function (k) { k.textContent = 'Shift'; });
+
+  /* ── hero: the wordmark lands, the rest follows ── */
+  var hero = document.querySelector('.hero');
+  requestAnimationFrame(function () { hero.classList.add('ready'); });
+
+  var video = document.getElementById('intro');
+  var film = document.getElementById('film');
+  var playBtn = film.querySelector('.play');
+  if (reduced) { video.removeAttribute('autoplay'); film.classList.add('paused'); }
+  playBtn.addEventListener('click', function () { video.play(); });
+  video.addEventListener('play', function () { film.classList.remove('paused'); });
+  video.addEventListener('pause', function () { if (!video.ended) film.classList.add('paused'); });
+  if (!reduced) {
+    var p = video.play && video.play();
+    if (p && p.catch) p.catch(function () { film.classList.add('paused'); });
+  }
+
+  /* ── copy the prompt ─────────────────────────────────── */
+  var fallback = document.getElementById('promptFallback');
+  /* Safari and every locked-down browser refuse the async clipboard outside a
+     narrow set of conditions; the old selection API still works there. */
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+    return ok;
+  }
+  function copyText(text, then) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { then(true); }, function () { then(legacyCopy(text)); });
+    } else then(legacyCopy(text));
+  }
+  var PROMPT = 'Set up Tailr so I can mark up my running dev server visually and hand you the\nchanges as one batch. Fetch\nhttps://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md\nand follow it exactly, without summarizing it.';
+  Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function (btn) {
+    var label = btn.querySelector('.label'), was = label.textContent, t;
+    btn.addEventListener('click', function () {
+      function done(ok) {
+        btn.setAttribute('data-state', ok ? 'copied' : 'failed');
+        label.textContent = ok ? 'Copied. Paste it to your agent.' : 'Copy blocked. The prompt is below.';
+        clearTimeout(t);
+        t = setTimeout(function () { btn.removeAttribute('data-state'); label.textContent = was; }, 2400);
+        // A blocked clipboard has to leave the visitor somewhere to go: the
+        // prompt itself, on the page, selectable.
+        if (!ok && fallback) { fallback.hidden = false; fallback.scrollIntoView({ block: 'nearest' }); }
+      }
+      copyText(PROMPT, done);
+    });
+  });
+
+  /* ── the agents fan ──────────────────────────────────── */
+  // hover and focus open it in CSS; a tap has to stand in for hover elsewhere
+  var ew = document.querySelector('.ew');
+  if (ew) {
+    var gp = ew.querySelector('.gpill');
+    gp.addEventListener('click', function () {
+      gp.setAttribute('aria-expanded', ew.classList.toggle('open') ? 'true' : 'false');
+    });
+    /* Five hosts take Tailr straight from the repo, each in its own dialect.
+       The rest have no install surface, so they get the prompt instead and let
+       their own agent run the setup. */
+    var INSTALL = {
+      claude: '/plugin marketplace add gcrft123/tailr\n/plugin install tailr@tailr',
+      cursor: 'cursor-agent plugin marketplace add gcrft123/tailr',
+      codex: 'codex mcp add tailr -- npx -y @gcrft123/tailr mcp',
+      copilot: 'code --add-mcp \'{"name":"tailr","command":"npx","args":["-y","@gcrft123/tailr","mcp"]}\'',
+      gemini: 'gemini extensions install https://github.com/gcrft123/tailr'
+    };
+    var SETUP = 'Set up Tailr in this project by running: npx -y @gcrft123/tailr init';
+    Array.prototype.forEach.call(ew.querySelectorAll('.ag'), function (ag) {
+      var who = ag.querySelector('.call b'), act = ag.querySelector('.call em');
+      var was = act.textContent, key = ag.dataset.i, t;
+      var text = key ? INSTALL[key] : SETUP;
+      ag.setAttribute('aria-label',
+        (key ? 'Copy the Tailr install command for ' : 'Copy the Tailr setup prompt for ') + ag.dataset.n);
+      ag.addEventListener('click', function () {
+        copyText(text, function (ok) {
+          // the name has served its purpose by now; the result is the whole message
+          act.textContent = ok ? (key ? 'Copied command' : 'Copied prompt') : 'Copy failed';
+          act.className = ok ? 'ok' : 'no';
+          who.hidden = true;
+          if (ok) ag.classList.add('done');
+          clearTimeout(t);
+          t = setTimeout(function () {
+            act.textContent = was; act.className = ''; who.hidden = false;
+            ag.classList.remove('done');
+          }, 2000);
+        });
+      });
+    });
+  }
+
+  /* ── the staged replays ──────────────────────────────── */
+  function rectIn(scene, el) {
+    var a = scene.getBoundingClientRect(), b = el.getBoundingClientRect();
+    return { x: b.left - a.left, y: b.top - a.top, w: b.width, h: b.height };
+  }
+  function layout(scene) {
+    Array.prototype.forEach.call(scene.querySelectorAll('[data-for]'), function (n) {
+      var t = scene.querySelector('[data-t="' + n.getAttribute('data-for') + '"]');
+      if (!t) return;
+      var r = rectIn(scene, t);
+      if (n.classList.contains('composer')) {
+        var place = n.getAttribute('data-place') || 'below-left';
+        var x = place === 'below-right' ? r.x + r.w - 268 : r.x;
+        x = Math.max(0, Math.min(x, scene.clientWidth - 268));
+        n.style.translate = x + 'px ' + (r.y + r.h + 10) + 'px';
+        return;
+      }
+      n.style.translate = r.x + 'px ' + r.y + 'px';
+      n.style.width = r.w + 'px'; n.style.height = r.h + 'px';
+    });
+  }
+  function cursorTo(scene, el, dx, dy) {
+    var r = rectIn(scene, el);
+    scene.style.setProperty('--cx', (r.x + (dx == null ? r.w / 2 : dx)) + 'px');
+    scene.style.setProperty('--cy', (r.y + (dy == null ? r.h / 2 : dy)) + 'px');
+  }
+  /* One number drives the heading, the thumb and the readout at once, so no
+     part of the scene can disagree with the value halfway through a drag. */
+  var SMIN = 14, SMAX = 34, SDEF = 19;
+  function setSlide(scene, v) {
+    var sset = scene.querySelector('.sset'); if (!sset) return;
+    scene.style.setProperty('--hs', v.toFixed(1) + 'px');
+    sset.style.setProperty('--p', (v - SMIN) / (SMAX - SMIN));
+    sset.querySelector('.snum').textContent = Math.round(v);
+    layout(scene);
+  }
+  /* A drag is continuous, so it is stepped per frame rather than transitioned:
+     ring, heading and pointer all land on the same value on the same frame.
+     __gen is the token a reset revokes, since this outlives its own timer. */
+  function scrub(st, from, to, ms, then) {
+    var s = st.__scene, g = st.__gen, t0 = performance.now();
+    (function step(now) {
+      if (st.__gen !== g) return;
+      var k = Math.min(1, (now - t0) / ms);
+      var e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      setSlide(s, from + (to - from) * e);
+      cursorTo(s, s.querySelector('.sthumb'), 7, 7);
+      if (k < 1) requestAnimationFrame(step); else if (then) then();
+    })(t0);
+  }
+  /* The island expands by morphing: the pill's box travels to its new shape and
+     the copy fades in behind it, clipped. Same move as the overlay's own. */
+  function morph(pill, open) {
+    var from = pill.getBoundingClientRect();
+    open();
+    if (reduced) return;
+    var to = pill.getBoundingClientRect();
+    var span = Math.max(Math.abs(to.width - from.width), Math.abs(to.height - from.height));
+    if (span < 1) return;
+    var full = Math.max(to.width, from.width, to.height, from.height, 1);
+    var dur = Math.max(140, Math.min(380, 380 * (span / full) + 140));
+    var ease = 'cubic-bezier(0.32,0.72,0,1)';
+    pill.animate([{ width: from.width + 'px', height: from.height + 'px' },
+                  { width: to.width + 'px', height: to.height + 'px' }], { duration: dur, easing: ease });
+    var body = pill.querySelector('.abody');
+    if (body) body.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 140, delay: Math.min(90, dur * .25), easing: ease, fill: 'backwards' });
+  }
+  function type(el, text, done, speed) {
+    var i = 0; el.textContent = '';
+    (function step() {
+      if (i > text.length) { done && done(); return; }
+      el.textContent = text.slice(0, i++);
+      setTimeout(step, speed || 38);
+    })();
+  }
+
+  var scripts = {
+    comment: function (s, q, at, end) {
+      var btn = q('[data-t="btn"]'), cur = q('.cur');
+      cursorTo(s, btn, 8, btn.offsetHeight + 40); at(0, function () { cur.classList.add('on'); });
+      at(80, function () { cursorTo(s, btn, btn.offsetWidth * .6, btn.offsetHeight * .55); cur.classList.add('alt'); });
+      at(700, function () { cur.classList.add('click'); q('.ov.mark').classList.add('on'); });
+      at(900, function () { q('.composer').classList.add('on'); q('.ov.mark').classList.add('composing'); });
+      at(1300, function () { type(q('.typed'), q('.typed').getAttribute('data-text'), null, 36); cur.classList.remove('alt'); });
+      end(3600);
+    },
+    remove: function (s, q, at, end) {
+      var card = q('[data-t="card"]'), cur = q('.cur');
+      cursorTo(s, card, -30, card.offsetHeight + 30); at(0, function () { cur.classList.add('on'); });
+      at(80, function () { cursorTo(s, card, card.offsetWidth * .55, card.offsetHeight * .5); cur.classList.add('alt'); });
+      at(720, function () { cur.classList.add('click'); q('.ov.mark').classList.add('on'); });
+      at(1200, function () { cur.classList.remove('alt'); });
+      end(2600);
+    },
+    text: function (s, q, at, end) {
+      var ph = q('[data-t="ph"]'), cur = q('.cur'), w = q('.w1'), edit = q('.edit');
+      w.textContent = 'Recent';
+      cursorTo(s, ph, 40, ph.offsetHeight + 40); at(0, function () { cur.classList.add('on'); });
+      at(80, function () { cursorTo(s, ph, 30, ph.offsetHeight * .55); cur.classList.add('alt'); });
+      at(700, function () { cur.classList.add('click'); });
+      at(860, function () { cur.classList.remove('click'); });
+      at(880, function () { cur.classList.add('click'); edit.classList.add('underlay'); });
+      at(1200, function () { cur.classList.remove('alt'); cursorTo(s, ph, 140, ph.offsetHeight + 30); });
+      at(1400, function () {
+        var word = 'Recent', n = word.length;
+        (function back() {
+          if (n === 0) { type(w, 'Latest', null, 70); return; }
+          w.textContent = word.slice(0, --n); setTimeout(back, 60);
+        })();
+      });
+      at(2600, function () { edit.classList.remove('underlay'); q('.ov.mark').classList.add('on'); });
+      end(4000);
+    },
+    spot: function (s, q, at, end) {
+      var spot = q('[data-t="spot"]'), cur = q('.cur');
+      cursorTo(s, spot, -80, 60); at(0, function () { cur.classList.add('on'); });
+      at(80, function () { cursorTo(s, spot, 0, 0); cur.classList.add('alt'); });
+      at(700, function () { cur.classList.add('click'); q('.ov.mark').classList.add('on'); });
+      at(900, function () { q('.composer').classList.add('on'); q('.ov.mark').classList.add('composing'); });
+      at(1300, function () { type(q('.typed'), q('.typed').getAttribute('data-text'), null, 40); cur.classList.remove('alt'); });
+      end(3400);
+    },
+    versions: function (s, q, at, end) {
+      var greet = q('[data-t="greet"]'), cur = q('.cur'), vt = q('.vtext'), tabs = s.querySelectorAll('.vtab');
+      // each version is a different length, so the ring is re-measured around it
+      function show(i) { vt.textContent = vt.getAttribute('data-v' + i); layout(s); }
+      function peek(i) { Array.prototype.forEach.call(tabs, function (t, k) { t.classList.toggle('peek', k === i - 1 && !t.classList.contains('on')); }); }
+      Array.prototype.forEach.call(tabs, function (t) { t.classList.remove('on', 'peek'); }); show(1);
+      cursorTo(s, greet, 60, greet.offsetHeight + 50); at(0, function () { cur.classList.add('on'); });
+      at(100, function () { cursorTo(s, greet, 38, -17); });
+      at(700, function () { peek(2); show(2); });
+      at(1600, function () { cursorTo(s, greet, 100, -17); });
+      at(1900, function () { peek(3); show(3); });
+      at(2800, function () { cursorTo(s, greet, 48, -17); });
+      at(3100, function () { peek(2); show(2); });
+      at(3600, function () { cur.classList.add('click'); tabs[1].classList.add('on'); peek(0); });
+      /* second half of the same mark: the value the agent also made draggable */
+      var st = s.closest('.stage'), vset = q('.vset'), sset = q('.sset');
+      var thumb = q('.sthumb'), keep = q('.skeep');
+      at(3900, function () { cur.classList.remove('click'); vset.classList.add('gone'); });
+      at(4060, function () { sset.classList.add('on'); });
+      at(4260, function () { cursorTo(s, thumb, 7, 7); });
+      at(4820, function () {
+        cur.classList.add('click', 'drag'); st.classList.add('scrub');
+        // to, over, then rest. Chained rather than scheduled: a throttled timer
+        // can hold up one leg without letting the release overtake the last.
+        var legs = [[32, 680, 170], [15, 620, 170], [24, 400, 0]], from = SDEF;
+        (function next() {
+          var l = legs.shift();
+          if (!l) {
+            cur.classList.remove('click', 'drag'); st.classList.remove('scrub');
+            at(180, function () { cursorTo(s, keep, keep.offsetWidth * .5, keep.offsetHeight * .5); });
+            at(640, function () {
+              cur.classList.add('click'); keep.classList.add('kept'); keep.textContent = 'Kept';
+              end(900);
+            });
+            return;
+          }
+          scrub(st, from, l[0], l[1], function () { from = l[0]; at(l[2], next); });
+        })();
+      });
+    },
+    send: function (s, q, at, end) {
+      var row = q('[data-t="sendrow"]'), cur = q('.cur'), batch = q('.batch'), agent = q('.agent'), lis = s.querySelectorAll('.li');
+      cursorTo(s, row, row.offsetWidth * .7, -40); at(0, function () { cur.classList.add('on'); });
+      at(80, function () { cursorTo(s, row, row.offsetWidth * .68, row.offsetHeight * .5); });
+      at(700, function () { cur.classList.add('click'); batch.classList.add('locked'); q('.send').textContent = 'Sent'; });
+      at(900, function () { agent.classList.add('on', 'working'); });
+      at(1100, function () { cursorTo(s, row, -60, row.offsetHeight + 40); });
+      [1500, 2000, 2500, 3000, 3500].forEach(function (t, i) { at(t, function () { lis[i].classList.add('served'); }); });
+      at(4000, function () { agent.classList.remove('working'); agent.classList.add('done'); q('.send').textContent = 'Needs refresh'; });
+      at(4300, function () { morph(agent, function () { agent.classList.add('open'); }); });
+      end(7000);
+    }
+  };
+
+  function reset(stage) {
+    stage.__gen = (stage.__gen || 0) + 1;  // revokes any frame loop still running
+    Array.prototype.forEach.call(stage.querySelectorAll('.ov.mark,.composer'), function (n) { n.classList.remove('on', 'composing'); });
+    Array.prototype.forEach.call(stage.querySelectorAll('.typed'), function (n) { n.textContent = ''; });
+    var cur = stage.querySelector('.cur'); if (cur) cur.className = 'cur';
+    var agent = stage.querySelector('.agent');
+    if (agent) {
+      agent.className = 'ipill agent';
+      stage.querySelector('.batch').classList.remove('locked');
+      stage.querySelector('.send').textContent = 'Send batch';
+      Array.prototype.forEach.call(stage.querySelectorAll('.li'), function (li) { li.classList.remove('served'); });
+    }
+    var sset = stage.querySelector('.sset');
+    if (sset) {
+      sset.classList.remove('on');
+      stage.querySelector('.vset').classList.remove('gone');
+      var keep = sset.querySelector('.skeep');
+      keep.classList.remove('kept'); keep.textContent = 'Keep';
+      setSlide(stage.__scene, SDEF);
+    }
+    stage.classList.remove('play', 'scrub');
+  }
+  function hold(stage) {
+    // the held end state, for reduced motion and for a stage that has played
+    stage.classList.add('play', 'done'); stage.__done = true;
+    Array.prototype.forEach.call(stage.querySelectorAll('.ov.mark'), function (n) { n.classList.add('on'); });
+    Array.prototype.forEach.call(stage.querySelectorAll('.composer'), function (n) { n.classList.add('on'); n.previousElementSibling && n.previousElementSibling.classList.contains('mark') && n.previousElementSibling.classList.add('composing'); });
+    Array.prototype.forEach.call(stage.querySelectorAll('.typed'), function (n) { n.textContent = n.getAttribute('data-text'); });
+    var vt = stage.querySelector('.vtext'); if (vt) { vt.textContent = vt.getAttribute('data-v2'); var t2 = stage.querySelectorAll('.vtab')[1]; t2 && t2.classList.add('on'); layout(stage.__scene); }
+    var sset = stage.querySelector('.sset');
+    if (sset) { sset.classList.add('on'); stage.querySelector('.vset').classList.add('gone'); setSlide(stage.__scene, 24); var sk = sset.querySelector('.skeep'); sk.classList.add('kept'); sk.textContent = 'Kept'; }
+    var agent = stage.querySelector('.agent'); if (agent) { agent.classList.add('on', 'done', 'open'); stage.querySelector('.batch').classList.add('locked'); stage.querySelector('.send').textContent = 'Needs refresh'; Array.prototype.forEach.call(stage.querySelectorAll('.li'), function (li) { li.classList.add('served'); }); }
+  }
+  var stages = Array.prototype.slice.call(document.querySelectorAll('.stage[data-replay]'));
+  stages.forEach(function (st) { st.__scene = st.querySelector('.scene'); layout(st.__scene); st.__timers = []; });
+  addEventListener('resize', function () { stages.forEach(function (st) { layout(st.__scene); }); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { stages.forEach(function (st) { layout(st.__scene); }); });
+
+  stages.forEach(function (st) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'again'; b.textContent = 'Play again';
+    st.appendChild(b);
+    st.addEventListener('click', function () {
+      if (!st.classList.contains('done')) return;
+      st.__playing = true; play(st);
+    });
+  });
+  function play(st) {
+    st.__timers.forEach(clearTimeout); st.__timers = [];
+    reset(st); st.classList.remove('done'); st.__done = false;
+    if (reduced) { hold(st); return; }
+    var s = st.__scene; layout(s);
+    st.classList.add('play');
+    var q = function (sel) { return s.querySelector(sel); };
+    var at = function (ms, fn) { st.__timers.push(setTimeout(fn, ms)); };
+    var end = function (ms) { at(ms, function () { st.__done = true; st.classList.add('done'); }); };
+    scripts[st.getAttribute('data-replay')](s, q, at, end);
+  }
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        var st = e.target;
+        if (e.isIntersecting && e.intersectionRatio >= .55) {
+          if (!st.__playing) { st.__playing = true; play(st); }
+        } else if (!e.isIntersecting && st.__playing) {
+          // Gone before it finished — most often the load-time reflow, which
+          // starts a stage no one has seen yet. Wind it back rather than hold
+          // it, or the ending is on screen before whoever scrolls in.
+          st.__playing = false; st.__timers.forEach(clearTimeout); st.__timers = [];
+          if (!st.__done) reset(st);
+        }
+      });
+    }, { threshold: [0, .55] });
+    stages.forEach(function (st) { io.observe(st); });
+  } else stages.forEach(function (st) { hold(st); st.classList.add('done'); });
+
+})();
+</script>
+</body>
+</html>
