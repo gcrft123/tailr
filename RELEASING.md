@@ -32,6 +32,15 @@ for you: an npm version number can never be reused, so the irreversible step is
 worth a second command. If you would rather it went in one move, add
 `"postversion": "git push --follow-tags"` to `package.json`.
 
+`npm version` also runs `scripts/plugin.js --sync`, which stamps every agent
+marketplace catalog from `package.json` so Claude, Cursor, Codex, and the rest
+advertise the same version. Gemini installs by cloning this repo; its skills
+sit next to `gemini-extension.json` at the root so that clone sees them.
+
+To list Tailr on Cursor's public marketplace, submit
+`https://github.com/gcrft123/tailr` at
+[cursor.com/marketplace/publish](https://cursor.com/marketplace/publish).
+
 ## What the tag has to satisfy
 
 The workflow refuses to release a tag that fails any of these, before it
