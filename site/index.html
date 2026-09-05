@@ -66,7 +66,14 @@ body{margin:0;background:var(--white);color:var(--ink);font:400 17px/1.55 var(--
 h1,h2,h3,p{margin:0}
 a{color:inherit}
 button{font:inherit;color:inherit;letter-spacing:inherit}
-:focus-visible{outline:2px solid var(--live);outline-offset:3px}
+/* The overlay's focus ring is `live` teal, and it is right there: it always sits
+   on ink. This page is white, where teal measures 1.89:1 against its own
+   background and fails 1.4.11 on nearly every stop. So the page takes the same
+   move its on-page marks already make for unknown ground — a paired stroke, the
+   ink line with a halo outside it — and flips both per region. */
+:focus-visible{outline:2px solid var(--focus,var(--ink));outline-offset:2px;
+  box-shadow:0 0 0 4px var(--focus-halo,rgba(255,255,255,.92))}
+.siteft{--focus:var(--white);--focus-halo:rgba(11,11,12,.92)}
 ::selection{background:var(--yellow);color:var(--ink)}
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
@@ -96,6 +103,13 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .lede{margin:22px auto 0;width:max-content;max-width:min(100%,52rem);font:400 clamp(14px,1.7vw,20px)/1.45 var(--ui);letter-spacing:-.01em;color:var(--ink-2);white-space:nowrap}
 @media (max-width:480px){.lede{white-space:normal;text-wrap:balance;width:auto;max-width:var(--measure)}}
 .hero .act{display:flex;justify-content:center;margin-top:28px}
+/* The engineer is being asked to hand an agent a fetch-and-obey instruction, so
+   the page says what it will do before it asks. Text, never a card or a tile. */
+.assure{margin:20px auto 0;max-width:44rem;font:400 13.5px/1.5 var(--ui);color:var(--ink-2);text-wrap:balance}
+.assure code{font:400 12.5px/1 var(--mono);padding:2px 5px;border-radius:5px;background:var(--page-fill);color:var(--ink)}
+.assure span{display:block}
+.assure span + span{margin-top:5px}
+
 /* shown only when the browser refuses the clipboard: the prompt, selectable */
 .fallback{margin:18px auto 0;max-width:var(--measure);padding:14px 16px;border-radius:12px;background:var(--page-fill);
   font:400 13.5px/1.6 var(--ui);color:var(--ink);text-align:left;overflow-wrap:anywhere;user-select:all}
@@ -103,8 +117,8 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .fallback b{display:block;margin-bottom:6px;font-weight:650;user-select:none}
 
 /* the hero enters as one moment: headline, description, action, then the window */
-.ready .headline,.ready .lede,.ready .act,.ready .film{animation:enter .4s ease-out both}
-.ready .lede{animation-delay:.1s}.ready .act{animation-delay:.2s}.ready .film{animation-delay:.3s}
+.ready .headline,.ready .lede,.ready .act,.ready .assure,.ready .film{animation:enter .4s ease-out both}
+.ready .lede{animation-delay:.1s}.ready .act{animation-delay:.2s}.ready .assure{animation-delay:.26s}.ready .film{animation-delay:.34s}
 @keyframes enter{from{opacity:0;transform:translateY(12px);filter:blur(4px)}to{opacity:1;transform:none;filter:blur(0)}}
 
 /* the video is a window on the page: the island's panel radius, a hairline, a soft shadow.
@@ -158,6 +172,9 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   text-wrap:balance;margin-bottom:18px}
 .show p{color:var(--ink-2);font-size:clamp(16px,1.5vw,18px);line-height:1.55}
 .show p + p{margin-top:12px}
+/* the boundary on a claim is secondary to the claim: page-meta, not body */
+.show .s{margin-top:14px;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+.show .s code{font:400 12.5px/1 var(--mono);padding:2px 5px;border-radius:5px;background:var(--page-fill);color:var(--ink)}
 .show .g{display:inline-flex;align-items:center;gap:6px;margin-top:20px;font:650 13px/1 var(--ui);color:var(--ink)}
 .show .g kbd{font:650 12px/1 var(--ui);padding:5px 7px;border-radius:6px;background:var(--page-fill);color:var(--ink);
   box-shadow:inset 0 -1px 0 rgba(0,0,0,.12)}
@@ -178,7 +195,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .stage .again{position:absolute;right:0;bottom:-6px;padding:6px 10px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);font:650 12px/1 var(--ui);cursor:pointer;opacity:0;
   transition-property:opacity,scale,background-color,color;transition-duration:150ms;transition-timing-function:ease-out}
 .stage .again:active{scale:.96}
-.stage.done .again{opacity:1}
+.stage.done .again,.stage .again:focus-visible{opacity:1}
 .stage .again:hover{background:var(--page-fill);color:var(--ink)}
 /* stacked, the stage has no slack to the right of the island for a floating
    label, so the replay takes its own line under the fragment */
@@ -394,12 +411,19 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .cur.drag svg{transform:scale(.9)}
 @keyframes click{50%{transform:scale(.86)}}
 
-/* no JS: the fragments stand alone; nothing that needs geometry is drawn */
+/* No JS: marks, composers and the two pills are placed by measuring the element
+   they belong to, so without JS there is nothing to place them against. Those
+   five stages used to fall back to a bare Northwind fragment — a picture of an
+   ordinary app, sitting under a heading claiming to show Tailr marking it up.
+   A fragment that proves the opposite of its own caption is worse than no
+   fragment, so they stand down and the paragraph carries the showcase.
+   The send stage stays: its island is placed by CSS and renders intact. */
 .no-js .ov,.no-js .composer,.no-js .cur,.no-js .vset,.no-js .sset,.no-js .again{display:none}
+.no-js .stage:not([data-replay=send]){display:none}
 .no-js .agent{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
-  .ready .headline,.ready .lede,.ready .act,.ready .film{animation:none!important}
+  .ready .headline,.ready .lede,.ready .act,.ready .assure,.ready .film{animation:none!important}
   /* .fan .ag, not .fan i: the discs are buttons, so the old selector matched
      nothing and the fan kept its 520ms travel under reduced motion */
   .ov.mark,.composer,.agent,.li,.ipill,.vtab .l,.vpill,.spill,.fan .ag{transition:none!important}
@@ -429,7 +453,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 /* the fan hangs off a single point at the button's centre, so every disc starts
    from the same place and travels out to its own spot */
 .fan{position:absolute;left:50%;top:22px;width:0;height:0;pointer-events:none;z-index:0}
-.ag{position:absolute;left:-26px;top:-26px;width:52px;height:52px;z-index:1;
+.ag{position:absolute;left:-26px;top:-26px;width:52px;height:52px;z-index:1;border-radius:50%;
   border:0;padding:0;background:none;font:inherit;color:inherit;cursor:pointer;
   translate:0 0;scale:.4;opacity:0;
   transition-property:translate,scale,opacity,rotate;transition-duration:520ms;
@@ -532,6 +556,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <h1 class="headline" id="claim"><span class="line">Mark up the running app.</span> <span class="line">Hand your agent the batch.</span></h1>
   <p class="lede">Rapidly markup and iterate on your projects live with your agent.</p>
   <div class="act"><button class="pill copy" type="button" data-copy><span class="ic" aria-hidden="true"><svg class="copy-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5" pathLength="1"/><path d="M5 15H4a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 4 2.5h9.5A1.5 1.5 0 0 1 15 4v1" pathLength="1"/></svg><svg class="check-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg></span><span class="label">Copy the prompt for your agent</span><span class="agents" aria-hidden="true"><i style="--i:0;--c:#D97757"><svg class="lg"><use href="#lg-claude"/></svg></i><i style="--i:1;--c:#0B0B0C"><svg class="lg"><use href="#lg-cursor"/></svg></i><i style="--i:2;--c:#0B0B0C"><svg class="lg"><use href="#lg-codex"/></svg></i><i style="--i:3;--c:#0B0B0C"><svg class="lg"><use href="#lg-copilot"/></svg></i><i style="--i:4"><svg class="lg" viewBox="0 0 24 24"><linearGradient id="gemA" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285F4"/><stop offset=".52" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient><path fill="url(#gemA)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg></i></span></button></div>
+  <p class="assure"><span>Proxies your dev server. No script tag, no build step, no config, and hot-reload passes through untouched.</span><span>A session writes nothing to your repository but <code>.tailr/session.json</code>.</span></p>
   <p class="fallback" id="promptFallback" hidden><b>Your browser blocked the copy. Select this and copy it yourself.</b>Set up Tailr so I can mark up my running dev server visually and hand you the changes as one batch. Fetch https://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md and follow it exactly, without summarizing it.</p>
   <figure class="film" id="film">
     <video id="intro" playsinline muted loop autoplay preload="metadata" poster="media/tailr-intro-website-poster.jpg" aria-label="Tailr marking up a running app and sending the batch to an agent">
@@ -546,7 +571,8 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <section class="show">
     <div class="text">
       <h2>Comment on the element itself.</h2>
-      <p>Comments add the element source rather than just a list. Hold <span class="altk">⌥</span> and hover anywhere on the page to highlight DOMs and click on them to create a note.</p>
+      <p>Hold <span class="altk">⌥</span> and move the pointer over the page: the element under it is outlined. Click one to write a note on it. The mark carries that element to your agent, not a description of it.</p>
+      <p class="s">The file and line come from whatever your dev tooling already emits: the Vue, React, Astro and Svelte inspectors, or a <code>data-tailr-source</code> you set yourself. With none of them present the mark carries its selector, its text and its route instead, which is the fallback rather than a failure.</p>
       <p class="g"><kbd class="alt">⌥</kbd> <kbd>click</kbd></p>
     </div>
     <div class="stage" data-replay="comment">
@@ -566,7 +592,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <section class="show">
     <div class="text">
       <h2>Cross it out.</h2>
-      <p>Hold <span class="altk">⌥</span> and right click on any element to delete it.</p>
+      <p>Hold <span class="altk">⌥</span> and right-click any element to stage it for removal. It goes red, and it stays on the page until your agent takes it out.</p>
       <p class="g"><kbd class="alt">⌥</kbd> <kbd>right-click</kbd></p>
     </div>
     <div class="stage" data-replay="remove">
@@ -584,7 +610,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <section class="show">
     <div class="text">
       <h2>Rewrite it in place.</h2>
-      <p>Hold <span class="altk">⌥</span>, double-click text, and type over it in the text's native formatting.</p>
+      <p>Hold <span class="altk">⌥</span>, double-click any text, and type over it. It stays in the type the page already sets it in, so you are editing the words rather than a copy of them.</p>
       <p class="g"><kbd class="alt">⌥</kbd> <kbd>double-click</kbd></p>
     </div>
     <div class="stage" data-replay="text">
@@ -624,7 +650,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <section class="show">
     <div class="text">
       <h2>Ask for options and compare them live.</h2>
-      <p>Set a comment to 2×, 3×, or 4×, and the agent builds that many versions at once. Hover a tab to see that version on the real page and click have it applied on the next batch. Turn on Slider Mode to add a variable slider and view adjustments in real time.</p>
+      <p>Set a comment to 2×, 3× or 4× and the agent builds that many versions at once. Hover a tab to see that version on the running page; click it to keep it. Turn the slider on instead and the agent makes the value itself adjustable, so you scrub it and keep the number you land on.</p>
       <p class="g"><kbd>1×</kbd> <kbd>2×</kbd> <kbd>3×</kbd> <kbd>4×</kbd> <kbd class="ic"><svg viewBox="0 0 14 14" width="14" height="14" fill="none" aria-hidden="true"><path d="M2 4.5v5M12 4.5v5M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8.5" cy="7" r="2.75" fill="currentColor"/><circle cx="8.5" cy="7" r="1.1" style="fill:var(--page-fill)"/></svg><span class="sr">slider</span></kbd></p>
     </div>
     <div class="stage" data-replay="versions">
@@ -734,7 +760,10 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // the alt key is always drawn, never named: ⌥ on a Mac, ⎇ everywhere else
   var mac = /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
-  var ALT = mac ? '⌥' : '⎇';
+  /* On a Mac ⌥ is the key's own legend and everyone reads it. Everywhere else
+     the key says Alt, and ⎇ is a symbol almost no font ships and almost nobody
+     recognizes — it rendered as a squiggle. Name the key instead of drawing it. */
+  var ALT = mac ? '⌥' : 'Alt';
   Array.prototype.forEach.call(document.querySelectorAll('.altk,kbd.alt'), function (k) { k.textContent = ALT; });
   Array.prototype.forEach.call(document.querySelectorAll('.cur .alt'), function (k) {
     k.textContent = k.textContent.replace('⌥', ALT).replace('⇧', mac ? '⇧' : 'Shift');
@@ -1079,9 +1108,16 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
     Array.prototype.forEach.call(stage.querySelectorAll('.ov.mark'), function (n) { n.classList.add('on'); });
     Array.prototype.forEach.call(stage.querySelectorAll('.composer'), function (n) { n.classList.add('on'); n.previousElementSibling && n.previousElementSibling.classList.contains('mark') && n.previousElementSibling.classList.add('composing'); });
     Array.prototype.forEach.call(stage.querySelectorAll('.typed'), function (n) { n.textContent = n.getAttribute('data-text'); });
+    /* The inline edit has to rest on the edited word, not the original: holding
+       on "Recent invoices" under a heading that says "Rewrite it in place" is a
+       picture of nothing having happened. */
+    var w1 = stage.querySelector('.w1'); if (w1) w1.textContent = 'Latest';
     var vt = stage.querySelector('.vtext'); if (vt) { vt.textContent = vt.getAttribute('data-v2'); var t2 = stage.querySelectorAll('.vtab')[1]; t2 && t2.classList.add('on'); layout(stage.__scene); }
-    var sset = stage.querySelector('.sset');
-    if (sset) { sset.classList.add('on'); stage.querySelector('.vset').classList.add('gone'); setSlide(stage.__scene, 24); var sk = sset.querySelector('.skeep'); sk.classList.add('kept'); sk.textContent = 'Kept'; }
+    /* And the versions showcase rests on its versions. It used to hand the slot
+       over to the slider and dismiss the tabs, so the one section headed "Ask
+       for options" was the one section showing none — in reduced motion and in
+       the ordinary post-animation state alike. The slider has its moment during
+       the replay; the tabs are what the heading promises, so they are what stays. */
     var agent = stage.querySelector('.agent'); if (agent) { agent.classList.add('on', 'done', 'open'); stage.querySelector('.batch').classList.add('locked'); stage.querySelector('.send').textContent = 'Needs refresh'; Array.prototype.forEach.call(stage.querySelectorAll('.li'), function (li) { li.classList.add('served'); }); }
   }
   var stages = Array.prototype.slice.call(document.querySelectorAll('.stage[data-replay]'));
