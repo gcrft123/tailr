@@ -408,7 +408,11 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 /* ── everywhere ──────────────────────────────────────────── */
 /* The run closes on the agents themselves: they sit behind the button and fan
    up out of it, each one cropped to a circle. */
-.everywhere{display:grid;justify-items:center;padding:250px 0 16px}
+/* overflow-x:clip, not hidden: it leaves the vertical axis visible so the fan
+   still travels up out of the button, while a label opening on the outermost
+   disc can never widen the document — it is opacity:0 between presses and an
+   invisible box scrolls the page just as far as a visible one */
+.everywhere{display:grid;justify-items:center;padding:250px 0 16px;overflow-x:clip}
 .ew{position:relative;display:inline-grid;justify-items:center}
 /* the button sits above the fan so the discs read as sliding out from behind it */
 .gpill{position:relative;z-index:1;display:inline-flex;align-items:center;gap:9px;height:44px;padding:0 20px;border-radius:999px;
@@ -476,6 +480,9 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 @media (max-width:1120px){.fan{--k:.74}.everywhere{padding-top:200px}}
 @media (max-width:700px){.fan{--k:.52}.everywhere{padding-top:150px}}
 @media (max-width:420px){.fan{--k:.42}.everywhere{padding-top:132px}}
+/* tighter again on the smallest phones, so the outermost disc's label opens
+   inside the viewport rather than against the clip */
+@media (max-width:360px){.fan{--k:.34}}
 /* the label has to stay on the page even when its disc is near an edge */
 .call{max-width:min(72vw,260px)}
 .call b{overflow:hidden;text-overflow:ellipsis}
