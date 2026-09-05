@@ -66,7 +66,14 @@ body{margin:0;background:var(--white);color:var(--ink);font:400 17px/1.55 var(--
 h1,h2,h3,p{margin:0}
 a{color:inherit}
 button{font:inherit;color:inherit;letter-spacing:inherit}
-:focus-visible{outline:2px solid var(--live);outline-offset:3px}
+/* The overlay's focus ring is `live` teal, and it is right there: it always sits
+   on ink. This page is white, where teal measures 1.89:1 against its own
+   background and fails 1.4.11 on nearly every stop. So the page takes the same
+   move its on-page marks already make for unknown ground — a paired stroke, the
+   ink line with a halo outside it — and flips both per region. */
+:focus-visible{outline:2px solid var(--focus,var(--ink));outline-offset:2px;
+  box-shadow:0 0 0 4px var(--focus-halo,rgba(255,255,255,.92))}
+.siteft{--focus:var(--white);--focus-halo:rgba(11,11,12,.92)}
 ::selection{background:var(--yellow);color:var(--ink)}
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
@@ -96,6 +103,12 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .lede{margin:22px auto 0;width:max-content;max-width:min(100%,52rem);font:400 clamp(14px,1.7vw,20px)/1.45 var(--ui);letter-spacing:-.01em;color:var(--ink-2);white-space:nowrap}
 @media (max-width:480px){.lede{white-space:normal;text-wrap:balance;width:auto;max-width:var(--measure)}}
 .hero .act{display:flex;justify-content:center;margin-top:28px}
+/* The engineer is being asked to hand an agent a fetch-and-obey instruction, so
+   the page says what it will do before it asks. Text, never a card or a tile. */
+.assure{margin:12px auto 0;max-width:40rem;font:400 12.5px/1.45 var(--ui);color:var(--ink-2);text-wrap:balance}
+/* no fill behind the path: a chip here reads as a control under a control */
+.assure code{font:400 11.5px/1 var(--mono);color:var(--ink-2)}
+
 /* shown only when the browser refuses the clipboard: the prompt, selectable */
 .fallback{margin:18px auto 0;max-width:var(--measure);padding:14px 16px;border-radius:12px;background:var(--page-fill);
   font:400 13.5px/1.6 var(--ui);color:var(--ink);text-align:left;overflow-wrap:anywhere;user-select:all}
@@ -103,8 +116,8 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .fallback b{display:block;margin-bottom:6px;font-weight:650;user-select:none}
 
 /* the hero enters as one moment: headline, description, action, then the window */
-.ready .headline,.ready .lede,.ready .act,.ready .film{animation:enter .4s ease-out both}
-.ready .lede{animation-delay:.1s}.ready .act{animation-delay:.2s}.ready .film{animation-delay:.3s}
+.ready .headline,.ready .lede,.ready .act,.ready .assure,.ready .film{animation:enter .4s ease-out both}
+.ready .lede{animation-delay:.1s}.ready .act{animation-delay:.2s}.ready .assure{animation-delay:.26s}.ready .film{animation-delay:.34s}
 @keyframes enter{from{opacity:0;transform:translateY(12px);filter:blur(4px)}to{opacity:1;transform:none;filter:blur(0)}}
 
 /* the video is a window on the page: the island's panel radius, a hairline, a soft shadow.
@@ -158,6 +171,9 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   text-wrap:balance;margin-bottom:18px}
 .show p{color:var(--ink-2);font-size:clamp(16px,1.5vw,18px);line-height:1.55}
 .show p + p{margin-top:12px}
+/* the boundary on a claim is secondary to the claim: page-meta, not body */
+.show .s{margin-top:14px;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+.show .s code{font:400 12.5px/1 var(--mono);padding:2px 5px;border-radius:5px;background:var(--page-fill);color:var(--ink)}
 .show .g{display:inline-flex;align-items:center;gap:6px;margin-top:20px;font:650 13px/1 var(--ui);color:var(--ink)}
 .show .g kbd{font:650 12px/1 var(--ui);padding:5px 7px;border-radius:6px;background:var(--page-fill);color:var(--ink);
   box-shadow:inset 0 -1px 0 rgba(0,0,0,.12)}
@@ -169,6 +185,8 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   .show:nth-of-type(even) .stage{order:1}
 }
 @media (max-width:899px){.show{grid-template-columns:minmax(0,1fr);gap:28px}.show .stage{order:2}}
+/* five chips will not sit on one line on a phone */
+@media (max-width:560px){.show .g{flex-wrap:wrap;gap:6px}}
 
 /* a stage is a piece of Northwind, on the page, wearing the real chrome */
 .stage{position:relative;min-width:0;min-height:clamp(280px,32vw,360px);display:grid;align-content:center;overflow:visible}
@@ -176,10 +194,26 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .stage .again{position:absolute;right:0;bottom:-6px;padding:6px 10px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);font:650 12px/1 var(--ui);cursor:pointer;opacity:0;
   transition-property:opacity,scale,background-color,color;transition-duration:150ms;transition-timing-function:ease-out}
 .stage .again:active{scale:.96}
-.stage.done .again{opacity:1}
+.stage.done .again,.stage .again:focus-visible{opacity:1}
 .stage .again:hover{background:var(--page-fill);color:var(--ink)}
+/* stacked, the stage has no slack to the right of the island for a floating
+   label, so the replay takes its own line under the fragment */
+@media (max-width:899px){
+  .stage .again{position:static;justify-self:end;margin-top:14px;padding:9px 12px}
+}
 [data-replay=comment] .scene,[data-replay=spot] .scene{padding-bottom:150px}
-.scene{position:relative;padding:34px 12px;--cx:0px;--cy:0px}
+/* min-width:0 because the scene is a grid item: left on auto its minimum is the
+   fragment's min-content, and a phone-width page is pushed sideways by it */
+.scene{position:relative;min-width:0;padding:34px 12px;--cx:0px;--cy:0px}
+/* Every horizontal pixel goes to the fragment once the showcase is stacked, and
+   the two fixture columns that carry no mark give way before the ones that do.
+   Northwind would drop them at this width itself. */
+@media (max-width:560px){
+  .scene{padding-left:0;padding-right:0}
+  .nw .search{display:none}
+  .nw .row{gap:10px;padding:12px}
+  .nw .row .i{display:none}
+}
 .nw{font-family:var(--ui);color:#1c1f23;letter-spacing:0;font-size:13px}
 .nw .top{display:flex;align-items:center;gap:14px;height:58px;padding:0 clamp(12px,2vw,20px);background:#fff;
   border:1px solid #E4E4DF;border-radius:10px}
@@ -199,7 +233,12 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .nw .ph span{display:inline-block;padding:0 2px;margin:0 -2px;border-radius:3px}
 .nw .row{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid #F4F4F0;font-size:13px}
 .nw .row:last-child{border-bottom:0}
-.nw .row .n{width:130px}.nw .row .i{width:80px;color:#7c838c}.nw .row .amt{margin-left:auto;font-variant-numeric:tabular-nums}
+/* the two text columns hold their desktop widths but are allowed to give way
+   rather than floor the fragment's min-content width above a phone viewport */
+.nw .row .n,.nw .row .i{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nw .row .n{flex:0 1 130px}.nw .row .i{flex:0 1 80px;color:#7c838c}
+.nw .row .tag{flex:0 0 auto}
+.nw .row .amt{margin-left:auto;flex:0 0 auto;font-variant-numeric:tabular-nums}
 .nw .tag{font-size:11px;padding:2px 9px;border-radius:11px;background:#E9F0EA;color:#437652}
 .nw .tag.late{background:#F7EAE5;color:#a9543c}
 .nw .hero-card{background:#fff;border:1px solid #E4E4DF;border-radius:10px;padding:22px}
@@ -228,7 +267,9 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   color:#fff;border-radius:5px;font:400 10.5px/1 var(--mono);letter-spacing:-.01em;white-space:nowrap;
   box-shadow:0 0 0 1px rgba(255,255,255,.5)}
 
-.composer{position:absolute;left:0;top:0;width:268px;background:#0B0B0C;border-radius:12px;padding:10px;color:#fff;
+/* 268px is the overlay's own width; below that the scene is narrower than the
+   composer and the replica gives way rather than hang off the page */
+.composer{position:absolute;left:0;top:0;width:min(268px,100%);background:#0B0B0C;border-radius:12px;padding:10px;color:#fff;
   box-shadow:0 10px 34px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.10);font-family:var(--ui);letter-spacing:0;
   opacity:0;transform:scale(.94);transform-origin:top left;pointer-events:none}
 .play .composer.on{opacity:1;transform:none;transition:opacity .2s var(--ease),transform .24s var(--ease)}
@@ -339,6 +380,11 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 @media (max-width:1040px) and (min-width:900px){.island{transform:scale(.72)}}
 @media (max-width:640px){.island{transform:scale(.78)}}
 @media (max-width:480px){.island{transform:scale(.6)}}
+@media (max-width:380px){.island{transform:scale(.52)}}
+/* The island is absolutely positioned, so a narrow scene would shrink-to-fit it
+   and the panel would clip its own list. It keeps its real width and leans on
+   the scale above instead, which is what the replica has to preserve. */
+@media (max-width:899px){.island{width:max-content}}
 .agent.open .abody{display:block}
 .btitle{font-size:13px;font-weight:650;letter-spacing:-.005em;margin-bottom:4px}
 .bmeta{font-size:12px;line-height:1.45;color:rgba(255,255,255,.56)}
@@ -364,13 +410,27 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .cur.drag svg{transform:scale(.9)}
 @keyframes click{50%{transform:scale(.86)}}
 
-/* no JS: the fragments stand alone; nothing that needs geometry is drawn */
+/* No JS: marks, composers and the two pills are placed by measuring the element
+   they belong to, so without JS there is nothing to place them against. Those
+   five stages used to fall back to a bare Northwind fragment — a picture of an
+   ordinary app, sitting under a heading claiming to show Tailr marking it up.
+   A fragment that proves the opposite of its own caption is worse than no
+   fragment, so they stand down and the paragraph carries the showcase.
+   The send stage stays: its island is placed by CSS and renders intact. */
 .no-js .ov,.no-js .composer,.no-js .cur,.no-js .vset,.no-js .sset,.no-js .again{display:none}
+.no-js .stage:not([data-replay=send]){display:none}
+/* and with the stage gone the showcase is one column: leaving the 7fr track
+   empty put every paragraph in a strip beside a void, and the left/right
+   alternation has nothing left to alternate against */
+.no-js .show:not(:has(.stage[data-replay=send])){grid-template-columns:minmax(0,1fr)}
+.no-js .show:not(:has(.stage[data-replay=send])) .text{max-width:34rem;justify-self:start}
 .no-js .agent{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
-  .ready .headline,.ready .lede,.ready .act,.ready .film{animation:none!important}
-  .ov.mark,.composer,.agent,.li,.ipill,.vtab .l,.vpill,.spill,.fan i{transition:none!important}
+  .ready .headline,.ready .lede,.ready .act,.ready .assure,.ready .film{animation:none!important}
+  /* .fan .ag, not .fan i: the discs are buttons, so the old selector matched
+     nothing and the fan kept its 520ms travel under reduced motion */
+  .ov.mark,.composer,.agent,.li,.ipill,.vtab .l,.vpill,.spill,.fan .ag{transition:none!important}
   .cur{display:none}
   .c-box .caret,.edit .caret{animation:none}
 }
@@ -378,7 +438,11 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 /* ── everywhere ──────────────────────────────────────────── */
 /* The run closes on the agents themselves: they sit behind the button and fan
    up out of it, each one cropped to a circle. */
-.everywhere{display:grid;justify-items:center;padding:250px 0 16px}
+/* overflow-x:clip, not hidden: it leaves the vertical axis visible so the fan
+   still travels up out of the button, while a label opening on the outermost
+   disc can never widen the document — it is opacity:0 between presses and an
+   invisible box scrolls the page just as far as a visible one */
+.everywhere{display:grid;justify-items:center;padding:250px 0 16px;overflow-x:clip}
 .ew{position:relative;display:inline-grid;justify-items:center}
 /* the button sits above the fan so the discs read as sliding out from behind it */
 .gpill{position:relative;z-index:1;display:inline-flex;align-items:center;gap:9px;height:44px;padding:0 20px;border-radius:999px;
@@ -393,17 +457,17 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 /* the fan hangs off a single point at the button's centre, so every disc starts
    from the same place and travels out to its own spot */
 .fan{position:absolute;left:50%;top:22px;width:0;height:0;pointer-events:none;z-index:0}
-.ag{position:absolute;left:-26px;top:-26px;width:52px;height:52px;z-index:1;
+.ag{position:absolute;left:-26px;top:-26px;width:52px;height:52px;z-index:1;border-radius:50%;
   border:0;padding:0;background:none;font:inherit;color:inherit;cursor:pointer;
   translate:0 0;scale:.4;opacity:0;
   transition-property:translate,scale,opacity,rotate;transition-duration:520ms;
   transition-timing-function:var(--ease);transition-delay:var(--d)}
 /* :focus-visible rather than :focus-within, or a disc that was clicked keeps
    its focus after the pointer leaves and pins the fan open */
-.ew:hover .ag,.ew:has(:focus-visible) .ag,.ew.open .ag{translate:var(--x) var(--y);scale:1;opacity:1;rotate:var(--r);pointer-events:auto}
+.ew:hover .ag,.ew:has(:focus-visible) .ag,.ew.open .ag,.ag.peek{translate:calc(var(--x) * var(--k,1)) calc(var(--y) * var(--k,1));scale:1;opacity:1;rotate:var(--r);pointer-events:auto}
 /* once it is out, the pointer has to be able to travel to it without the fan
    folding away underneath: this is the reach it keeps while open */
-.reach{position:absolute;left:50%;bottom:100%;width:820px;height:260px;translate:-50% 0;pointer-events:none;z-index:0}
+.reach{position:absolute;left:50%;bottom:100%;width:min(820px,100vw);height:260px;translate:-50% 0;pointer-events:none;z-index:0}
 .ew:hover .reach,.ew.open .reach{pointer-events:auto}
 .dot{position:relative;display:grid;place-items:center;width:100%;height:100%;border-radius:50%;overflow:hidden;
   background:var(--white);color:var(--c);
@@ -411,7 +475,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   transition:scale 200ms var(--ease)}
 /* whichever disc is being read has to clear its neighbours, or its label opens
    underneath them */
-.ag:hover,.ag:focus-visible,.ag.done{z-index:3}
+.ag:hover,.ag:focus-visible,.ag.done,.ag.peek{z-index:3}
 .ag:hover .dot,.ag:focus-visible .dot{scale:1.09}
 .ag:active .dot{scale:1.02}
 .fan .lg{display:block;width:24px;height:24px;transition:opacity 160ms var(--ease)}
@@ -437,11 +501,28 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .call em.no{color:#FFB4A8}
 /* a little slack around each disc, so the click target is larger than the mark */
 .ag::before{content:'';position:absolute;inset:-5px;border-radius:50%}
-/* .done keeps the label up after a click, which is the only confirmation a
-   touch visitor gets: there is no hover to have shown it the action first */
-.ag:hover .call,.ag:focus-visible .call,.ag.done .call{opacity:1;translate:-50% 0}
-@media (max-width:1120px){.fan{scale:.74}.everywhere{padding-top:200px}}
-@media (max-width:700px){.fan{scale:.52}.everywhere{padding-top:150px}}
+/* .peek is the label a press opens where there is no hover to open it, and
+   .done is the same label carrying the result after a copy */
+.ag:hover .call,.ag:focus-visible .call,.ag.done .call,.ag.peek .call{opacity:1;translate:-50% 0}
+/* The fan tightens by pulling the discs in, never by shrinking them: --k scales
+   the spread and leaves every disc at its full 52px, so the target a thumb has
+   to find is the same size on a phone as it is on a desktop. */
+@media (max-width:1120px){.fan{--k:.74}.everywhere{padding-top:200px}}
+@media (max-width:700px){.fan{--k:.52}.everywhere{padding-top:150px}}
+@media (max-width:420px){.fan{--k:.42}.everywhere{padding-top:132px}}
+/* tighter again on the smallest phones, so the outermost disc's label opens
+   inside the viewport rather than against the clip */
+@media (max-width:360px){.fan{--k:.34}}
+/* the label has to stay on the page even when its disc is near an edge */
+.call{max-width:min(72vw,260px)}
+.call b{overflow:hidden;text-overflow:ellipsis}
+
+/* the clipboard-blocked recovery, the same shape the hero pill's has */
+.ewfall{margin:26px auto 0;max-width:var(--measure);padding:14px 16px;border-radius:12px;background:var(--page-fill);
+  font:400 13.5px/1.6 var(--ui);color:var(--ink);text-align:left}
+.ewfall[hidden]{display:none}
+.ewfall b{display:block;margin-bottom:6px;font-weight:650}
+.ewfall code{display:block;font:400 13px/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}
 
 /* ── footer ──────────────────────────────────────────────── */
 .siteft{background:var(--ink);color:var(--on-ink-2);padding:30px var(--gutter)}
@@ -467,12 +548,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 <symbol id="lg-copilot" viewBox="0 0 24 24"><path fill="currentColor" d="M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"/></symbol>
 <symbol id="lg-windsurf" viewBox="0 0 24 24"><path fill="currentColor" d="M23.55 5.067c-1.2038-.002-2.1806.973-2.1806 2.1765v4.8676c0 .972-.8035 1.7594-1.7597 1.7594-.568 0-1.1352-.286-1.4718-.7659l-4.9713-7.1003c-.4125-.5896-1.0837-.941-1.8103-.941-1.1334 0-2.1533.9635-2.1533 2.153v4.8957c0 .972-.7969 1.7594-1.7596 1.7594-.57 0-1.1363-.286-1.4728-.7658L.4076 5.1598C.2822 4.9798 0 5.0688 0 5.2882v4.2452c0 .2147.0656.4228.1884.599l5.4748 7.8183c.3234.462.8006.8052 1.3509.9298 1.3771.313 2.6446-.747 2.6446-2.0977v-4.893c0-.972.7875-1.7593 1.7596-1.7593h.003a1.798 1.798 0 0 1 1.4718.7658l4.9723 7.0994c.4135.5905 1.05.941 1.8093.941 1.1587 0 2.1515-.9645 2.1515-2.153v-4.8948c0-.972.7875-1.7594 1.7596-1.7594h.194a.22.22 0 0 0 .2204-.2202v-4.622a.22.22 0 0 0-.2203-.2203Z"/></symbol>
 <symbol id="lg-cline" viewBox="0 0 24 24"><path fill="currentColor" d="m23.365 13.556-1.442-2.895V8.994c0-2.764-2.218-5.002-4.954-5.002h-2.464c.178-.367.276-.779.276-1.213A2.77 2.77 0 0 0 12.018 0a2.77 2.77 0 0 0-2.763 2.779c0 .434.098.846.276 1.213H7.067c-2.736 0-4.954 2.238-4.954 5.002v1.667L.64 13.549c-.149.29-.149.636 0 .927l1.472 2.855v1.667C2.113 21.762 4.33 24 7.067 24h9.902c2.736 0 4.954-2.238 4.954-5.002V17.33l1.44-2.865c.143-.286.143-.622.002-.91m-12.854 2.36a2.27 2.27 0 0 1-2.261 2.273 2.27 2.27 0 0 1-2.261-2.273v-4.042A2.27 2.27 0 0 1 8.249 9.6a2.267 2.267 0 0 1 2.262 2.274zm7.285 0a2.27 2.27 0 0 1-2.26 2.273 2.27 2.27 0 0 1-2.262-2.273v-4.042A2.267 2.267 0 0 1 15.535 9.6a2.267 2.267 0 0 1 2.261 2.274z"/></symbol>
-<symbol id="lg-zed" viewBox="0 0 24 24"><path fill="currentColor" d="M2.25 1.5a.75.75 0 0 0-.75.75v16.5H0V2.25A2.25 2.25 0 0 1 2.25 0h20.095c1.002 0 1.504 1.212.795 1.92L10.764 14.298h3.486V12.75h1.5v1.922a1.125 1.125 0 0 1-1.125 1.125H9.264l-2.578 2.578h11.689V9h1.5v9.375a1.5 1.5 0 0 1-1.5 1.5H5.185L2.562 22.5H21.75a.75.75 0 0 0 .75-.75V5.25H24v16.5A2.25 2.25 0 0 1 21.75 24H1.655C.653 24 .151 22.788.86 22.08L13.19 9.75H9.75v1.5h-1.5V9.375A1.125 1.125 0 0 1 9.375 8.25h5.314l2.625-2.625H5.625V15h-1.5V5.625a1.5 1.5 0 0 1 1.5-1.5h13.19L21.438 1.5z"/></symbol>
-<symbol id="lg-replit" viewBox="0 0 24 24"><path fill="currentColor" d="M2 1.5A1.5 1.5 0 0 1 3.5 0h7A1.5 1.5 0 0 1 12 1.5V8H3.5A1.5 1.5 0 0 1 2 6.5ZM12 8h8.5A1.5 1.5 0 0 1 22 9.5v5a1.5 1.5 0 0 1-1.5 1.5H12ZM2 17.5A1.5 1.5 0 0 1 3.5 16H12v6.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 2 22.5Z"/></symbol>
-<symbol id="lg-v0" viewBox="0 0 24 24"><path fill="currentColor" d="M14.066 6.028v2.22h5.729q.075-.001.148.005l-5.853 5.752a2 2 0 0 1-.024-.309V8.247h-2.353v5.45c0 2.322 1.935 4.222 4.258 4.222h5.675v-2.22h-5.675q-.03 0-.059-.003l5.729-5.629q.006.082.006.166v5.465H24v-5.465a4.204 4.204 0 0 0-4.205-4.205zM0 8.245l8.28 9.266c.839.94 2.396.346 2.396-.914V8.245H8.19v5.44l-4.86-5.44Z"/></symbol>
 <symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-<symbol id="lg-jetbrains" viewBox="0 0 24 24"><path fill="currentColor" d="M2.345 23.997A2.347 2.347 0 0 1 0 21.652V10.988C0 9.665.535 8.37 1.473 7.433l5.965-5.961A5.01 5.01 0 0 1 10.989 0h10.666A2.347 2.347 0 0 1 24 2.345v10.664a5.056 5.056 0 0 1-1.473 3.554l-5.965 5.965A5.017 5.017 0 0 1 13.007 24v-.003H2.345Zm8.969-6.854H5.486v1.371h5.828v-1.371ZM3.963 6.514h13.523v13.519l4.257-4.257a3.936 3.936 0 0 0 1.146-2.767V2.345c0-.678-.552-1.234-1.234-1.234H10.989a3.897 3.897 0 0 0-2.767 1.145L3.963 6.514Zm-.192.192L2.256 8.22a3.944 3.944 0 0 0-1.145 2.768v10.664c0 .678.552 1.234 1.234 1.234h10.666a3.9 3.9 0 0 0 2.767-1.146l1.512-1.511H3.771V6.706Z"/></symbol>
-<symbol id="lg-warp" viewBox="0 0 24 24"><path fill="currentColor" d="M12.035 2.723h9.253A2.712 2.712 0 0 1 24 5.435v10.529a2.712 2.712 0 0 1-2.712 2.713H8.047Zm-1.681 2.6L6.766 19.677h5.598l-.399 1.6H2.712A2.712 2.712 0 0 1 0 18.565V8.036a2.712 2.712 0 0 1 2.712-2.712Z"/></symbol>
 </defs></svg>
 
 <header class="masthead" id="top">
@@ -484,6 +560,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <h1 class="headline" id="claim"><span class="line">Mark up the running app.</span> <span class="line">Hand your agent the batch.</span></h1>
   <p class="lede">Rapidly markup and iterate on your projects live with your agent.</p>
   <div class="act"><button class="pill copy" type="button" data-copy><span class="ic" aria-hidden="true"><svg class="copy-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5" pathLength="1"/><path d="M5 15H4a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 4 2.5h9.5A1.5 1.5 0 0 1 15 4v1" pathLength="1"/></svg><svg class="check-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg></span><span class="label">Copy the prompt for your agent</span><span class="agents" aria-hidden="true"><i style="--i:0;--c:#D97757"><svg class="lg"><use href="#lg-claude"/></svg></i><i style="--i:1;--c:#0B0B0C"><svg class="lg"><use href="#lg-cursor"/></svg></i><i style="--i:2;--c:#0B0B0C"><svg class="lg"><use href="#lg-codex"/></svg></i><i style="--i:3;--c:#0B0B0C"><svg class="lg"><use href="#lg-copilot"/></svg></i><i style="--i:4"><svg class="lg" viewBox="0 0 24 24"><linearGradient id="gemA" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285F4"/><stop offset=".52" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient><path fill="url(#gemA)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg></i></span></button></div>
+  <p class="assure">Proxies your dev server. Writes nothing to your repo but <code>.tailr/session.json</code>.</p>
   <p class="fallback" id="promptFallback" hidden><b>Your browser blocked the copy. Select this and copy it yourself.</b>Set up Tailr so I can mark up my running dev server visually and hand you the changes as one batch. Fetch https://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md and follow it exactly, without summarizing it.</p>
   <figure class="film" id="film">
     <video id="intro" playsinline muted loop autoplay preload="metadata" poster="media/tailr-intro-website-poster.jpg" aria-label="Tailr marking up a running app and sending the batch to an agent">
@@ -498,7 +575,8 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <section class="show">
     <div class="text">
       <h2>Comment on the element itself.</h2>
-      <p>Comments add the element source rather than just a list. Hold <span class="altk">⌥</span> and hover anywhere on the page to highlight DOMs and click on them to create a note.</p>
+      <p>Hold <span class="altk">⌥</span> and move the pointer over the page: the element under it is outlined. Click one to write a note on it. The mark carries that element to your agent, not a description of it.</p>
+      <p class="s">The file and line come from whatever your dev tooling already emits: the Vue, React, Astro and Svelte inspectors, or a <code>data-tailr-source</code> you set yourself. With none of them present the mark carries its selector, its text and its route instead, which is the fallback rather than a failure.</p>
       <p class="g"><kbd class="alt">⌥</kbd> <kbd>click</kbd></p>
     </div>
     <div class="stage" data-replay="comment">
@@ -518,7 +596,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <section class="show">
     <div class="text">
       <h2>Cross it out.</h2>
-      <p>Hold <span class="altk">⌥</span> and right click on any element to delete it.</p>
+      <p>Hold <span class="altk">⌥</span> and right-click any element to stage it for removal. It goes red, and it stays on the page until your agent takes it out.</p>
       <p class="g"><kbd class="alt">⌥</kbd> <kbd>right-click</kbd></p>
     </div>
     <div class="stage" data-replay="remove">
@@ -536,7 +614,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <section class="show">
     <div class="text">
       <h2>Rewrite it in place.</h2>
-      <p>Hold <span class="altk">⌥</span>, double-click text, and type over it in the text's native formatting.</p>
+      <p>Hold <span class="altk">⌥</span>, double-click any text, and type over it. It stays in the type the page already sets it in, so you are editing the words rather than a copy of them.</p>
       <p class="g"><kbd class="alt">⌥</kbd> <kbd>double-click</kbd></p>
     </div>
     <div class="stage" data-replay="text">
@@ -576,7 +654,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   <section class="show">
     <div class="text">
       <h2>Ask for options and compare them live.</h2>
-      <p>Set a comment to 2×, 3×, or 4×, and the agent builds that many versions at once. Hover a tab to see that version on the real page and click have it applied on the next batch. Turn on Slider Mode to add a variable slider and view adjustments in real time.</p>
+      <p>Set a comment to 2×, 3× or 4× and the agent builds that many versions at once. Hover a tab to see that version on the running page; click it to keep it. Turn the slider on instead and the agent makes the value itself adjustable, so you scrub it and keep the number you land on.</p>
       <p class="g"><kbd>1×</kbd> <kbd>2×</kbd> <kbd>3×</kbd> <kbd>4×</kbd> <kbd class="ic"><svg viewBox="0 0 14 14" width="14" height="14" fill="none" aria-hidden="true"><path d="M2 4.5v5M12 4.5v5M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8.5" cy="7" r="2.75" fill="currentColor"/><circle cx="8.5" cy="7" r="1.1" style="fill:var(--page-fill)"/></svg><span class="sr">slider</span></kbd></p>
     </div>
     <div class="stage" data-replay="versions">
@@ -643,7 +721,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
     </div>
   </section>
 
-  <section class="everywhere">
+  <section class="everywhere" aria-label="Set Tailr up in your agent">
     <div class="ew">
       <button class="gpill" type="button" aria-expanded="false">
         <span>Tailr works everywhere</span>
@@ -654,23 +732,21 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
            reading order and the visual order can disagree here without cost -->
       <div class="fan">
         <span class="reach"></span>
-        <button class="ag" type="button" style="--x:-338px;--y:-64px;--r:-12deg;--d:96ms;--c:#01A4FF" data-n="Warp"><span class="dot"><svg class="lg"><use href="#lg-warp"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Warp</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-272px;--y:-108px;--r:7deg;--d:42ms;--c:#0B0B0C" data-n="JetBrains"><span class="dot"><svg class="lg"><use href="#lg-jetbrains"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>JetBrains</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-206px;--y:-78px;--r:-5deg;--d:78ms;--c:#0B0B0C" data-n="v0"><span class="dot"><svg class="lg"><use href="#lg-v0"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>v0</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-148px;--y:-138px;--r:10deg;--d:18ms;--c:#F26207" data-n="Replit"><span class="dot"><svg class="lg"><use href="#lg-replit"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Replit</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-88px;--y:-96px;--r:-8deg;--d:60ms;--c:#084CCF" data-n="Zed"><span class="dot"><svg class="lg"><use href="#lg-zed"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Zed</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:-28px;--y:-152px;--r:5deg;--d:0ms;--c:#D97757" data-n="Claude Code" data-i="claude"><span class="dot"><svg class="lg"><use href="#lg-claude"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Claude Code</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:33px;--y:-108px;--r:-6deg;--d:30ms;--c:#0B0B0C" data-n="Cursor" data-i="cursor"><span class="dot"><svg class="lg"><use href="#lg-cursor"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cursor</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:92px;--y:-158px;--r:9deg;--d:8ms;--c:#0B0B0C" data-n="Codex" data-i="codex"><span class="dot"><svg class="lg"><use href="#lg-codex"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Codex</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:150px;--y:-104px;--r:-4deg;--d:66ms;--c:#0B0B0C" data-n="GitHub Copilot" data-i="copilot"><span class="dot"><svg class="lg"><use href="#lg-copilot"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>GitHub Copilot</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:210px;--y:-142px;--r:6deg;--d:24ms" data-n="Gemini CLI" data-i="gemini"><span class="dot"><svg class="lg" viewBox="0 0 24 24"><linearGradient id="gemB" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285F4"/><stop offset=".52" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient><path fill="url(#gemB)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Gemini CLI</b><em>Install</em></span></button>
-        <button class="ag" type="button" style="--x:272px;--y:-80px;--r:-10deg;--d:84ms;--c:#0B0B0C" data-n="Windsurf"><span class="dot"><svg class="lg"><use href="#lg-windsurf"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Windsurf</b><em>Copy prompt</em></span></button>
-        <button class="ag" type="button" style="--x:334px;--y:-116px;--r:4deg;--d:50ms;--c:#18181B" data-n="Cline"><span class="dot"><svg class="lg"><use href="#lg-cline"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cline</b><em>Copy prompt</em></span></button>
+        <button class="ag" type="button" style="--x:-236px;--y:-84px;--r:-9deg;--d:84ms;--c:#18181B" data-n="Cline"><span class="dot"><svg class="lg"><use href="#lg-cline"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cline</b><em>Add skills</em></span></button>
+        <button class="ag" type="button" style="--x:-166px;--y:-140px;--r:6deg;--d:36ms;--c:#0B0B0C" data-n="Windsurf"><span class="dot"><svg class="lg"><use href="#lg-windsurf"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Windsurf</b><em>Add skills</em></span></button>
+        <button class="ag" type="button" style="--x:-88px;--y:-96px;--r:-6deg;--d:66ms;--c:#0B0B0C" data-i="copilot" data-n="GitHub Copilot"><span class="dot"><svg class="lg"><use href="#lg-copilot"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>GitHub Copilot</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:-8px;--y:-156px;--r:4deg;--d:0ms;--c:#D97757" data-i="claude" data-n="Claude Code"><span class="dot"><svg class="lg"><use href="#lg-claude"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Claude Code</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:72px;--y:-100px;--r:-5deg;--d:54ms;--c:#0B0B0C" data-i="cursor" data-n="Cursor"><span class="dot"><svg class="lg"><use href="#lg-cursor"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Cursor</b><em>Copy URL</em></span></button>
+        <button class="ag" type="button" style="--x:150px;--y:-148px;--r:8deg;--d:18ms;--c:#0B0B0C" data-i="codex" data-n="Codex"><span class="dot"><svg class="lg"><use href="#lg-codex"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Codex</b><em>Install</em></span></button>
+        <button class="ag" type="button" style="--x:228px;--y:-88px;--r:-10deg;--d:72ms" data-i="gemini" data-n="Gemini CLI"><span class="dot"><svg class="lg" viewBox="0 0 24 24"><linearGradient id="gemB" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285F4"/><stop offset=".52" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient><path fill="url(#gemB)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg><svg class="tick"><use href="#ck"/></svg></span><span class="call"><b>Gemini CLI</b><em>Install</em></span></button>
       </div>
     </div>
+    <p class="ewfall" id="ewFallback" hidden><b></b><code></code></p>
   </section>
 
 </main>
+
+<p class="sr" id="say" role="status" aria-live="polite"></p>
 
 <footer class="siteft">
   <div class="foot">
@@ -688,7 +764,10 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // the alt key is always drawn, never named: ⌥ on a Mac, ⎇ everywhere else
   var mac = /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
-  var ALT = mac ? '⌥' : '⎇';
+  /* On a Mac ⌥ is the key's own legend and everyone reads it. Everywhere else
+     the key says Alt, and ⎇ is a symbol almost no font ships and almost nobody
+     recognizes — it rendered as a squiggle. Name the key instead of drawing it. */
+  var ALT = mac ? '⌥' : 'Alt';
   Array.prototype.forEach.call(document.querySelectorAll('.altk,kbd.alt'), function (k) { k.textContent = ALT; });
   Array.prototype.forEach.call(document.querySelectorAll('.cur .alt'), function (k) {
     k.textContent = k.textContent.replace('⌥', ALT).replace('⇧', mac ? '⇧' : 'Shift');
@@ -731,6 +810,20 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
       navigator.clipboard.writeText(text).then(function () { then(true); }, function () { then(legacyCopy(text)); });
     } else then(legacyCopy(text));
   }
+  /* The copy result is a label swap, which a screen reader has no reason to
+     re-read. It is announced instead, in the one live region on the page. */
+  var live = document.getElementById('say');
+  function say(msg) { if (live) { live.textContent = ''; setTimeout(function () { live.textContent = msg; }, 60); } }
+  /* A blocked clipboard in the fan gets the same recovery the hero pill has:
+     the text itself, on the page, selectable. */
+  var ewfall = document.getElementById('ewFallback');
+  function showManual(name, text) {
+    if (!ewfall) return;
+    ewfall.querySelector('b').textContent = 'Your browser blocked the copy. Select this and copy it yourself — ' + name + '.';
+    ewfall.querySelector('code').textContent = text;
+    ewfall.hidden = false;
+    ewfall.scrollIntoView({ block: 'nearest' });
+  }
   var PROMPT = 'Set up Tailr so I can mark up my running dev server visually and hand you the\nchanges as one batch. Fetch\nhttps://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md\nand follow it exactly, without summarizing it.';
   Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function (btn) {
     var label = btn.querySelector('.label'), was = label.textContent, t;
@@ -743,6 +836,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
         // A blocked clipboard has to leave the visitor somewhere to go: the
         // prompt itself, on the page, selectable.
         if (!ok && fallback) { fallback.hidden = false; fallback.scrollIntoView({ block: 'nearest' }); }
+        say(ok ? 'Prompt copied. Paste it to your agent.' : 'Copy blocked. The prompt is on the page below the button.');
       }
       copyText(PROMPT, done);
     });
@@ -756,35 +850,56 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
     gp.addEventListener('click', function () {
       gp.setAttribute('aria-expanded', ew.classList.toggle('open') ? 'true' : 'false');
     });
-    /* Five hosts take Tailr straight from the repo, each in its own dialect.
-       The rest have no install surface, so they get the prompt instead and let
-       their own agent run the setup. */
+    /* Four hosts take Tailr from the marketplace in their own dialect; these
+       are the README's commands verbatim, and they have to stay that way.
+       Claude Code needs the git URL rather than the owner/repo shorthand: the
+       app clones the shorthand over SSH with nothing to answer the host-key
+       prompt with, so the add hangs. */
     var INSTALL = {
-      claude: '/plugin marketplace add gcrft123/tailr\n/plugin install tailr@tailr',
-      cursor: 'cursor-agent plugin marketplace add gcrft123/tailr',
-      codex: 'codex mcp add tailr -- npx -y @gcrft123/tailr mcp',
-      copilot: 'code --add-mcp \'{"name":"tailr","command":"npx","args":["-y","@gcrft123/tailr","mcp"]}\'',
+      claude: '/plugin marketplace add https://github.com/gcrft123/tailr.git\n/plugin install tailr@tailr',
+      codex: 'codex plugin marketplace add https://github.com/gcrft123/tailr.git\ncodex plugin add tailr@tailr',
+      copilot: 'copilot plugin marketplace add gcrft123/tailr\ncopilot plugin install tailr@tailr',
       gemini: 'gemini extensions install https://github.com/gcrft123/tailr'
     };
-    var SETUP = 'Set up Tailr in this project by running: npx -y @gcrft123/tailr init';
+    /* Everything that reads a global skills directory, per the README. */
+    var SKILLS = 'npx skills add gcrft123/tailr -g';
+    // Cursor has no command: the README's route is importing this URL as a
+    // Team Marketplace, so the disc hands over the URL and says so.
+    var CURSOR = 'https://github.com/gcrft123/tailr';
+    // Without hover there is nothing to read a disc by before pressing it, so
+    // the first tap opens its label and only the second one copies.
+    var touch = matchMedia('(hover: none)').matches, peeked = null;
     Array.prototype.forEach.call(ew.querySelectorAll('.ag'), function (ag) {
       var who = ag.querySelector('.call b'), act = ag.querySelector('.call em');
       var was = act.textContent, key = ag.dataset.i, t;
-      var text = key ? INSTALL[key] : SETUP;
-      ag.setAttribute('aria-label',
-        (key ? 'Copy the Tailr install command for ' : 'Copy the Tailr setup prompt for ') + ag.dataset.n);
+      var text = key === 'cursor' ? CURSOR : key ? INSTALL[key] : SKILLS;
+      var what = key === 'cursor' ? 'Copy the Tailr marketplace URL for '
+        : key ? 'Copy the Tailr install command for ' : 'Copy the Tailr skills command for ';
+      ag.setAttribute('aria-label', what + ag.dataset.n);
       ag.addEventListener('click', function () {
+        if (touch && peeked !== ag) {
+          if (peeked) peeked.classList.remove('peek');
+          peeked = ag; ag.classList.add('peek');
+          return;
+        }
         copyText(text, function (ok) {
           // the name has served its purpose by now; the result is the whole message
-          act.textContent = ok ? (key ? 'Copied command' : 'Copied prompt') : 'Copy failed';
+          act.textContent = ok ? 'Copied' : 'Copy failed';
           act.className = ok ? 'ok' : 'no';
           who.hidden = true;
-          if (ok) ag.classList.add('done');
+          // .done draws the tick, so it belongs to the success only; a failure
+          // still has to hold its label up, which is what .peek does
+          ag.classList.add(ok ? 'done' : 'peek');
+          // the same recovery the hero pill has: what could not be copied is
+          // put on the page, selectable, rather than left as a dead end
+          if (!ok) showManual(ag.dataset.n, text);
+          say((ok ? 'Copied ' : 'Copy blocked for ') + ag.dataset.n);
           clearTimeout(t);
           t = setTimeout(function () {
             act.textContent = was; act.className = ''; who.hidden = false;
-            ag.classList.remove('done');
-          }, 2000);
+            ag.classList.remove('done', 'peek');
+            if (peeked === ag) peeked = null;
+          }, 2400);
         });
       });
     });
@@ -802,8 +917,10 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
       var r = rectIn(scene, t);
       if (n.classList.contains('composer')) {
         var place = n.getAttribute('data-place') || 'below-left';
-        var x = place === 'below-right' ? r.x + r.w - 268 : r.x;
-        x = Math.max(0, Math.min(x, scene.clientWidth - 268));
+        // measured, not the 268px literal: the composer narrows with the scene
+        var cw = n.offsetWidth;
+        var x = place === 'below-right' ? r.x + r.w - cw : r.x;
+        x = Math.max(0, Math.min(x, scene.clientWidth - cw));
         n.style.translate = x + 'px ' + (r.y + r.h + 10) + 'px';
         return;
       }
@@ -945,7 +1062,14 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
             at(180, function () { cursorTo(s, keep, keep.offsetWidth * .5, keep.offsetHeight * .5); });
             at(640, function () {
               cur.classList.add('click'); keep.classList.add('kept'); keep.textContent = 'Kept';
-              end(900);
+              /* Once the value is kept the slider retreats, the way the real one
+                 minimizes, and the mark is left showing its version tabs. Fixing
+                 this in hold() alone was not enough: hold() is the reduced-motion
+                 and no-JS path, and everyone else sees whatever the replay stops
+                 on — which was the one section headed "Ask for options" resting
+                 with its options dismissed. */
+              at(820, function () { sset.classList.remove('on'); vset.classList.remove('gone'); });
+              end(1240);
             });
             return;
           }
@@ -995,9 +1119,16 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
     Array.prototype.forEach.call(stage.querySelectorAll('.ov.mark'), function (n) { n.classList.add('on'); });
     Array.prototype.forEach.call(stage.querySelectorAll('.composer'), function (n) { n.classList.add('on'); n.previousElementSibling && n.previousElementSibling.classList.contains('mark') && n.previousElementSibling.classList.add('composing'); });
     Array.prototype.forEach.call(stage.querySelectorAll('.typed'), function (n) { n.textContent = n.getAttribute('data-text'); });
+    /* The inline edit has to rest on the edited word, not the original: holding
+       on "Recent invoices" under a heading that says "Rewrite it in place" is a
+       picture of nothing having happened. */
+    var w1 = stage.querySelector('.w1'); if (w1) w1.textContent = 'Latest';
     var vt = stage.querySelector('.vtext'); if (vt) { vt.textContent = vt.getAttribute('data-v2'); var t2 = stage.querySelectorAll('.vtab')[1]; t2 && t2.classList.add('on'); layout(stage.__scene); }
-    var sset = stage.querySelector('.sset');
-    if (sset) { sset.classList.add('on'); stage.querySelector('.vset').classList.add('gone'); setSlide(stage.__scene, 24); var sk = sset.querySelector('.skeep'); sk.classList.add('kept'); sk.textContent = 'Kept'; }
+    /* And the versions showcase rests on its versions. It used to hand the slot
+       over to the slider and dismiss the tabs, so the one section headed "Ask
+       for options" was the one section showing none — in reduced motion and in
+       the ordinary post-animation state alike. The slider has its moment during
+       the replay; the tabs are what the heading promises, so they are what stays. */
     var agent = stage.querySelector('.agent'); if (agent) { agent.classList.add('on', 'done', 'open'); stage.querySelector('.batch').classList.add('locked'); stage.querySelector('.send').textContent = 'Needs refresh'; Array.prototype.forEach.call(stage.querySelectorAll('.li'), function (li) { li.classList.add('served'); }); }
   }
   var stages = Array.prototype.slice.call(document.querySelectorAll('.stage[data-replay]'));
