@@ -92,7 +92,9 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .headline{margin:0 auto;max-width:15ch;font:700 clamp(40px,5.2vw,76px)/1 var(--display);font-optical-sizing:auto;letter-spacing:-.04em;text-wrap:balance}
 /* each sentence on its own line where there is room; balanced wrapping below */
 @media (min-width:760px){.headline{max-width:none}.headline .line{display:block}}
-.lede{margin:22px auto 0;max-width:var(--measure);font:400 clamp(17px,1.5vw,20px)/1.5 var(--ui);letter-spacing:-.01em;color:var(--ink-2);text-wrap:balance}
+/* keep the lede on one line at tablet+; narrow phones may wrap to avoid overflow */
+.lede{margin:22px auto 0;width:max-content;max-width:min(100%,52rem);font:400 clamp(14px,1.7vw,20px)/1.45 var(--ui);letter-spacing:-.01em;color:var(--ink-2);white-space:nowrap}
+@media (max-width:480px){.lede{white-space:normal;text-wrap:balance;width:auto;max-width:var(--measure)}}
 .hero .act{display:flex;justify-content:center;margin-top:28px}
 /* shown only when the browser refuses the clipboard: the prompt, selectable */
 .fallback{margin:18px auto 0;max-width:var(--measure);padding:14px 16px;border-radius:12px;background:var(--page-fill);
@@ -480,7 +482,7 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 
 <section class="hero" aria-labelledby="claim">
   <h1 class="headline" id="claim"><span class="line">Mark up the running app.</span> <span class="line">Hand your agent the batch.</span></h1>
-  <p class="lede">Rapidly markup iterate on your projects live with your agent.</p>
+  <p class="lede">Rapidly markup and iterate on your projects live with your agent.</p>
   <div class="act"><button class="pill copy" type="button" data-copy><span class="ic" aria-hidden="true"><svg class="copy-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5" pathLength="1"/><path d="M5 15H4a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 4 2.5h9.5A1.5 1.5 0 0 1 15 4v1" pathLength="1"/></svg><svg class="check-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg></span><span class="label">Copy the prompt for your agent</span><span class="agents" aria-hidden="true"><i style="--i:0;--c:#D97757"><svg class="lg"><use href="#lg-claude"/></svg></i><i style="--i:1;--c:#0B0B0C"><svg class="lg"><use href="#lg-cursor"/></svg></i><i style="--i:2;--c:#0B0B0C"><svg class="lg"><use href="#lg-codex"/></svg></i><i style="--i:3;--c:#0B0B0C"><svg class="lg"><use href="#lg-copilot"/></svg></i><i style="--i:4"><svg class="lg" viewBox="0 0 24 24"><linearGradient id="gemA" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285F4"/><stop offset=".52" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient><path fill="url(#gemA)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg></i></span></button></div>
   <p class="fallback" id="promptFallback" hidden><b>Your browser blocked the copy. Select this and copy it yourself.</b>Set up Tailr so I can mark up my running dev server visually and hand you the changes as one batch. Fetch https://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md and follow it exactly, without summarizing it.</p>
   <figure class="film" id="film">
