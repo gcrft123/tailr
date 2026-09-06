@@ -24,7 +24,7 @@ test('a fresh project gets the rules, the MCP entry, and nothing else', async ()
   assert.match(rules, /tailr_wait/, 'the MCP tools are named when they are registered');
 
   const mcp = JSON.parse(read(cwd, '.mcp.json'));
-  assert.deepEqual(mcp.mcpServers.tailr, { command: 'npx', args: ['@gcrft123/tailr', 'mcp'] });
+  assert.deepEqual(mcp.mcpServers.tailr, { command: 'npx', args: ['-y', '@gcrft123/tailr', 'mcp'] });
 
   assert.equal(existsSync(join(cwd, 'package.json')), false, 'nothing else is created');
 });
