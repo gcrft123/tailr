@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSession, isAlive } from '../server/session.js';
 import { waitForBatch } from '../server/watch.js';
+import { applyConfig, configFile, describeConfig, KEYS, readConfig, SETTINGS } from '../server/config.js';
 
 const { version: VERSION } = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json'), 'utf8'));
@@ -155,6 +156,31 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {}, additionalProperties: false }
   },
   {
+    name: 'tailr_config',
+    description:
+      'Read or change the reviewer\'s Tailr settings. They belong to the person rather than to the ' +
+      'project, so they are kept in their home directory and hold across every project and session. ' +
+      'Called with no arguments this only reports where they stand — do that first when they ask what ' +
+      'their settings are, and do not guess at them. A change is written straight away and pushed to a ' +
+      'running session, so it lands on the page they are looking at without a reload; it works with no ' +
+      'session running too. Only ever call this because the user asked for it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sfx: {
+          type: 'boolean',
+          description: 'Whether Tailr plays a short sound on each action — a mark made or dropped, a batch sent, a version picked, a run closing. On by default.'
+        },
+        modifier: {
+          type: 'string',
+          enum: ['alt', 'ctrl', 'cmd'],
+          description: 'The key the reviewer holds to arm marking. "alt" by default; "cmd" is ⌘ on a Mac and the Windows key elsewhere.'
+        }
+      },
+      additionalProperties: false
+    }
+  },
+  {
     name: 'tailr_fail',
     description:
       'Close the run as incomplete and release the send lock so the reviewer can try again. Say what actually ' +
@@ -205,7 +231,9 @@ async function runTool(name, args = {}) {
     const r = await call('state', null, 'GET');
     return { text: JSON.stringify({
       running: true, reviewUrl: s.url, proxying: s.target,
-      batchWaiting: !!r.data.pending, run: r.data.run
+      batchWaiting: !!r.data.pending, run: r.data.run,
+      // Which key they hold to mark, so telling them is never a guess.
+      settings: r.data.config
     }, null, 2) };
   }
 
@@ -268,6 +296,29 @@ async function runTool(name, args = {}) {
     if (!r.ok) return { text: r.data.error || 'Could not register the slider.', isError: true };
     return { text: `Registered a slider for ${args.ref}. The reviewer scrubs it on the page after ` +
       'the reload; keeping a value comes back as a "choice" mark with sliderOf and value.' };
+  }
+
+  /* The one tool that does not need a session: settings are the reviewer's,
+     and they must be able to change them before Tailr is ever started. */
+  if (name === 'tailr_config') {
+    const patch = {};
+    const errors = [];
+    for (const key of KEYS) {
+      if (args[key] === undefined) continue;
+      const parsed = SETTINGS[key].parse(args[key]);
+      if (parsed.error) errors.push(parsed.error);
+      else patch[key] = parsed.value;
+    }
+    if (errors.length) return { text: errors.join('\n'), isError: true };
+
+    if (!Object.keys(patch).length) {
+      return { text: `Tailr settings — ${configFile()}\n\n${describeConfig(readConfig())}` };
+    }
+    const { config, live } = await applyConfig(patch);
+    return { text: `Saved to ${configFile()}.\n\n${describeConfig(config)}\n\n` +
+      (live
+        ? 'The review page already has them — tell the reviewer, and name what changed.'
+        : 'No session is running, so they take effect the next time one starts.') };
   }
 
   if (name === 'tailr_progress') {

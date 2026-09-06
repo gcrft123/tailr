@@ -23,7 +23,8 @@ export function rulesBlock({ mcp = false } = {}) {
         '| `npx tailr slider <ref> --min --max` | `tailr_slider` | report the continuous parameter you wired for a slider mark |',
         '| `npx tailr progress <ref>` | `tailr_progress` | report one mark as applied |',
         '| `npx tailr done` | `tailr_done` | the run finished |',
-        '| `npx tailr fail "reason"` | `tailr_fail` | it returned incomplete |'
+        '| `npx tailr fail "reason"` | `tailr_fail` | it returned incomplete |',
+        '| `npx tailr config [name:value…]` | `tailr_config` | their settings — `sfx`, `modifier`. Only when they ask |'
       ]
     : [
         '| Command | |',
@@ -35,7 +36,8 @@ export function rulesBlock({ mcp = false } = {}) {
         '| `npx tailr slider <ref> --min --max` | report the continuous parameter you wired for a slider mark |',
         '| `npx tailr progress <ref>` | report one mark as applied |',
         '| `npx tailr done` | the run finished |',
-        '| `npx tailr fail "reason"` | it returned incomplete |'
+        '| `npx tailr fail "reason"` | it returned incomplete |',
+        '| `npx tailr config [name:value…]` | their settings — `sfx`, `modifier`. Only when they ask |'
       ];
 
   return `${START}

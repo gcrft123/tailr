@@ -59,6 +59,9 @@
       var data;
       try { data = JSON.parse(ev.data); } catch (e) { return; }
       T.session(data.app);
+      // Before anything is drawn or judged: the key the reviewer holds is in
+      // here, and every hint on screen names it.
+      T.config(data.config);
       // Bind before sync: a new session clears leftover marks, and those must
       // not be what a replayed run then tries to serve against.
       if (data.sessionId) T.bindSession(data.sessionId);

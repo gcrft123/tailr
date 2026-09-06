@@ -17,14 +17,16 @@ import tls from 'node:tls';
 import { readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { defaults, KEYS, SETTINGS } from './config.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const CUE = join(HERE, '..', 'overlay', 'cuelume.js');
 const OVERLAY = join(HERE, '..', 'overlay', 'tailr.js');
 const BRIDGE = join(HERE, '..', 'bridge', 'client.js');
 
 const API = '/__tailr/';
 
-export function createServer({ target, onReady, onExit, spawned = false }) {
+export function createServer({ target, onReady, onExit, spawned = false, config = defaults() }) {
   const upstream = new URL(target);
   /* A dev server on https is still a dev server, and its certificate is nearly
      always self-signed or locally-minted. Refusing one would make https targets
@@ -46,6 +48,10 @@ export function createServer({ target, onReady, onExit, spawned = false }) {
     ending: false     // the reviewer has ended the session; this process is going
   };
   const listeners = new Set();
+  /* The reviewer's preferences, as this process last heard them. They are read
+     from disk once at startup and replaced when the agent changes them, so a
+     `tailr config` lands on the open page instead of waiting for a restart. */
+  let settings = { ...defaults(), ...(config || {}) };
 
   function publish() {
     const payload = `data: ${JSON.stringify(publicState())}\n\n`;
@@ -62,6 +68,7 @@ export function createServer({ target, onReady, onExit, spawned = false }) {
       },
       pending: !!(state.batch && state.run && state.run.phase === 'working' && !state.run.leasedAt),
       ending: state.ending,
+      config: { ...settings },
       /* Ending the session takes the review URL down with it, so the overlay has
          to be able to say where the application went — it is the last thing on
          screen, and the reviewer has no terminal to ask. */
@@ -69,16 +76,20 @@ export function createServer({ target, onReady, onExit, spawned = false }) {
     };
   }
 
-  /* ── the overlay, with the bridge appended ─────────────── */
+  /* ── the overlay, with its cues and the bridge appended ── */
+  /* Order matters: the cue player defines the global the overlay plays through,
+     and the bridge needs the overlay it binds to. Three plain scripts glued
+     together — there is no bundler here, and none of them is a module. */
+  const PARTS = [CUE, OVERLAY, BRIDGE];
   let bundle = null, bundleStamp = '';
   function overlayBundle() {
     // Cached, but keyed on file mtime so an edit to the overlay is picked up
     // without restarting the session.
     let stamp = '';
-    try { stamp = statSync(OVERLAY).mtimeMs + ':' + statSync(BRIDGE).mtimeMs; } catch {}
+    try { stamp = PARTS.map((p) => statSync(p).mtimeMs).join(':'); } catch {}
     if (bundle && stamp === bundleStamp) return bundle;
     bundleStamp = stamp;
-    bundle = readFileSync(OVERLAY, 'utf8') + '\n' + readFileSync(BRIDGE, 'utf8');
+    bundle = PARTS.map((p) => readFileSync(p, 'utf8')).join('\n');
     return bundle;
   }
 
@@ -115,6 +126,26 @@ export function createServer({ target, onReady, onExit, spawned = false }) {
     }
 
     if (path === 'state') return json(res, 200, publicState());
+
+    /* The reviewer's preferences, changed while the session is up. The agent
+       side has already written them to disk; this only tells the page, so the
+       new modifier or a muted cue takes effect without a reload. Values are
+       re-parsed here rather than trusted: the overlay is what has to live with
+       them, and a wrong one would break marking outright. */
+    if (path === 'config' && req.method === 'POST') {
+      const body = await readBody(req);
+      const given = (body && body.config) || body || {};
+      const next = {};
+      for (const key of KEYS) {
+        if (!(key in given)) continue;
+        const parsed = SETTINGS[key].parse(given[key]);
+        if (parsed.error) return json(res, 400, { error: parsed.error });
+        next[key] = parsed.value;
+      }
+      settings = { ...settings, ...next };
+      publish();
+      return json(res, 200, publicState());
+    }
 
     /* The reviewer ending the session from the page. Everything that was going
        to be cleaned up has been sent by now; this is the last call, and the
