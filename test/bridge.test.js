@@ -97,6 +97,12 @@ test('progress is idempotent and refused outside an open run', async (t) => {
   await s.api('progress', { ref: '01' });
   const twice = await s.api('progress', { ref: '01' });
   assert.deepEqual(twice.body.run.served, ['01'], 'reporting the same ref twice serves it once');
+
+  const stray = await s.api('progress', { ref: '99' });
+  assert.equal(stray.status, 400, 'a ref that is not in the batch is refused');
+  assert.match(stray.body.error, /"99"/);
+  assert.match(stray.body.error, /01, 02/, 'and the real refs are named');
+  assert.deepEqual((await s.api('state', null, 'GET')).body.run.served, ['01'], 'nothing was counted as landed');
 });
 
 test('an empty batch is refused, and pull with nothing waiting is a 404', async (t) => {

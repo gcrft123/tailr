@@ -125,7 +125,10 @@ function registerMcp(at, done, skipped) {
       catch { skipped.push(`${target} is not valid JSON — left alone`); continue; }
     }
     const servers = config.mcpServers && typeof config.mcpServers === 'object' ? config.mcpServers : {};
-    servers.tailr = { command: 'npx', args: [PKG, 'mcp'] };
+    // `-y`, so a client that launches this before anything is installed — a
+    // `--no-install` project, or a stdin that is not a terminal — never stalls on
+    // npx asking whether it may fetch the package. It is what the plugin uses too.
+    servers.tailr = { command: 'npx', args: ['-y', PKG, 'mcp'] };
     config.mcpServers = servers;
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify(config, null, 2) + '\n');

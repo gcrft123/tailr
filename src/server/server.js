@@ -240,6 +240,11 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     if (path === 'progress' && req.method === 'POST') {
       const { ref } = await readBody(req);
       if (!state.run || state.run.phase !== 'working') return json(res, 409, { error: 'No open run.' });
+      // A ref that is not in the batch is a typo or a stale number from an
+      // earlier run. Saying so beats quietly counting it as landed.
+      if (ref && state.batch && !state.batch.marks.some((m) => m.ref === ref)) {
+        return json(res, 400, { error: `No mark "${ref}" in this batch. Its refs are ${state.batch.marks.map((m) => m.ref).join(', ')}.` });
+      }
       if (ref && !state.run.served.includes(ref)) state.run.served.push(ref);
       publish();
       return json(res, 200, publicState());
