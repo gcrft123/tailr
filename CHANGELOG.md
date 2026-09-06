@@ -11,6 +11,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.3.2] — 2026-09-06
+
 ### Added
 
 - `tailr demo` starts a small sample application, proxies it, and prints a
