@@ -135,7 +135,8 @@ Review at the Tailr URL, not the original one.
 
 ## Marking up
 
-Hold **Alt** to arm. While it is held:
+Hold **Alt** to arm — or whichever key you have set, see [Settings](#settings).
+While it is held:
 
 | Gesture | Result |
 |---|---|
@@ -144,8 +145,8 @@ Hold **Alt** to arm. While it is held:
 | Double-click text | Edit text in place |
 | Shift-click | Mark a spot rather than an element. Use it both to ask for something new and to note a place; what you write says which. Middle-click does the same thing if you have one |
 
-Release Alt and you can control the application again. Double-tap Alt to latch markup on
-for keyboard use. Marks persist in the browser across reloads, span routes, and
+Release the key and you can control the application again. Double-tap it to latch
+markup on for keyboard use. Marks persist in the browser across reloads, span routes, and
 survive the reload after the agent has worked.
 
 ## Asking for versions
@@ -178,6 +179,26 @@ overlay clears what it kept in your browser, and it takes itself off the page.
 
 If the agent isn't listening, **End anyway** leaves without waiting; Tailr says
 so on the way out rather than pretending the cleanup happened.
+
+## Settings
+
+Two things about Tailr are yours to set rather than the project's:
+
+| Setting | Values | Default | What it does |
+|---|---|---|---|
+| `sfx` | `true` / `false` | `true` | A short sound on each action — a mark made or dropped, a batch sent, a version picked, a run closing |
+| `modifier` | `alt` `ctrl` `cmd` | `alt` | The key you hold to arm marking |
+
+Ask your agent with `/tailr:config` (`/config` in Cursor), or set them yourself:
+
+```bash
+npx -y @gcrft123/tailr config sfx:false modifier:cmd
+```
+
+Either way they are written to `~/.tailr/config.json` and hold across every
+project. With no arguments the command prints where they stand. A change made
+while a session is up lands on the open review page without a reload — the key
+you hold changes under your hands.
 
 ## The agent side
 
@@ -303,7 +324,8 @@ and tell you what to ask the user for rather than failing opaquely.
   the batch back and send it again.
 - **A session writes nothing to your repository** except `.tailr/session.json`,
   so the CLI can find the running session. `tailr init` adds `.tailr/` to
-  `.gitignore` for you.
+  `.gitignore` for you. Your settings are yours rather than the project's, so
+  they live in your home directory and never appear in a diff.
 - **`tailr init` is the only thing that edits your files**, and only these: a
   marked-off section in your agent instruction file, a `tailr` entry in
   `.mcp.json`, the `.gitignore` line, and the devDependency. Re-running rewrites
@@ -315,4 +337,9 @@ Node 18 or newer. No dependencies.
 
 ## License
 
-MIT
+MIT.
+
+The interaction sounds are [Cuelume](https://github.com/Danilaa1/cuelume) —
+copied into `src/overlay/cuelume.js` rather than depended on, under its MIT
+licence, which travels with it at the top of that file. It synthesizes every
+sound through the Web Audio API, so there are no audio files here either.

@@ -11,6 +11,37 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Added
+
+- Sound, on every action. A mark made, kept, reopened, dropped or discarded;
+  versions or a slider asked for; a batch sent; a version picked, a value kept
+  or reset; the batch taken back, re-sent or reloaded into; the session ended;
+  the island landing in a new corner. Nine cues, each with its own shape rather
+  than the same click at different volumes, and synthesized live through the Web
+  Audio API — nothing is fetched and no audio file ships. Two things stay quiet:
+  a key going down — bar the Enter that commits a comment, which hands the agent
+  something to do — and a single mark coming back applied, which you watch empty
+  out on screen; the run closing is what you hear. On by default; `sfx:false`
+  turns the lot off.
+- `/tailr:config` (`/config` in Cursor), `tailr config`, and the `tailr_config`
+  MCP tool: read or change your settings, e.g.
+  `/tailr:config sfx:false modifier:cmd`. Settings belong to the person rather
+  than the project, so they are kept in `~/.tailr/config.json` and hold across
+  every project — nothing new appears in your repository. A change made while a
+  session is up is pushed to the open review page, so it takes effect without a
+  reload.
+- `modifier`, so the key held to arm marking can be `alt` (the default), `ctrl`
+  or `cmd` when an app or an OS wants Alt back. Every hint on screen names
+  whichever key is yours, and `tailr_status` reports it so the agent never has
+  to guess which one to tell you about.
+
+### Changed
+
+- The interaction sounds are [Cuelume](https://github.com/Danilaa1/cuelume),
+  copied into `src/overlay/cuelume.js` under its MIT licence rather than
+  installed — its whole seventeen-recipe palette, so a version bump stays a copy
+  rather than a merge. Tailr still has no dependencies.
+
 ## [1.2.0] — 2026-09-05
 
 ### Added

@@ -41,8 +41,9 @@ project's source is modified, and hot reload keeps working.
 In the same message, do both:
 
 - Tell them the review URL Tailr printed (usually <http://localhost:4100>), and
-  that they should use it instead of the original port. Tell them to hold **Alt**
-  and click to mark the page, then press **Send**.
+  that they should use it instead of the original port. Tell them to hold their
+  marking key — **Alt**, unless they have set another — and click to mark the
+  page, then press **Send**.
 - Start `npx tailr wait` as a long-running background process.
 
 `wait` prints nothing until Send is pressed, then exits — that exit is how you
@@ -84,6 +85,7 @@ The loop is `wait` → `pull` → `progress` per mark → `done` or `fail`.
 | `npx tailr progress <ref>` | `tailr_progress` | report one mark as applied |
 | `npx tailr done` | `tailr_done` | the run finished |
 | `npx tailr fail "reason"` | `tailr_fail` | it returned incomplete |
+| `npx tailr config [name:value…]` | `tailr_config` | their settings — `sfx`, `modifier`. Only when they ask |
 
 Each mark carries a `ref` ("01"), a `type`, the `route` it was made on, a
 best-effort source `address`, a CSS `selector`, the element's text, and the

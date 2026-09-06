@@ -11,7 +11,7 @@
  *
  * `--sync` runs as part of `npm version`.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rulesBlock, START, END } from '../src/setup/rules.js';
@@ -25,9 +25,8 @@ const HOME = 'https://github.com/gcrft123/tailr#readme';
 const REPO = 'https://github.com/gcrft123/tailr';
 const SHORT = 'Mark up a running dev server and hand the changes to your coding agent as one batch.';
 const REVIEW = join(ROOT, 'plugin', 'skills', 'review', 'SKILL.md');
-const START_SKILL = join(ROOT, 'plugin', 'skills', 'start', 'SKILL.md');
 const CURSOR_RULE = join(ROOT, 'plugin', 'rules', 'review.mdc');
-const CURSOR_COMMAND = join(ROOT, 'plugin', 'cursor-commands', 'start.md');
+const CURSOR_COMMANDS = join(ROOT, 'plugin', 'cursor-commands');
 const CURSOR_SKILLS_KEEP = join(ROOT, 'plugin', 'cursor-skills', '.gitkeep');
 
 function fail(message) {
@@ -92,6 +91,24 @@ function skillCopies() {
   return skillNames().map((name) => [
     at('plugin', 'skills', name, 'SKILL.md'),
     at('skills', name, 'SKILL.md')
+  ]);
+}
+
+/** The skills a user invokes by name rather than the model reaching for them.
+ *  Claude Code and Codex read them out of `skills/` as /tailr:<name>; Cursor
+ *  reads commands from a directory of its own, where the same skill is /<name>.
+ *  Marking one `disable-model-invocation: true` is what makes it both. */
+function commandSkills() {
+  return skillNames()
+    .map((name) => [name, at('plugin', 'skills', name, 'SKILL.md')])
+    .filter(([, path]) => existsSync(path) &&
+      /^disable-model-invocation:\s*true\s*$/m.test(splitSkill(read(path), path).front));
+}
+
+function cursorCommands() {
+  return commandSkills().map(([name, path]) => [
+    join(CURSOR_COMMANDS, `${name}.md`),
+    cursorCommandFrom(read(path), path)
   ]);
 }
 
@@ -194,8 +211,9 @@ function requiredFiles() {
   return [
     [at('plugin', 'skills', 'review', 'SKILL.md'), 'review skill'],
     [at('plugin', 'skills', 'start', 'SKILL.md'), 'start skill'],
+    [at('plugin', 'skills', 'config', 'SKILL.md'), 'config skill'],
     [at('plugin', 'rules', 'review.mdc'), 'Cursor review rule'],
-    [at('plugin', 'cursor-commands', 'start.md'), 'Cursor start command'],
+    ...cursorCommands().map(([path]) => [path, `Cursor ${path.split('/').pop().replace('.md', '')} command`]),
     [at('plugin', 'cursor-skills', '.gitkeep'), 'Cursor skills placeholder'],
     [at('plugin', '.mcp.json'), '.mcp.json'],
     [at('plugin', 'mcp.json'), 'mcp.json'],
@@ -205,6 +223,16 @@ function requiredFiles() {
     [at('plugin', 'plugin.json'), 'Agent Plugins manifest'],
     [at('gemini-extension.json'), 'Gemini extension manifest']
   ];
+}
+
+/** Cursor commands with no command skill left behind them. */
+function strayCommands() {
+  if (!existsSync(CURSOR_COMMANDS)) return [];
+  const wanted = new Set(cursorCommands().map(([path]) => path));
+  return readdirSync(CURSOR_COMMANDS)
+    .filter((entry) => entry.endsWith('.md'))
+    .map((entry) => join(CURSOR_COMMANDS, entry))
+    .filter((path) => !wanted.has(path));
 }
 
 function brokenCopies() {
@@ -263,12 +291,13 @@ function cursorRuleFrom(skill) {
   return `---\ndescription: ${yamlDouble(description)}\nalwaysApply: false\n---\n\n${body}`;
 }
 
-function cursorCommandFrom(skill) {
-  const { front, body } = splitSkill(skill, START_SKILL);
-  const name = frontField(front, 'name') || 'start';
+function cursorCommandFrom(skill, path) {
+  const { front, body } = splitSkill(skill, path);
+  const name = frontField(front, 'name');
   const description = frontField(front, 'description');
   const hint = frontField(front, 'argument-hint');
-  if (!description) fail(`${rel(START_SKILL)} has no description.`);
+  if (!name) fail(`${rel(path)} has no name.`);
+  if (!description) fail(`${rel(path)} has no description.`);
   return `---\nname: ${name}\ndescription: ${yamlDouble(description)}\n` +
     (hint ? `argument-hint: ${yamlDouble(hint)}\n` : '') +
     `---\n\n${body}`;
@@ -298,11 +327,12 @@ if (mode === '--check') {
   if (!existsSync(CURSOR_RULE) || readFileSync(CURSOR_RULE, 'utf8') !== cursorRuleFrom(skill)) {
     wrong.push(`${rel(CURSOR_RULE)} is out of step with ${rel(REVIEW)}`);
   }
-  let start = null;
-  try { start = readFileSync(START_SKILL, 'utf8'); } catch { start = null; }
-  if (start && (!existsSync(CURSOR_COMMAND) || readFileSync(CURSOR_COMMAND, 'utf8') !== cursorCommandFrom(start))) {
-    wrong.push(`${rel(CURSOR_COMMAND)} is out of step with ${rel(START_SKILL)}`);
+  for (const [path, expected] of cursorCommands()) {
+    if (!existsSync(path) || readFileSync(path, 'utf8') !== expected) {
+      wrong.push(`${rel(path)} is out of step with its skill`);
+    }
   }
+  for (const path of strayCommands()) wrong.push(`${rel(path)} has no skill behind it`);
   wrong.push(...brokenPaths());
 
   if (wrong.length) {
@@ -339,13 +369,19 @@ if (mode === '--check') {
     changed.push(rel(CURSOR_RULE));
   }
 
-  let start;
-  try { start = readFileSync(START_SKILL, 'utf8'); } catch { fail(`${rel(START_SKILL)} is missing.`); }
-  const command = cursorCommandFrom(start);
-  mkdirSync(dirname(CURSOR_COMMAND), { recursive: true });
-  if (!existsSync(CURSOR_COMMAND) || readFileSync(CURSOR_COMMAND, 'utf8') !== command) {
-    writeFileSync(CURSOR_COMMAND, command);
-    changed.push(rel(CURSOR_COMMAND));
+  mkdirSync(CURSOR_COMMANDS, { recursive: true });
+  for (const [path, expected] of cursorCommands()) {
+    if (!existsSync(path) || readFileSync(path, 'utf8') !== expected) {
+      writeFileSync(path, expected);
+      changed.push(rel(path));
+    }
+  }
+  // A skill that stops being a command, or goes away, must take its Cursor
+  // copy with it — a command still on the palette that runs nothing is worse
+  // than one that was never there.
+  for (const path of strayCommands()) {
+    rmSync(path, { force: true });
+    changed.push(`${rel(path)} (removed)`);
   }
   mkdirSync(dirname(CURSOR_SKILLS_KEEP), { recursive: true });
   if (!existsSync(CURSOR_SKILLS_KEEP)) {
