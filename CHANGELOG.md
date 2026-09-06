@@ -11,6 +11,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-06
+
 ### Added
 
 - Sound, on every action. A mark made, kept, reopened, dropped or discarded;
