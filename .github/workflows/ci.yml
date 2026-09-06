@@ -19,8 +19,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
-      # Tailr has no dependencies, so there is nothing to install — which is
-      # itself worth keeping true. This fails if that ever stops being the case.
-      - name: check there are still no dependencies
+          cache: npm
+      # What Tailr ships still has to install nothing. The suite is allowed a
+      # DOM to run the overlay in, and that is the whole reason node_modules
+      # exists here — so this guards the promise that matters and lets the
+      # other one go.
+      - name: check there are still no runtime dependencies
         run: node -e "const p=require('./package.json');if(p.dependencies&&Object.keys(p.dependencies).length)throw new Error('Tailr has taken on a runtime dependency')"
+      - run: npm ci
       - run: npm test
