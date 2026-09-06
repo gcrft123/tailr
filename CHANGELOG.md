@@ -11,6 +11,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-09-06
+
 ### Fixed
 
 - `--target localhost:5173`, `--target 5173` and `--target 127.0.0.1:3000` now
