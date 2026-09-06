@@ -2,6 +2,7 @@
 /* Tailr CLI.
  *
  *   tailr init                 set the project up so the rules stick
+ *   tailr demo                 try the whole loop against a sample app
  *   tailr                      proxy http://localhost:3000 on :4100
  *   tailr --target <url>       proxy something else
  *   tailr -- npm run dev       start the dev server too, then proxy it
@@ -16,10 +17,13 @@
  *   tailr fail [message]       the run returned incomplete
  */
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createServer } from '../src/server/server.js';
 import { readSession, writeSession, clearSession, isAlive } from '../src/server/session.js';
 import { waitForBatch } from '../src/server/watch.js';
-import { applyConfig, configFile, describeConfig, parseSettings, readConfig } from '../src/server/config.js';
+import { applyConfig, configFile, describeConfig, modifierLabel, parseSettings, readConfig } from '../src/server/config.js';
 import { normalizeTarget } from '../src/server/target.js';
 
 const argv = process.argv.slice(2);
@@ -50,6 +54,8 @@ if (cmd === 'mcp') {
     mcp: !args.includes('--no-mcp'),
     file: flag('file', null)
   });
+} else if (cmd === 'demo') {
+  await demo();
 } else if (cmd === 'config') {
   await configure(positional.slice(1));
 } else if (AGENT.has(cmd)) await agent(cmd, positional.slice(1));
@@ -57,11 +63,13 @@ else await serve();
 
 /* ────────────────────────────────────────────────────────── */
 
-async function serve() {
-  const asked = normalizeTarget(flag('target', 'http://localhost:3000'));
+async function serve({ target: only = null, command = null } = {}) {
+  const asked = normalizeTarget(only || flag('target', 'http://localhost:3000'));
   if (asked.error) { process.stderr.write(`\n  ${asked.error}\n\n`); process.exit(1); }
   const target = asked.url;
   const port = Number(flag('port', 4100));
+  const config = readConfig();
+  const app = command || (devCommand && devCommand.length ? devCommand : null);
   let child = null;
 
   // One session per project: the CLI and the MCP tools find it through
@@ -74,8 +82,8 @@ async function serve() {
     process.exit(1);
   }
 
-  if (devCommand && devCommand.length) {
-    child = spawn(devCommand[0], devCommand.slice(1), { stdio: 'inherit', shell: process.platform === 'win32' });
+  if (app) {
+    child = spawn(app[0], app.slice(1), { stdio: 'inherit', shell: process.platform === 'win32' });
     child.on('exit', (code) => { shutdown(); process.exit(code ?? 0); });
   }
 
@@ -83,7 +91,7 @@ async function serve() {
     target,
     // Read once, here. A change made while the session is up arrives over the
     // config endpoint rather than by the server going back to the file.
-    config: readConfig(),
+    config,
     // Whether the dev server is ours to stop decides what the overlay tells the
     // reviewer to do once Tailr is gone.
     spawned: !!child,
@@ -96,11 +104,18 @@ async function serve() {
     onReady(actual) {
       const url = `http://localhost:${actual}`;
       writeSession({ port: actual, url, target, pid: process.pid, startedAt: new Date().toISOString() });
+      /* Only one person reads a terminal, and it is not the reviewer — they
+         have a browser and nothing else. So this says what to hand them, in
+         their words, and then what to do next, in the agent's. And it names
+         the key they will actually be holding rather than the default. */
       process.stdout.write(
         `\n  Tailr is up.\n\n` +
         `    review at   ${url}\n` +
         `    proxying    ${target}\n\n` +
-        `  Hold Alt and mark the page. When a batch is sent, run:  tailr pull\n\n`);
+        `  Hand the reviewer the review URL, not the dev server's. They hold ` +
+        `${modifierLabel(config)} and\n  click to mark the page, then press Send.\n\n` +
+        `  Wait for their batch. Its exit is the notification:\n\n` +
+        `    tailr wait && tailr pull\n\n`);
     }
   });
 
@@ -123,6 +138,25 @@ async function serve() {
     process.on(sig, () => { shutdown(); process.exit(0); });
   }
   process.on('exit', shutdown);
+}
+
+/* ── the demo ────────────────────────────────────────────── */
+
+/* Somewhere to try the loop that is not the reviewer's own project. Tailr is
+   framework-agnostic, so the sample app is a plain page on a plain server —
+   which is also the honest thing to hand someone who wants to see what a mark
+   looks like before pointing this at work they care about. It ships with the
+   package so `npx @gcrft123/tailr demo` needs nothing cloned. */
+async function demo() {
+  const app = join(dirname(fileURLToPath(import.meta.url)), '..', 'demo', 'serve.js');
+  if (!existsSync(app)) {
+    process.stderr.write('\n  The sample app is not in this copy of Tailr.\n\n');
+    process.exit(1);
+  }
+  // demo/serve.js reads the same variable, and spawn hands it our environment,
+  // so one setting moves both halves.
+  const port = Number(process.env.PORT || 8902);
+  await serve({ target: `http://127.0.0.1:${port}`, command: [process.execPath, app] });
 }
 
 /* ── settings ────────────────────────────────────────────── */
@@ -280,6 +314,9 @@ function usage() {
       --no-install                don't touch package.json
       --no-mcp                    don't register the MCP server
       --file <path>               write the rules to this file instead
+
+  Try it first, against a sample app that ships with Tailr
+    tailr demo                    start the sample app and proxy it on :4100
 
   Start a session
     tailr                         proxy http://localhost:3000 on :4100

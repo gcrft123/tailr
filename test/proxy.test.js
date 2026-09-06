@@ -56,20 +56,48 @@ test('chunked HTML is rewritten without leaving a contradictory content-length',
   assert.equal(Number(res.headers.get('content-length')), Buffer.byteLength(body));
 });
 
-test('HTML the proxy cannot read is passed through rather than corrupted', async (t) => {
-  // Some dev servers compress regardless of accept-encoding. Decoding that as
-  // utf8 and injecting into it would hand the reviewer a broken page.
-  const { gzipSync } = await import('node:zlib');
+test('a dev server that compresses anyway still gets the overlay', async (t) => {
+  /* Tailr asks for `identity`; plenty of dev servers compress regardless.
+     That used to mean a page with no overlay and nothing anywhere saying so,
+     which is the worst of the three outcomes available. */
+  const { gzipSync, deflateSync, brotliCompressSync } = await import('node:zlib');
   const original = '<html><head></head><body>zipped</body></html>';
+  for (const [encoding, compress] of [
+    ['gzip', gzipSync], ['deflate', deflateSync], ['br', brotliCompressSync]
+  ]) {
+    const up = await startUpstream((req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html', 'content-encoding': encoding });
+      res.end(compress(original));
+    });
+    const s = await startTailr(up.url);
+
+    const res = await fetch(s.base + '/');
+    const page = await res.text();
+    assert.match(page, /overlay\.js" defer><\/script><\/head>/, `${encoding} was not injected into`);
+    assert.match(page, /zipped<\/body>/, `${encoding} lost the page around the tag`);
+    assert.equal(res.headers.get('content-encoding'), null,
+      `${encoding} is no longer what the body is in, so it must not still be claimed`);
+    assert.equal(Number(res.headers.get('content-length')), Buffer.byteLength(page));
+
+    await s.close();
+    await up.close();
+  }
+});
+
+test('an encoding this Node cannot undo is passed through rather than corrupted', async (t) => {
+  // Decoding a body Tailr cannot actually read, and injecting into the result,
+  // would hand the reviewer a broken page. Intact and bare is the better half.
+  const original = Buffer.from('\u0000\u0001 not really encoded this way \u0002', 'utf8');
   const up = await startUpstream((req, res) => {
-    res.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'gzip' });
-    res.end(gzipSync(original));
+    res.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'exotic-v9' });
+    res.end(original);
   });
   const s = await startTailr(up.url);
   t.after(async () => { await s.close(); await up.close(); });
 
   const res = await fetch(s.base + '/');
-  assert.equal(await res.text(), original, 'it arrives intact, just without the overlay');
+  assert.equal(res.headers.get('content-encoding'), 'exotic-v9', 'still described as it arrived');
+  assert.deepEqual(Buffer.from(await res.arrayBuffer()), original, 'byte for byte');
 });
 
 test('everything that is not HTML passes through untouched', async (t) => {

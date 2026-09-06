@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startTailr } from './helpers.js';
 import {
-  configFile, defaults, parseSettings, readConfig, writeConfig, SETTINGS
+  configFile, defaults, modifierLabel, parseSettings, readConfig, writeConfig, SETTINGS
 } from '../src/server/config.js';
 
 /* Every test that touches disk gets a home of its own, so the suite never
@@ -89,6 +89,18 @@ test('cmd is stored as the browser names it and read back as it was typed', () =
     assert.equal(parseSettings([`modifier:${alias}`]).patch.modifier, 'meta');
   }
   assert.equal(parseSettings(['modifier:option']).patch.modifier, 'alt');
+});
+
+test('the terminal names whichever key the reviewer will actually be holding', () => {
+  /* The banner used to say Alt whatever the setting was, which made it wrong
+     for exactly the person who had gone to the trouble of changing it. */
+  assert.equal(modifierLabel({ modifier: 'alt' }), 'Alt');
+  assert.equal(modifierLabel({ modifier: 'ctrl' }), 'Ctrl');
+  assert.equal(modifierLabel({}), 'Alt', 'and falls back to the default, not to nothing');
+  assert.equal(modifierLabel(), 'Alt');
+  assert.equal(modifierLabel({ modifier: 'meta' }),
+    process.platform === 'darwin' ? 'Cmd' : 'Win',
+    'the same key is not called the same thing on every desk');
 });
 
 test('every mistake in one line is reported at once, and none of it is applied', () => {

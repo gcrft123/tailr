@@ -1,6 +1,6 @@
 ---
-name: config
-description: "Read or change the reviewer's Tailr settings — the key they hold to mark, and whether Tailr makes a sound. Invoke with /tailr:config (Cursor: /config)."
+name: tailr-config
+description: "Read or change the reviewer's Tailr settings — the key they hold to mark, and whether Tailr makes a sound. Invoke with /tailr-config (Cursor: /config)."
 disable-model-invocation: true
 argument-hint: "[name:value ..., e.g. sfx:false modifier:cmd]"
 license: MIT
