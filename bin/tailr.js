@@ -20,6 +20,7 @@ import { createServer } from '../src/server/server.js';
 import { readSession, writeSession, clearSession, isAlive } from '../src/server/session.js';
 import { waitForBatch } from '../src/server/watch.js';
 import { applyConfig, configFile, describeConfig, parseSettings, readConfig } from '../src/server/config.js';
+import { normalizeTarget } from '../src/server/target.js';
 
 const argv = process.argv.slice(2);
 const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'slider', 'progress', 'done', 'fail', 'reset']);
@@ -57,9 +58,21 @@ else await serve();
 /* ────────────────────────────────────────────────────────── */
 
 async function serve() {
-  const target = flag('target', 'http://localhost:3000');
+  const asked = normalizeTarget(flag('target', 'http://localhost:3000'));
+  if (asked.error) { process.stderr.write(`\n  ${asked.error}\n\n`); process.exit(1); }
+  const target = asked.url;
   const port = Number(flag('port', 4100));
   let child = null;
+
+  // One session per project: the CLI and the MCP tools find it through
+  // .tailr/session.json, which holds exactly one. A second server on another
+  // port would overwrite that file and then delete it on its way out, leaving
+  // the first one running but unfindable.
+  const running = readSession();
+  if (running && isAlive(running)) {
+    process.stderr.write(`\n  Tailr is already running on ${running.port} — review at ${running.url}\n\n`);
+    process.exit(1);
+  }
 
   if (devCommand && devCommand.length) {
     child = spawn(devCommand[0], devCommand.slice(1), { stdio: 'inherit', shell: process.platform === 'win32' });

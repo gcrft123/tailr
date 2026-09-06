@@ -83,11 +83,17 @@ copilot plugin marketplace add gcrft123/tailr
 copilot plugin install tailr@tailr
 ```
 
-**Gemini CLI**
+**Antigravity CLI**
 
 ```
-gemini extensions install https://github.com/gcrft123/tailr
+agy plugin install https://github.com/gcrft123/tailr
 ```
+
+That reads the same extension manifest Gemini CLI did, and brings the skills
+and the MCP server with it. `/tailr:config` is the command there; Antigravity
+keeps `/config` for itself. (Gemini CLI still installs it with
+`gemini extensions install https://github.com/gcrft123/tailr`, but Google now
+turns individual accounts away from that client and points them at Antigravity.)
 
 **Everywhere else** — Windsurf, OpenCode, Cline, Amp, and the rest of the
 agents that read a global `skills/` directory:
@@ -96,10 +102,13 @@ agents that read a global `skills/` directory:
 npx skills add gcrft123/tailr -g
 ```
 
-That puts `start` and `review` in each detected agent's skill folder
-(`~/.cursor/skills`, `~/.codex/skills`, `~/.copilot/skills`,
-`~/.gemini/skills`, and so on). It does not register the MCP server; for that,
-use the marketplace or extension command above, or `tailr init` in the project.
+That puts `start`, `review` and `config` in the shared `~/.agents/skills`
+directory that Codex, Cursor, Antigravity and the rest read, with symlinks into
+the folders of agents that keep their own (`~/.claude/skills`). They arrive
+without the `tailr:` prefix there, so `/start` is the command and it can collide
+with a built-in of the same name — Antigravity's `/config` for one. It does not
+register the MCP server; for that, use the marketplace or extension command
+above, or `tailr init` in the project.
 
 This is an alternative to `tailr init`, not an addition to it. The plugin suits
 someone reviewing across several projects; `tailr init` suits a project that wants
@@ -293,7 +302,7 @@ touching your project at all. By hand, most clients take:
 ```json
 {
   "mcpServers": {
-    "tailr": { "command": "npx", "args": ["@gcrft123/tailr", "mcp"] }
+    "tailr": { "command": "npx", "args": ["-y", "@gcrft123/tailr", "mcp"] }
   }
 }
 ```

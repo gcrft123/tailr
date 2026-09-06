@@ -21,6 +21,11 @@ to hold for the whole session. Let the file carry them, not your memory.
 It is idempotent — re-run it any time. Add `--no-mcp` or `--no-install` if the
 project needs you to.
 
+It writes to every instruction file the project already has, and to `AGENTS.md`
+if it has none. If the file *you* re-read is not among them — Claude Code reads
+`CLAUDE.md`, Gemini and Antigravity read `GEMINI.md` — run it once more with
+`--file <that file>`, so the rules land where you will see them next turn.
+
 If `init` is unavailable, do it by hand: `npm install --save-dev
 @gcrft123/tailr`, then copy §4 verbatim into `AGENTS.md` (or `CLAUDE.md`, or
 whichever instruction file this project's agent reads).

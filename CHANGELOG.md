@@ -11,6 +11,38 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Fixed
+
+- `--target localhost:5173`, `--target 5173` and `--target 127.0.0.1:3000` now
+  mean what they say. A scheme-less address used to start a session that could
+  only answer 502, and a bare port crashed with a stack trace; what still cannot
+  be a dev server URL is refused in a sentence.
+- A second `tailr` started in a project that already has a live session — on
+  another port, say — is turned away with that session's URL, instead of
+  overwriting `.tailr/session.json` and then deleting it on its way out, which
+  left the first session running but unfindable by `status`, `wait` and the
+  MCP tools.
+- `tailr progress` with a ref that is not in the batch is a 400 that names the
+  refs that are, rather than a silent success that counted a mark nobody made
+  as landed.
+- `tailr init` registers the MCP server as `npx -y @gcrft123/tailr mcp`, the
+  same as the plugin, so a client launching it in a `--no-install` project
+  never stalls on npx asking permission to fetch.
+
+### Changed
+
+- PROMPT.md tells the agent to run `init` again with `--file` when its own
+  instruction file is not one the project already had: on a fresh project
+  `init` writes `AGENTS.md`, which Claude Code does not read on its own, and the
+  rules were landing somewhere the agent would never look again.
+- The landing page's agent fan carries Antigravity in place of Gemini CLI —
+  its own mark, and `agy plugin install` as the command it hands over.
+- The README's Gemini CLI section is now an Antigravity CLI one
+  (`agy plugin install https://github.com/gcrft123/tailr`), since Google turns
+  individual accounts away from Gemini CLI, and the `npx skills add` paragraph
+  says where that installer actually puts things now and that the skills land
+  there without the `tailr:` prefix.
+
 ## [1.3.0] — 2026-09-06
 
 ### Added
