@@ -29,6 +29,15 @@ const CURSOR_RULE = join(ROOT, 'plugin', 'rules', 'review.mdc');
 const CURSOR_COMMANDS = join(ROOT, 'plugin', 'cursor-commands');
 const CURSOR_SKILLS_KEEP = join(ROOT, 'plugin', 'cursor-skills', '.gitkeep');
 
+/* The root `skills/` tree is what `npx skills add -g` installs from, and what
+   the Gemini and Antigravity clone reads. Neither adds a namespace of its own,
+   so a skill directory called `start` arrives as `/start` and collides with
+   whatever the agent already calls that. The plugin tree keeps the short names
+   because its install paths prefix them themselves — `/tailr:start` — so the
+   unprefixed copy carries the product in its own name instead. One knob, two
+   outputs: this is the only place that knows the difference. */
+const GLOBAL_PREFIX = `${NAME}-`;
+
 function fail(message) {
   process.stderr.write(`\n  ${message}\n\n`);
   process.exit(1);
@@ -87,15 +96,43 @@ function skillNames() {
     .sort();
 }
 
+function globalName(name) { return GLOBAL_PREFIX + name; }
+
 function skillCopies() {
   return skillNames().map((name) => [
     at('plugin', 'skills', name, 'SKILL.md'),
-    at('skills', name, 'SKILL.md')
+    at('skills', globalName(name), 'SKILL.md'),
+    name
   ]);
 }
 
+/** A plugin skill as the unprefixed tree has to carry it: named for the
+ *  product, and naming its siblings the way they are really invoked there.
+ *  Everything else is copied through, so the two trees cannot say different
+ *  things about how the loop works. */
+function globalCopy(text, name) {
+  let out = text.replace(/^name:[^\n]*$/m, `name: ${globalName(name)}`);
+  for (const other of skillNames()) {
+    out = out.split(`/${NAME}:${other}`).join(`/${globalName(other)}`);
+  }
+  return out;
+}
+
+/** Root copies with no plugin skill behind them — what a rename leaves.
+ *  Only directories that are themselves skill copies count: `--sync` deletes
+ *  these outright, and nothing else under `skills/` belongs in range of that. */
+function straySkills() {
+  const dir = at('skills');
+  if (!existsSync(dir)) return [];
+  const wanted = new Set(skillNames().map(globalName));
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !wanted.has(entry.name))
+    .map((entry) => join(dir, entry.name))
+    .filter((path) => existsSync(join(path, 'SKILL.md')));
+}
+
 /** The skills a user invokes by name rather than the model reaching for them.
- *  Claude Code and Codex read them out of `skills/` as /tailr:<name>; Cursor
+ *  Claude Code and Codex read them out of the plugin as /tailr:<name>; Cursor
  *  reads commands from a directory of its own, where the same skill is /<name>.
  *  Marking one `disable-model-invocation: true` is what makes it both. */
 function commandSkills() {
@@ -237,12 +274,12 @@ function strayCommands() {
 
 function brokenCopies() {
   const broken = [];
-  for (const [src, dest] of skillCopies()) {
+  for (const [src, dest, name] of skillCopies()) {
     if (!existsSync(src)) {
       broken.push(`${rel(src)} is missing`);
       continue;
     }
-    if (!existsSync(dest) || read(dest) !== read(src)) {
+    if (!existsSync(dest) || read(dest) !== globalCopy(read(src), name)) {
       broken.push(`${rel(dest)} is not a copy of ${rel(src)}`);
     }
   }
@@ -333,6 +370,7 @@ if (mode === '--check') {
     }
   }
   for (const path of strayCommands()) wrong.push(`${rel(path)} has no skill behind it`);
+  for (const path of straySkills()) wrong.push(`${rel(path)} has no skill behind it`);
   wrong.push(...brokenPaths());
 
   if (wrong.length) {
@@ -383,14 +421,21 @@ if (mode === '--check') {
     rmSync(path, { force: true });
     changed.push(`${rel(path)} (removed)`);
   }
+  // Same for a root copy whose skill has been renamed or dropped. Leaving the
+  // old directory there would install a second, stale command beside the one
+  // that replaced it.
+  for (const path of straySkills()) {
+    rmSync(path, { recursive: true, force: true });
+    changed.push(`${rel(path)} (removed)`);
+  }
   mkdirSync(dirname(CURSOR_SKILLS_KEEP), { recursive: true });
   if (!existsSync(CURSOR_SKILLS_KEEP)) {
     writeFileSync(CURSOR_SKILLS_KEEP, '');
     changed.push(rel(CURSOR_SKILLS_KEEP));
   }
 
-  for (const [src, dest] of skillCopies()) {
-    const text = read(src);
+  for (const [src, dest, name] of skillCopies()) {
+    const text = globalCopy(read(src), name);
     mkdirSync(dirname(dest), { recursive: true });
     if (!existsSync(dest) || readFileSync(dest, 'utf8') !== text) {
       writeFileSync(dest, text);

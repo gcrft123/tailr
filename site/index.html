@@ -762,7 +762,6 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 (function () {
   'use strict';
   var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // the alt key is always drawn, never named: ⌥ on a Mac, ⎇ everywhere else
   var mac = /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
   /* On a Mac ⌥ is the key's own legend and everyone reads it. Everywhere else
      the key says Alt, and ⎇ is a symbol almost no font ships and almost nobody

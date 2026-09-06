@@ -1,5 +1,5 @@
 ---
-name: review
+name: tailr-review
 description: The Tailr review loop — wait for the reviewer's batch of visual markup on the running dev server, apply each mark, and report it as it lands. Use whenever a Tailr session is running or being started, whenever a batch of marks arrives, and whenever the user talks about marking up the app, the review URL, or handing you visual feedback from the browser.
 user-invocable: false
 license: MIT

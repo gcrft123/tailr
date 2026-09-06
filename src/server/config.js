@@ -153,6 +153,16 @@ export async function applyConfig(patch) {
   }
 }
 
+/** The marking key as a person would say it out loud. The overlay draws the
+ *  platform's own legend, which needs a font behind it; a terminal gets the
+ *  word. Either way nothing hardcodes Alt, because the reviewer can move it. */
+export function modifierLabel(config) {
+  const value = (config && config.modifier) || SETTINGS.modifier.default;
+  if (value === 'ctrl') return 'Ctrl';
+  if (value === 'meta') return process.platform === 'darwin' ? 'Cmd' : 'Win';
+  return 'Alt';
+}
+
 /** How the settings read back to a person, one per line. */
 export function describeConfig(config) {
   return KEYS.map((key) => {

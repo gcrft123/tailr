@@ -1,6 +1,6 @@
 ---
-name: start
-description: "Start a Tailr session against the running dev server and begin watching for the reviewer's first batch of visual markup. Invoke with /tailr:start."
+name: tailr-start
+description: "Start a Tailr session against the running dev server and begin watching for the reviewer's first batch of visual markup. Invoke with /tailr-start."
 disable-model-invocation: true
 argument-hint: "[dev server url, e.g. http://localhost:3000]"
 license: MIT
@@ -38,7 +38,7 @@ In the same message, do both:
 
 - Tell the reviewer the review URL Tailr printed, and that they should use it
   **instead of** the original dev server port. Tell them to hold their marking
-  key — **Alt**, unless they have set another with `/tailr:config` — and click
+  key — **Alt**, unless they have set another with `/tailr-config` — and click
   an element to comment, right-click to mark it for removal, double-click text
   to edit it, and Shift-click to mark a spot — then press **Send**.
 - Call the `tailr_wait` MCP tool, or run `npx -y @gcrft123/tailr wait` as a

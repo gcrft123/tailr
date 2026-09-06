@@ -13,10 +13,15 @@ Run this first, from the project directory:
 
     npx -y @gcrft123/tailr init
 
-It installs Tailr, registers its MCP server, and writes the operating rules in
-§4 into the project's `AGENTS.md` / `CLAUDE.md`. That last part matters: this
-document is read once and then falls out of your context, but those rules have
-to hold for the whole session. Let the file carry them, not your memory.
+It edits four things and nothing else: it adds `@gcrft123/tailr` to the
+project's devDependencies, registers its MCP server in `.mcp.json`, writes the
+operating rules in §4 into the project's `AGENTS.md` / `CLAUDE.md`, and adds
+`.tailr/` to `.gitignore`. Say so before you run it, so nobody is surprised by
+a file they did not expect to change.
+
+The rules are the part that matters most: this document is read once and then
+falls out of your context, but those rules have to hold for the whole session.
+Let the file carry them, not your memory.
 
 It is idempotent — re-run it any time. Add `--no-mcp` or `--no-install` if the
 project needs you to.
