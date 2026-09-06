@@ -12,7 +12,7 @@ The catalogs that point here live at the repository root:
 | Cursor | [`../.cursor-plugin/marketplace.json`](../.cursor-plugin/marketplace.json) |
 | GitHub Copilot CLI | [`../.github/plugin/marketplace.json`](../.github/plugin/marketplace.json) |
 | Codex | [`../.agents/plugins/marketplace.json`](../.agents/plugins/marketplace.json) |
-| Gemini CLI | [`../gemini-extension.json`](../gemini-extension.json) |
+| Gemini CLI, Antigravity CLI | [`../gemini-extension.json`](../gemini-extension.json) |
 
 ```
 plugin/

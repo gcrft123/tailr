@@ -35,11 +35,16 @@ const TOOLS = [
       'Block until the reviewer sends a batch, then return. Use this instead of asking them to tell you ' +
       'when they are done, and instead of polling tailr_status: it returns within a moment of Send being ' +
       'pressed, and returns immediately if a batch is already waiting. Follow it with tailr_pull. If it ' +
-      'reports that nothing arrived in time, the session is still up — call it again.',
+      'reports that nothing arrived in time, the session is still up — call it again. Keep timeoutSeconds ' +
+      'under your client\'s own per-call limit; the default does.',
     inputSchema: {
       type: 'object',
       properties: {
-        timeoutSeconds: { type: 'number', description: 'How long to wait before giving up. Default 300.' }
+        timeoutSeconds: {
+          type: 'number',
+          description: 'How long to wait before giving up. Default 55, which stays inside the per-call limit ' +
+            'most MCP clients enforce (often 60s). A timeout is normal, not a failure: call this again.'
+        }
       },
       additionalProperties: false
     }
@@ -66,7 +71,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         wait: { type: 'boolean', description: 'Block until a batch arrives instead of returning immediately.' },
-        timeoutSeconds: { type: 'number', description: 'How long to wait when wait is true. Default 120.' }
+        timeoutSeconds: { type: 'number', description: 'How long to wait when wait is true. Default 55, for the same reason as tailr_wait.' }
       },
       additionalProperties: false
     }
@@ -221,7 +226,24 @@ async function call(path, body, method = 'POST') {
   return { ok: res.ok, status: res.status, data, session: s };
 }
 
-async function runTool(name, args = {}) {
+/* Most clients give a tool call about a minute. A wait longer than that is not
+   patient, it is a request the client has already given up on — so the default
+   stays under it, and while a wait lasts the server sends progress, which the
+   clients that honour it treat as a reason to keep waiting. */
+const WAIT_DEFAULT_SECONDS = 55;
+const TICK_MS = Number(process.env.TAILR_MCP_TICK_MS) || 10000;
+
+async function withTicks(promise, notify, seconds) {
+  if (!notify) return promise;
+  const started = Date.now();
+  const timer = setInterval(() => {
+    const elapsed = Math.round((Date.now() - started) / 1000);
+    notify({ progress: elapsed, total: seconds, message: `Waiting for the reviewer to press Send (${elapsed}s of ${seconds}s).` });
+  }, TICK_MS);
+  try { return await promise; } finally { clearInterval(timer); }
+}
+
+async function runTool(name, args = {}, notify = null) {
   if (name === 'tailr_status') {
     const s = session();
     if (!s) {
@@ -243,8 +265,8 @@ async function runTool(name, args = {}) {
       return { text: 'No Tailr session is running. Ask the user to run `npx tailr --target <dev server url>`.',
                isError: true };
     }
-    const seconds = Number(args.timeoutSeconds) || 300;
-    const r = await waitForBatch(s.port, seconds * 1000);
+    const seconds = Number(args.timeoutSeconds) || WAIT_DEFAULT_SECONDS;
+    const r = await withTicks(waitForBatch(s.port, seconds * 1000), notify, seconds);
     if (r.waiting) {
       return { text: JSON.stringify({ waiting: true, run: r.waiting.run,
         next: 'Lease it with tailr_pull.' }, null, 2) };
@@ -257,12 +279,20 @@ async function runTool(name, args = {}) {
 
   if (name === 'tailr_pull') {
     const wait = args.wait === true;
-    const deadline = Date.now() + (Number(args.timeoutSeconds) || 120) * 1000;
+    const seconds = Number(args.timeoutSeconds) || WAIT_DEFAULT_SECONDS;
+    const deadline = Date.now() + seconds * 1000;
+    const started = Date.now();
     for (;;) {
       const r = await call('pull');
       if (r.ok) return { text: JSON.stringify(r.data, null, 2) };
       if (!wait || Date.now() > deadline) {
-        return { text: 'No batch is waiting. The reviewer has not pressed Send yet.', isError: false };
+        return { text: wait
+          ? `No batch arrived within ${seconds}s. The session is still up — call tailr_pull with wait again, or tailr_wait.`
+          : 'No batch is waiting. The reviewer has not pressed Send yet.', isError: false };
+      }
+      if (notify) {
+        const elapsed = Math.round((Date.now() - started) / 1000);
+        if (elapsed > 0 && (elapsed * 1000) % TICK_MS < 1000) notify({ progress: elapsed, total: seconds, message: `Waiting for a batch (${elapsed}s of ${seconds}s).` });
       }
       await new Promise((res) => setTimeout(res, 1000));
     }
@@ -387,7 +417,10 @@ export function startMcp() {
       if (method === 'tools/list') return reply(id, { tools: TOOLS });
       if (method === 'tools/call') {
         const name = params && params.name;
-        const out = await runTool(name, (params && params.arguments) || {});
+        const token = params && params._meta && params._meta.progressToken;
+        const notify = token === undefined || token === null ? null
+          : (p) => send({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, ...p } });
+        const out = await runTool(name, (params && params.arguments) || {}, notify);
         return reply(id, { content: [{ type: 'text', text: out.text }], isError: !!out.isError });
       }
       return fail(id, -32601, `Method not found: ${method}`);
