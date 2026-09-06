@@ -15,6 +15,7 @@ import https from 'node:https';
 import net from 'node:net';
 import tls from 'node:tls';
 import { readFileSync, statSync } from 'node:fs';
+import { brotliDecompressSync, gunzipSync, inflateRawSync, inflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { defaults, KEYS, SETTINGS } from './config.js';
@@ -287,26 +288,32 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     };
     const up = transport.request(opts, (ur) => {
       const type = String(ur.headers['content-type'] || '');
-      const encoding = String(ur.headers['content-encoding'] || '').toLowerCase();
-      const compressed = encoding !== '' && encoding !== 'identity';
-      // Only HTML this process can actually read gets rewritten. A dev server
-      // that ignores `accept-encoding: identity` and compresses anyway is
-      // passed through whole: a page without the overlay beats a page decoded
-      // into nonsense.
-      if (!type.includes('text/html') || compressed) {
+      const encoding = String(ur.headers['content-encoding'] || '').trim().toLowerCase();
+      // Only HTML gets rewritten. Everything else is somebody else's bytes.
+      if (!type.includes('text/html')) {
         res.writeHead(ur.statusCode || 502, ur.headers);
         return ur.pipe(res);
       }
       const chunks = [];
       ur.on('data', (c) => chunks.push(c));
       ur.on('end', () => {
-        const html = inject(Buffer.concat(chunks).toString('utf8'));
+        const raw = Buffer.concat(chunks);
+        const plain = decompress(raw, encoding);
+        // An encoding this process cannot undo is passed through whole: a page
+        // without the overlay beats a page decoded into nonsense.
+        if (plain === null) {
+          res.writeHead(ur.statusCode || 200, ur.headers);
+          return res.end(raw);
+        }
+        const html = inject(plain.toString('utf8'));
         const headers = { ...ur.headers };
         // The body is being replaced, so every header describing the old one
         // goes with it. A fresh content-length left beside the upstream's
-        // `transfer-encoding: chunked` is a response strict clients refuse.
+        // `transfer-encoding: chunked` is a response strict clients refuse,
+        // and the body no longer arrives in whatever encoding it named.
         delete headers['transfer-encoding'];
         delete headers['content-length'];
+        delete headers['content-encoding'];
         headers['content-length'] = Buffer.byteLength(html);
         res.writeHead(ur.statusCode || 200, headers);
         res.end(html);
@@ -317,6 +324,26 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       res.end(downPage(target, err));
     });
     req.pipe(up);
+  }
+
+  /* The proxy asks for `identity` and most dev servers oblige. The ones that
+     compress anyway — Django's GZipMiddleware, a local nginx, a framework with
+     its own opinion — used to have their HTML passed through unrewritten,
+     which put the reviewer on a page with no overlay and told nobody why. zlib
+     is in the standard library, so undoing it costs Tailr no dependency it was
+     not already carrying. Anything this Node cannot undo, including a chain of
+     encodings, still passes through untouched rather than being guessed at. */
+  function decompress(body, encoding) {
+    try {
+      if (encoding === '' || encoding === 'identity') return body;
+      if (encoding === 'gzip' || encoding === 'x-gzip') return gunzipSync(body);
+      if (encoding === 'br') return brotliDecompressSync(body);
+      if (encoding === 'deflate') {
+        // `deflate` names two things in the wild: zlib-wrapped, and raw.
+        try { return inflateSync(body); } catch { return inflateRawSync(body); }
+      }
+    } catch { return null; }
+    return null;
   }
 
   function inject(html) {

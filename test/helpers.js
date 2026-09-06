@@ -75,3 +75,15 @@ export function silently(fn) {
   process.stderr.write = () => true;
   try { return fn(); } finally { process.stdout.write = write; process.stderr.write = err; }
 }
+
+/** The same, but keeping what was written — for the times the output is the
+ *  thing under test rather than noise to be got out of the way. */
+export function captured(fn) {
+  const write = process.stdout.write;
+  const err = process.stderr.write;
+  let out = '';
+  process.stdout.write = (chunk) => { out += chunk; return true; };
+  process.stderr.write = () => true;
+  try { return { result: fn(), out }; }
+  finally { process.stdout.write = write; process.stderr.write = err; }
+}

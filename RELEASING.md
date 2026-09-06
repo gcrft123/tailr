@@ -35,7 +35,11 @@ worth a second command. If you would rather it went in one move, add
 `npm version` also runs `scripts/plugin.js --sync`, which stamps every agent
 marketplace catalog from `package.json` so Claude, Cursor, Codex, and the rest
 advertise the same version. Gemini installs by cloning this repo; its skills
-sit next to `gemini-extension.json` at the root so that clone sees them.
+sit next to `gemini-extension.json` at the root so that clone sees them, and
+`--sync` writes them there under `tailr-` names. Nothing namespaces a skill on
+that path, so `plugin/skills/start` has to arrive as `skills/tailr-start` or it
+would install as `/start` over somebody's built-in. `--sync` renames the copy
+and changes nothing else; `--check` fails on a bare name left behind.
 
 To list Tailr on Cursor's public marketplace, submit
 `https://github.com/gcrft123/tailr` at

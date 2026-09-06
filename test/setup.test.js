@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { init } from '../src/setup/init.js';
 import { START, END } from '../src/setup/rules.js';
-import { silently } from './helpers.js';
+import { captured, silently } from './helpers.js';
 
 const project = () => mkdtempSync(join(tmpdir(), 'tailr-init-'));
 const run = (cwd, opts = {}) => silently(() => init({ cwd, install: false, ...opts }));
@@ -27,6 +27,25 @@ test('a fresh project gets the rules, the MCP entry, and nothing else', async ()
   assert.deepEqual(mcp.mcpServers.tailr, { command: 'npx', args: ['-y', '@gcrft123/tailr', 'mcp'] });
 
   assert.equal(existsSync(join(cwd, 'package.json')), false, 'nothing else is created');
+});
+
+test('what it prints is for whoever typed it, not past them to the agent', () => {
+  /* `init` is offered to a person as readily as to an agent, and the person
+     has nowhere else to find out what happens next. It used to close by
+     handing them `wait` and `pull` — the two commands in Tailr that are not
+     theirs to run — which is a good way to make someone think they have
+     misunderstood who does what. The agent needs none of it here: the rules
+     this command just wrote say the same thing, in the file it re-reads. */
+  const cwd = project();
+  const { out } = captured(() => init({ cwd, install: false }));
+
+  assert.match(out, /AGENTS\.md/, 'it says where the rules landed');
+  assert.match(out, /npx tailr --target/, 'and leaves them the one command that is theirs');
+  assert.doesNotMatch(out, /tailr wait/, 'waiting for a batch is the agent\u2019s half');
+  assert.doesNotMatch(out, /tailr pull/, 'and so is leasing it');
+  for (const line of out.split('\n')) {
+    assert.ok(line.length <= 78, `a report line ran long: ${line}`);
+  }
 });
 
 test('running it again changes nothing', async () => {

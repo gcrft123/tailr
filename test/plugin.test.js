@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,9 +51,12 @@ const GENERATED = [
   ['plugin', 'cursor-commands', 'start.md'],
   ['gemini-extension.json'],
   SKILL,
-  ['skills', 'review', 'SKILL.md'],
-  ['skills', 'start', 'SKILL.md']
+  ['skills', 'tailr-review', 'SKILL.md'],
+  ['skills', 'tailr-start', 'SKILL.md']
 ];
+
+/* Every skill, by the short name the plugin tree files it under. */
+const SKILL_NAMES = ['config', 'review', 'start'];
 
 /* The script resolves everything from its own location, so a copy of the tree
    in a temp directory is a whole repository as far as it is concerned — which
@@ -190,9 +193,30 @@ test('start is a slash-command skill, not an auto-loaded one', () => {
   assert.match(front, /^description: .+/m);
 });
 
-test('Gemini and the skills.sh default path see the same skill files the plugin carries', () => {
-  assert.equal(read('skills', 'start', 'SKILL.md'), read(...START_SKILL));
-  assert.equal(read('skills', 'review', 'SKILL.md'), read(...SKILL));
+test('the unprefixed tree carries the same skills, under the product\u2019s own name', () => {
+  /* `npx skills add -g`, and the Gemini and Antigravity clone, install out of
+     `skills/` and add no namespace of their own. A skill filed as `start`
+     would arrive there as `/start` and collide with whatever the agent
+     already calls that, so the copy is renamed — and renamed is all it is.
+     The rules, the loop and the wording travel through untouched. */
+  for (const name of SKILL_NAMES) {
+    const plugin = read('plugin', 'skills', name, 'SKILL.md');
+    const copy = read('skills', `tailr-${name}`, 'SKILL.md');
+    const expected = plugin
+      .replace(/^name:[^\n]*$/m, `name: tailr-${name}`)
+      .split('/tailr:').join('/tailr-');
+    assert.equal(copy, expected, `skills/tailr-${name} has drifted from the plugin copy`);
+    assert.match(frontmatter(['skills', `tailr-${name}`, 'SKILL.md']),
+      new RegExp(`^name: tailr-${name}$`, 'm'),
+      'the name has to match the directory it lives in');
+  }
+});
+
+test('no bare skill name is left where it would collide with a built-in', () => {
+  for (const name of SKILL_NAMES) {
+    assert.equal(existsSync(at('skills', name)), false,
+      `skills/${name} installs as /${name}, which is somebody else's command too`);
+  }
 });
 
 test('the plugin registers the MCP server Tailr actually ships', () => {
@@ -234,7 +258,7 @@ test('--check catches a rules block the source has moved on from', () => {
   const dir = fixture();
   const stale = (s) => s.replace('Always close the run', 'Sometimes close the run');
   edit(dir, SKILL, stale);
-  edit(dir, ['skills', 'review', 'SKILL.md'], stale);
+  edit(dir, ['skills', 'tailr-review', 'SKILL.md'], stale);
   const { code, err } = run(dir, '--check');
   assert.equal(code, 1);
   assert.match(err, /rules block/);
@@ -243,10 +267,19 @@ test('--check catches a rules block the source has moved on from', () => {
 
 test('--check catches a Gemini skill copy that has drifted from the plugin', () => {
   const dir = fixture();
-  edit(dir, ['skills', 'review', 'SKILL.md'], (s) => s + '\n');
+  edit(dir, ['skills', 'tailr-review', 'SKILL.md'], (s) => s + '\n');
   const { code, err } = run(dir, '--check');
   assert.equal(code, 1);
   assert.match(err, /not a copy/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('--check catches an unprefixed copy a rename left behind', () => {
+  const dir = fixture();
+  cpSync(join(dir, 'skills', 'tailr-start'), join(dir, 'skills', 'start'), { recursive: true });
+  const { code, err } = run(dir, '--check');
+  assert.equal(code, 1);
+  assert.match(err, /has no skill behind it/);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -277,11 +310,9 @@ test('--sync puts every catalog back in step in one move', () => {
   assert.equal(JSON.parse(readFileSync(join(dir, 'gemini-extension.json'), 'utf8')).version, '9.9.9');
   assert.equal(JSON.parse(readFileSync(join(dir, '.agents', 'plugins', 'marketplace.json'), 'utf8'))
     .plugins[0].source.path, './plugin');
-  assert.equal(
-    readFileSync(join(dir, 'skills', 'review', 'SKILL.md'), 'utf8'),
-    readFileSync(join(dir, ...SKILL), 'utf8'),
-    'the Gemini copy moved with the plugin skill'
-  );
+  const copy = readFileSync(join(dir, 'skills', 'tailr-review', 'SKILL.md'), 'utf8');
+  assert.match(copy, /Always close the run/, 'the unprefixed copy moved with the plugin skill');
+  assert.match(copy, /^name: tailr-review$/m, 'and kept the name that does not collide');
   rmSync(dir, { recursive: true, force: true });
 });
 
