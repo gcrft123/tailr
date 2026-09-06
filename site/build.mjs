@@ -2,7 +2,18 @@
    the page, its favicon, the Tailr mark, and the wide-framed intro with its
    poster from media/.
 
-   `node site/build.mjs --serve [port]` also serves dist for a local look. */
+   `node site/build.mjs --serve [port]` also serves dist for a local look.
+
+   media/ holds web encodes, not masters: 1920x1080, 60fps, H.264 High, no
+   audio, +faststart so a browser can start playing before the file finishes.
+   The 7680x4320 masters live next to the Remotion project, outside this repo.
+   To re-encode one:
+
+     ffmpeg -i "Tailr Intro.mov" -map 0:v:0 -an -dn \
+       -vf "scale=1920:1080:flags=lanczos" \
+       -c:v libx264 -preset slow -crf 21 -profile:v high -level 4.0 \
+       -pix_fmt yuv420p -map_metadata -1 -write_tmcd 0 -movflags +faststart \
+       media/tailr-intro.mp4 */
 import { cpSync, mkdirSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
