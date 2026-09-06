@@ -1,5 +1,6 @@
 /* Builds the landing page into site/dist, which is what Cloudflare serves:
-   the page, its favicon, and the wide-framed intro with its poster from media/.
+   the page, its favicon, the Tailr mark, and the wide-framed intro with its
+   poster from media/.
 
    `node site/build.mjs --serve [port]` also serves dist for a local look. */
 import { cpSync, mkdirSync, readFileSync, rmSync, existsSync } from 'node:fs';
@@ -16,6 +17,7 @@ export function build() {
   mkdirSync(join(DIST, 'media'), { recursive: true });
   cpSync(join(HERE, 'index.html'), join(DIST, 'index.html'));
   cpSync(join(HERE, 'favicon.svg'), join(DIST, 'favicon.svg'));
+  cpSync(join(HERE, 'tailr-mark.svg'), join(DIST, 'tailr-mark.svg'));
   for (const f of ['tailr-intro-website.mp4', 'tailr-intro-website-poster.jpg']) {
     cpSync(join(ROOT, 'media', f), join(DIST, 'media', f));
   }
