@@ -56,6 +56,7 @@
     ending: null,       // null | 'confirm' | 'cleaning' | 'ending' | 'ended'
     app: null,          // { target, spawned } — where the application is without Tailr
     dirty: false,       // ended before the cleanup the agent was given finished
+    leftBehind: null,   // what that cleanup was for, named while the lists still exist
     learn: { welcomed: false, marked: false, sent: false },
     /* The reviewer's own settings. They belong to the person, not to this page,
        so they are not stored here — the server holds them and the bridge hands
@@ -1823,7 +1824,7 @@
       }
       if (work) {
         h += '<div class="qli">Tailr hands the agent one last batch to take the ' +
-             (work === 1 ? 'version it left' : 'versions it left') + ' out of your source.</div>';
+             leftBehindNoun() + ' it left out of your source.</div>';
       }
       h += '<div class="qli">' + (S.app && S.app.spawned
         ? 'Tailr stops, and the dev server it started stops with it.'
@@ -1834,7 +1835,8 @@
            '<button class="paper" data-act="quit-go">End session</button></div>';
     } else if (S.ending === 'cleaning') {
       h += '<div class="t-head">Cleaning up</div>' +
-           '<div class="t-sub">The agent is taking the versions it left out of your source. ' +
+           '<div class="t-sub">The agent is taking the ' + (S.leftBehind || 'versions') +
+           ' it left out of your source. ' +
            (S.agent ? S.agent.served.length + ' of ' + S.agent.total + ' done.' : '') + '</div>' +
            '<div class="bact"><button class="ghost" data-act="quit-now">End anyway</button></div>';
     } else if (S.ending === 'ending') {
@@ -1842,8 +1844,8 @@
     } else {
       h += '<div class="t-head">Tailr has ended</div>';
       h += '<div class="t-sub">' + (S.dirty
-        ? 'The cleanup did not finish, so versions may still be guarded in your source — ' +
-          'ask your agent to take out what Tailr left. '
+        ? 'The cleanup did not finish, so the ' + (S.leftBehind || 'versions') +
+          ' may still be guarded in your source — ask your agent to take out what Tailr left. '
         : '') + (S.app && S.app.spawned
         ? 'The dev server Tailr started has stopped too.'
         : 'Your app is still running at ' + esc((S.app && S.app.target) || 'its own address') + '.') +
@@ -2008,13 +2010,31 @@
       undecided().length + undecidedSlides().length;
   }
 
+  /* What that cleanup is for, in the reviewer's words. Versions and sliders are
+     both scaffolding the agent was asked to build, and both come out the same
+     way — but a card that says "versions" to someone who only ever asked for a
+     slider is describing a session they did not have. */
+  function leftBehindNoun() {
+    var choices = staged().filter(function (m) { return m.type === 'choice'; });
+    var v = undecided().length + choices.filter(function (m) { return m.variantOf; }).length;
+    var s = undecidedSlides().length + choices.filter(function (m) { return m.sliderOf; }).length;
+    if (!v && !s) return null;
+    if (v && s) return (v === 1 ? 'version' : 'versions') + ' and ' + (s === 1 ? 'slider' : 'sliders');
+    if (s) return s === 1 ? 'slider' : 'sliders';
+    return v === 1 ? 'version' : 'versions';
+  }
+
   function endSession() {
-    // Versions nobody chose between are guards sitting in the source. Ending is
-    // the last chance to say what happens to them, and the only answer Tailr can
-    // give on the reviewer's behalf without guessing is: take them all out.
+    // Versions nobody chose between, and sliders nobody kept a value on, are
+    // switches sitting in the source. Ending is the last chance to say what
+    // happens to them, and the only answer Tailr can give on the reviewer's
+    // behalf without guessing is: take them all out.
     undecided().forEach(function (s) { choose(s.id, 0); });
     undecidedSlides().forEach(function (s) { keepSlide(s.id, null); });
     var batch = staged().filter(function (m) { return m.type === 'choice'; });
+    // shutdown() empties the lists this is read from, and the card that reports
+    // an unfinished cleanup renders after that. Name it while it can be named.
+    S.leftBehind = leftBehindNoun();
     if (!batch.length || S.locked) {
       // A run already open means the batch cannot be handed over. Say so on the
       // way out rather than quietly leaving the guards behind.

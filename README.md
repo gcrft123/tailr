@@ -77,8 +77,8 @@ and follow it exactly, without summarizing it.
 ```
 
 
-Or, if you'd rather not have your agent fetch anything, run it yourself and then
-tell the agent to start a session:
+Or run it yourself, if you'd rather your agent didn't fetch anything, then ask
+it to start a session:
 
 ```bash
 npx -y @gcrft123/tailr init
@@ -93,9 +93,9 @@ Either way, `init` edits four things in your project and nothing else:
   between markers of its own
 - adds `.tailr/` to your `.gitignore`, if the project is a git repository
 
-It is safe to re-run, and it only rewrites its own marked-off block. `--no-mcp`
-and `--no-install` opt out of either half; `--file <path>` puts the rules
-somewhere else.
+Re-running it is safe: it rewrites its own block and leaves everything around it
+alone. `--no-mcp` and `--no-install` opt out of either half; `--file <path>` puts
+the rules somewhere else.
 
 The agent then starts a session against your dev server, hands you a review URL,
 and watches for your first batch. See [PROMPT.md](PROMPT.md) for what it follows.
@@ -106,19 +106,17 @@ and watches for your first batch. See [PROMPT.md](PROMPT.md) for what it follows
 npx -y @gcrft123/tailr demo
 ```
 
-That starts a small sample application, proxies it, and prints a review URL.
-Nothing is installed into a project and no agent has to be involved. Hold Alt,
-mark a few things, press **Send** — then `npx -y @gcrft123/tailr pull` in
-another terminal, from the same directory, prints the batch an agent would
-receive. It is the whole round trip against something that is not your own work.
+That starts a small sample application, proxies it, and prints a review URL —
+nothing installed into a project, no agent involved. Hold Alt, mark a few things,
+press **Send**, then run `npx -y @gcrft123/tailr pull` from the same directory in
+another terminal to print the batch an agent would receive.
 
 ## As a plugin
 
-The marketplace is the least invasive way in — it edits nothing in your
-project. Tailr itself is fetched with `npx` when a session starts, so there is
-nothing to install first. You get the MCP server, the operating rules for the
-review loop as a skill, and `/tailr:start` to open a session against your dev
-server and hand you the review URL.
+The marketplace edits nothing in your project, and Tailr is fetched with `npx`
+when a session starts, so there is nothing to install first. You get the MCP
+server, the review loop's operating rules as a skill, and a command that opens a
+session and hands you the review URL.
 
 **Claude Code**
 
@@ -127,9 +125,9 @@ server and hand you the review URL.
 /plugin install tailr@tailr
 ```
 
-Use the git URL, not the `owner/repo` shorthand. The Claude Code app clones the
-shorthand over SSH and has nothing to answer the host-key prompt with, so the
-add hangs and then fails. HTTPS does not. Updating is `/plugin` → **Update**.
+Use the git URL, not the `owner/repo` shorthand: the Claude Code app clones the
+shorthand over SSH and has nothing to answer the host-key prompt with, so the add
+hangs and then fails. Updating is `/plugin` → **Update**.
 
 **Cursor**
 
@@ -157,45 +155,35 @@ copilot plugin install tailr@tailr
 agy plugin install https://github.com/gcrft123/tailr
 ```
 
-That reads the same extension manifest Gemini CLI did, and brings the skills
-and the MCP server with it. Nothing namespaces a skill on that path, so the
-commands are `/tailr-start` and `/tailr-config` — the names carry the product
-precisely because Antigravity keeps `/config` for itself. (Gemini CLI still
-installs it with `gemini extensions install https://github.com/gcrft123/tailr`,
-but Google now turns individual accounts away from that client and points them
-at Antigravity.)
+That reads the same extension manifest Gemini CLI does, and brings the skills and
+the MCP server with it. Gemini CLI still takes `gemini extensions install
+https://github.com/gcrft123/tailr`.
 
-**Everywhere else** — Windsurf, OpenCode, Cline, Amp, and the rest of the
-agents that read a global `skills/` directory:
+**Everywhere else** — Windsurf, OpenCode, Cline, Amp, and the rest of the agents
+that read a global `skills/` directory:
 
 ```
 npx skills add gcrft123/tailr -g
 ```
 
 That puts `tailr-start`, `tailr-review` and `tailr-config` in the shared
-`~/.agents/skills` directory that Codex, Cursor, Antigravity and the rest read,
-with symlinks into the folders of agents that keep their own
-(`~/.claude/skills`). Nothing namespaces them there the way a marketplace does,
-so they carry the product in their own names and `/tailr-start` is the command
-rather than `/tailr:start` — which is also why none of them can collide with an
-agent's own `/start` or `/config`. It does not register the MCP server; for
-that, use the marketplace or extension command above, or `tailr init` in the
-project.
+`~/.agents/skills` directory those agents read, symlinked into the folders of the
+ones that keep their own. It does not register the MCP server; for that, use a
+marketplace or extension command above, or `tailr init`.
 
-This is an alternative to `tailr init`, not an addition to it. The plugin suits
-someone reviewing across several projects; `tailr init` suits a project that wants
-Tailr committed as part of its own setup, and is the only one of the two that
-writes anything into your repository. Running both is harmless — the rules are
-the same text either way.
+Not every route namespaces a skill, so what the commands are called depends on
+the way in:
 
-## Install
+| Installed with | Commands |
+|---|---|
+| Claude Code, Codex or Copilot marketplace | `/tailr:start` `/tailr:config` |
+| Cursor | `/start` `/config` |
+| Antigravity, Gemini, `npx skills add` | `/tailr-start` `/tailr-config` |
 
-```bash
-npm install --save-dev @gcrft123/tailr
-```
-
-That puts a `tailr` command in the project. Everything below assumes it — prefix
-with `npx` if you'd rather not install it (`npx @gcrft123/tailr --target …`).
+This is an alternative to `tailr init`, not an addition. The plugin suits someone
+reviewing across several projects; `init` suits a project that wants Tailr in its
+own setup, and is the only one of the two that writes to your repository. Running
+both is harmless — the rules are the same text either way.
 
 ## Start a session
 
@@ -203,7 +191,13 @@ with `npx` if you'd rather not install it (`npx @gcrft123/tailr --target …`).
 npx tailr --target http://localhost:3000
 ```
 
-Tailr proxies your dev server on `http://localhost:4100` and injects its overlay into the HTML. Your application is not modified — no script tag, no build step, no config. Hot-reload WebSockets pass through untouched.
+That assumes Tailr is in the project, which `init` sees to; `npm install
+--save-dev @gcrft123/tailr` is the same thing by hand, and `npx
+@gcrft123/tailr --target …` skips it altogether.
+
+Tailr proxies your dev server on `http://localhost:4100` and injects its overlay
+into the HTML. Your application is not modified — no script tag, no build step, no
+config. Hot-reload WebSockets pass through untouched.
 
 ```bash
 npx tailr                         # proxies http://localhost:3000
@@ -212,55 +206,62 @@ npx tailr --port <n>              # serve Tailr somewhere else
 npx tailr -- npm run dev          # start the dev server too, then proxy it
 ```
 
-Review at the Tailr URL, not the original one.
+Review at the Tailr URL, not the original one. A session writes nothing to your
+repository except `.tailr/session.json`, so the CLI can find it.
 
 ## Marking up
 
-Hold **Alt** to arm — **⌥ Option** is the same key on a Mac, and it is
-whichever key you have set, see [Settings](#settings).
-While it is held:
+Hold **Alt** to arm — **⌥ Option** on a Mac, or whichever key you have set under
+[Settings](#settings). While it is held:
 
 | Gesture | Result |
 |---|---|
-| Left-click | Comment on an element, and ask for several versions of the change if you want to compare |
+| Left-click | Comment on an element, and ask for versions or a slider if you want to compare |
 | Right-click | Stage an element for removal (right-click again to undo) |
 | Double-click text | Edit text in place |
-| Shift-click | Mark a spot rather than an element. Use it both to ask for something new and to note a place; what you write says which. Middle-click does the same thing if you have one |
+| Shift-click | Mark a spot rather than an element — to ask for something new there, or to note the place. Middle-click does the same, if you have one |
 
 Release the key and you can control the application again. Double-tap it to latch
-markup on for keyboard use. Marks persist in the browser across reloads, span routes, and
-survive the reload after the agent has worked.
+markup on for keyboard use. Marks persist in the browser across reloads, span
+routes, and survive the reload after the agent has worked.
 
-## Asking for versions
+The island in the corner shows what is staged; hover it for the list. Drag it to
+any corner if it's covering page content.
+
+## Versions and sliders
 
 A comment on an element, or on a spot, can ask for more than one answer. The
-composer carries a **1×** button next to Add; click it for 2×, 3×, 4×. The agent
-then builds that many versions of the change instead of one.
+composer carries a **1×** button next to Add; click it for 2×, 3×, 4×, and the
+agent builds that many versions of the change instead of one. The button beside
+it asks for a **slider** instead — one number you scrub on the page, for anything
+continuous like a glow, a depth, a scale. A mark can ask for both.
 
-After the reload, a small pill sits on the element with a tab per version. Hover
-one and the pill widens to the name the agent gave it while the page switches to
-it live, so you are comparing the real thing rather than two descriptions of it.
-Click to keep one. That goes into your batch like any other mark, and the next
-Send is what makes it permanent and clears the rest out of the source. The × on
-its row in the island keeps none of them.
+After the reload, a small pill sits on the element. For versions it carries a tab
+each: hover one and the pill widens to the name the agent gave it while the page
+switches to it live, so you compare the real thing rather than two descriptions of
+it. A slider's pill carries the control — drag it and the page follows.
 
-The island in the corner shows what is staged; hover it for the list. Drag it to any corner if it's covering page content.
+Click a tab to keep that version, or **Keep** to hold a slider where you left it.
+Keeping is itself a mark: it goes into your batch, and the next Send makes it
+permanent and clears the rest out of the source. The × on its row in the island
+keeps none of it.
 
 ## Ending a session
 
 **End session** is at the bottom of the island's panel. It asks first, and the
-card says what you are agreeing to: marks you never sent are discarded, and
-Tailr stops proxying, so it names the address your app goes back to (or tells
-you the dev server is stopping too, if Tailr started it).
+card says what you are agreeing to: marks you never sent are discarded, and Tailr
+stops proxying, so it names the address your app goes back to (or tells you the
+dev server is stopping too, if Tailr started it).
 
-Confirming runs a cleanup pass before anything shuts down. Any versions you
-never chose between go to the agent as one last batch that takes them, and the
-switches guarding them, out of your source — that scaffolding is Tailr's, and it
-shouldn't outlive the session that asked for it. Then the server stops, the
-overlay clears what it kept in your browser, and it takes itself off the page.
+Confirming runs a cleanup pass first. Anything you never decided — versions you
+did not choose between, a slider you did not keep a value on — goes to the agent
+as one last batch that takes it, and the switches guarding it, out of your source.
+That scaffolding is Tailr's, and it shouldn't outlive the session that asked for
+it. Then the server stops, the overlay clears what it kept in your browser, and it
+takes itself off the page.
 
-If the agent isn't listening, **End anyway** leaves without waiting; Tailr says
-so on the way out rather than pretending the cleanup happened.
+If the agent isn't listening, **End anyway** leaves without waiting; Tailr says so
+on the way out rather than pretending the cleanup happened.
 
 ## Settings
 
@@ -271,9 +272,8 @@ Two things about Tailr are yours to set rather than the project's:
 | `sfx` | `true` / `false` | `true` | A short sound on each action — a mark made or dropped, a batch sent, a version picked, a run closing |
 | `modifier` | `alt` `ctrl` `cmd` | `alt` | The key you hold to arm marking |
 
-Ask your agent with `/tailr:config` — `/config` on Cursor, and `/tailr-config`
-wherever the skills were installed without a marketplace to namespace them —
-or set them yourself:
+Ask your agent with the config command your install gave you — see the table
+[above](#as-a-plugin) — or set them yourself:
 
 ```bash
 npx -y @gcrft123/tailr config sfx:false modifier:cmd
@@ -281,8 +281,7 @@ npx -y @gcrft123/tailr config sfx:false modifier:cmd
 
 Either way they are written to `~/.tailr/config.json` and hold across every
 project. With no arguments the command prints where they stand. A change made
-while a session is up lands on the open review page without a reload — the key
-you hold changes under your hands.
+while a session is up lands on the open review page without a reload.
 
 ## The agent side
 
@@ -295,6 +294,8 @@ tailr pull            # lease the pending batch, printed as JSON on stdout
 tailr pull --wait     # lease it, blocking until one arrives
 tailr variants <ref> "First name" "Second name"
                       # name the versions you built for a mark that asked for several
+tailr slider <ref> --min 0 --max 100 --value 40 --label "Glow" --unit "%"
+                      # report the parameter you wired for a mark that asked for a slider
 tailr progress <ref>  # one mark applied — the reviewer sees it land, live
 tailr done            # the run finished
 tailr fail "reason"   # it returned incomplete
@@ -321,30 +322,40 @@ tailr fail "reason"   # it returned incomplete
 }
 ```
 
-`type` is one of `comment`, `remove`, `text`, `point`, `choice`. A `text` mark carries
-`before` and `after`. A `point` mark carries page coordinates `x`/`y` instead of
-an element, and means the reviewer marked a place rather than a thing — they may
-be asking for something new there or noting the spot, and the comment says which. `orphaned: true` means the element was gone when
+`type` is one of `comment`, `remove`, `text`, `point`, `choice`. A `text` mark
+carries `before` and `after`. A `point` mark carries page coordinates `x`/`y`
+instead of an element, and its comment says whether the reviewer wants something
+new there or is noting the spot. `orphaned: true` means the element was gone when
 the batch was sent — the address is the last one known, and the mark is worth
 raising with the reviewer rather than guessing at.
 
-**Versions.** A mark carrying `"variations": 3` asks for three answers to the
-same comment, built together so the reviewer can compare them on the running
-page. Guard each one on the attribute Tailr sets on `<html>` for that mark —
+**Versions.** A mark carrying `"variations": 3` asks for three answers to the same
+comment, built together so the reviewer can compare them on the running page.
+Guard each one on the attribute Tailr sets on `<html>` for that mark —
 `[data-tailr-var-03="2"] .card { … }`, with version 1 also being what renders if
 the attribute is absent — then name them in order with `tailr variants 03 "Softer
-edges" "Full width" "Two columns"`. What comes back later is a `choice` mark
-carrying `variantOf` and `variant`: keep that version as plain code and take the
-others and the guards out with it. `variant: 0` means keep none of them.
+edges" "Full width" "Two columns"`.
+
+**Sliders.** A mark carrying `"slider": true` asks for one continuous parameter
+instead. Build it behind `data-tailr-slide-03` on `<html>`, with the default being
+what renders if the attribute is absent, then report the range: `tailr slider 03
+--min 0 --max 100 --value 40 --label "Glow" --unit "%"`. A mark can ask for
+versions and a slider together; do both.
+
+**Closing either.** What comes back later is a `choice` mark. For versions it
+carries `variantOf` and `variant`: keep that version as plain code and take the
+others and the guards out with it, or at `variant: 0` keep none of them. For a
+slider it carries `sliderOf` and `value`: bake that number in and remove the
+switch, or at `value: null` put the element back as it was.
 
 **Where `address` comes from.** Nothing standard tells a page which file an
 element came from, so Tailr reads whatever your dev tooling already emits:
 `data-v-inspector` (vite-plugin-vue-inspector), `data-inspector-relative-path`
 (react-dev-inspector), `data-astro-source-file`, Svelte's `__svelte_meta`, a
 generic `data-source`, and React 18's development fibers. Emit
-`data-tailr-source="Component.tsx:20"` yourself and that wins. With none of
-them present `address` is `null` and the mark still carries its selector, its
-text, and its route — which is the fallback, not a failure.
+`data-tailr-source="Component.tsx:20"` yourself and that wins. With none of them
+present `address` is `null` and the mark still carries its selector, its text, and
+its route — which is the fallback, not a failure.
 
 **Don't wait to be told.** `tailr wait` hangs on the session's event stream and
 returns within a moment of Send being pressed — no polling, and no asking the
@@ -355,24 +366,27 @@ exit as the notification:
 tailr wait && tailr pull
 ```
 
-It returns immediately if a batch is already waiting, so there is no window in
-which one can be missed. `--timeout <seconds>` bounds the wait and exits 3;
-without it, it waits as long as the session lives. When the session goes away it
-exits 2 rather than hanging on a server that is no longer there.
+It returns immediately if a batch is already waiting, so none can be missed.
+`--timeout <seconds>` bounds the wait; without it, it waits as long as the session
+lives.
 
 **Report progress as you go.** Each `tailr progress <ref>` empties that mark on
-the reviewer's screen while they watch. It is the difference between a tool that
-looks stuck and one that looks like it is working.
+the reviewer's screen while they watch — the difference between a tool that looks
+stuck and one that looks like it is working.
 
 **Always close the run.** Until `tailr done` or `tailr fail` arrives, the reviewer
-cannot send another batch. If you cannot finish, `tailr fail` with what happened —
-Tailr deliberately does not guess at causes, it points the reviewer back to you.
+cannot send another batch — and if you never answer, they can take that batch back
+and send it again. If you cannot finish, `tailr fail` with what happened; Tailr
+does not guess at causes, it points the reviewer back to you.
+
+The whole contract, including the events to listen for when a version or a slider
+has to re-render rather than restyle, is in the rules `tailr init` writes into
+your agent instruction file.
 
 ## As an MCP server
 
-`tailr init` registers this for you, in `.mcp.json` (and `.cursor/mcp.json` if
-the project uses Cursor), and the [plugin](#as-a-plugin) brings it along without
-touching your project at all. By hand, most clients take:
+`tailr init` registers this for you, and the [plugin](#as-a-plugin) brings it
+along without touching your project at all. By hand, most clients take:
 
 ```json
 {
@@ -382,9 +396,8 @@ touching your project at all. By hand, most clients take:
 }
 ```
 
-Prefer it to the CLI where you can: tool descriptions stay in the agent's
-context every turn, so the protocol cannot quietly fall out the way a pasted
-prompt does.
+Prefer it to the CLI where you can: tool descriptions stay in the agent's context
+every turn, so the protocol cannot quietly fall out the way a pasted prompt does.
 
 Same round trip as the CLI:
 
@@ -393,27 +406,16 @@ Same round trip as the CLI:
 | `tailr_status` | Is a session running, is a batch waiting, and where should the reviewer go |
 | `tailr_wait` | Block until the reviewer sends a batch, so they never have to tell you |
 | `tailr_pull` | Lease the pending batch. `wait: true` blocks until one arrives |
+| `tailr_variants` | Name the versions you built for a mark that asked for several |
+| `tailr_slider` | Report the range of the parameter you wired for a slider mark |
 | `tailr_progress` | Report a `ref`, or several `refs`, as applied |
 | `tailr_done` | Close the run; the reviewer is prompted to reload |
 | `tailr_fail` | Close it as incomplete with a `reason`, releasing the send lock |
+| `tailr_config` | Read or change the reviewer's settings, when they ask |
 
 The server must still be running — the MCP tools talk to the same session the CLI
 does, found through `.tailr/session.json`. If none is running, the tools say so
 and tell you what to ask the user for rather than failing opaquely.
-
-## How it holds together
-
-- **One batch at a time.** The server rejects a second batch while a run is open.
-- **A run is always escapable.** If the agent never answers, the reviewer can take
-  the batch back and send it again.
-- **A session writes nothing to your repository** except `.tailr/session.json`,
-  so the CLI can find the running session. `tailr init` adds `.tailr/` to
-  `.gitignore` for you. Your settings are yours rather than the project's, so
-  they live in your home directory and never appear in a diff.
-- **`tailr init` is the only thing that edits your files**, and only these: a
-  marked-off section in your agent instruction file, a `tailr` entry in
-  `.mcp.json`, the `.gitignore` line, and the devDependency. Re-running rewrites
-  its own block and leaves everything around it alone.
 
 ## Requirements
 
@@ -421,23 +423,20 @@ Node 18 or newer, and nothing else — Tailr has no dependencies.
 
 Of your dev server it asks almost nothing. Tailr injects into HTML responses and
 passes everything else through, so there is no framework list here: if it serves
-HTML over http or https, it works. A self-signed certificate is fine, and so is
-a server that compresses — Tailr asks for uncompressed HTML and decodes gzip,
+HTML over http or https, it works. A self-signed certificate is fine, and so is a
+server that compresses — Tailr asks for uncompressed HTML and decodes gzip,
 deflate or brotli when one arrives anyway. The hot-reload WebSocket is relayed
 untouched.
 
-Source addresses are the one part that depends on your setup, because nothing
-standard tells a page which file an element came from. Tailr reads what your dev
-tooling already emits, listed under [The agent side](#the-agent-side) below. A
-project that emits none of it loses nothing else: those marks carry the
-selector, the element's text and the route, and the address is `null` rather
-than a guess.
+Source addresses are the one part that depends on your setup — see [The agent
+side](#the-agent-side) for what Tailr reads, and what a mark still carries when a
+project emits none of it.
 
 ## License
 
 MIT.
 
-The interaction sounds are [Cuelume](https://github.com/Danilaa1/cuelume) —
-copied into `src/overlay/cuelume.js` rather than depended on, under its MIT
-licence, which travels with it at the top of that file. It synthesizes every
-sound through the Web Audio API, so there are no audio files here either.
+The interaction sounds are [Cuelume](https://github.com/Danilaa1/cuelume) — copied
+into `src/overlay/cuelume.js` rather than depended on, under its MIT licence,
+which travels with it at the top of that file. It synthesizes every sound through
+the Web Audio API, so there are no audio files here either.
