@@ -61,6 +61,13 @@
 
 ### 
 
+<!-- A user-attachments URL, on its own line and free of Markdown, because that is
+     the only way GitHub plays a video: its media-src policy allows only its own
+     upload hosts, so a file in this repository is blocked whether it is reached
+     through raw.githubusercontent.com or the github.com/.../raw/... redirect.
+     Nothing is wrong with the file — it plays in a <video> on any other site,
+     which is what site/ does with it. To replace this, drag the new mp4 into a
+     GitHub issue comment and paste the URL that comment gives you. -->
 https://github.com/user-attachments/assets/bb164693-9f44-4e16-95c4-7357c798ab38
 
 ---
