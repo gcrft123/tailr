@@ -109,10 +109,12 @@ agy plugin install https://github.com/gcrft123/tailr
 ```
 
 That reads the same extension manifest Gemini CLI did, and brings the skills
-and the MCP server with it. `/tailr:config` is the command there; Antigravity
-keeps `/config` for itself. (Gemini CLI still installs it with
-`gemini extensions install https://github.com/gcrft123/tailr`, but Google now
-turns individual accounts away from that client and points them at Antigravity.)
+and the MCP server with it. Nothing namespaces a skill on that path, so the
+commands are `/tailr-start` and `/tailr-config` — the names carry the product
+precisely because Antigravity keeps `/config` for itself. (Gemini CLI still
+installs it with `gemini extensions install https://github.com/gcrft123/tailr`,
+but Google now turns individual accounts away from that client and points them
+at Antigravity.)
 
 **Everywhere else** — Windsurf, OpenCode, Cline, Amp, and the rest of the
 agents that read a global `skills/` directory:
@@ -220,7 +222,9 @@ Two things about Tailr are yours to set rather than the project's:
 | `sfx` | `true` / `false` | `true` | A short sound on each action — a mark made or dropped, a batch sent, a version picked, a run closing |
 | `modifier` | `alt` `ctrl` `cmd` | `alt` | The key you hold to arm marking |
 
-Ask your agent with `/tailr:config` (`/config` in Cursor), or set them yourself:
+Ask your agent with `/tailr:config` — `/config` on Cursor, and `/tailr-config`
+wherever the skills were installed without a marketplace to namespace them —
+or set them yourself:
 
 ```bash
 npx -y @gcrft123/tailr config sfx:false modifier:cmd
