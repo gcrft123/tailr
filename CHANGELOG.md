@@ -37,14 +37,16 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
   rather than only which Node it needs, including that a mark's source address
   is `null` on a project whose tooling emits none, and that this is a fallback
   rather than a failure.
-- The skills installed by `npx skills add gcrft123/tailr -g` are now
-  `tailr-start`, `tailr-review` and `tailr-config`, so the commands are
-  `/tailr-start` and `/tailr-config`. That path namespaces nothing, so the old
+- The skills installed without a marketplace are now `tailr-start`,
+  `tailr-review` and `tailr-config`, so the commands are `/tailr-start` and
+  `/tailr-config`. That covers `npx skills add gcrft123/tailr -g` and the
+  Antigravity and Gemini extension installs alike: all of them read the skills
+  straight out of the repository and add no namespace of their own, so the old
   names arrived bare and `/start` and `/config` landed on top of commands the
-  agent already had — Antigravity's own `/config` for one. A marketplace or
-  extension install is unaffected and still reads `/tailr:start`, because those
-  add the prefix themselves. Anyone who installed globally before this should
-  re-run the command; the old names are gone rather than aliased.
+  agent already had — Antigravity's own `/config` among them. A marketplace
+  install is unaffected and still reads `/tailr:start`, because that path adds
+  the prefix itself. Anyone on one of the unprefixed paths should install again;
+  the old names are gone rather than aliased.
 
 ### Fixed
 
