@@ -24,8 +24,20 @@
   var EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
   var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   var MAC = /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
-  var ALT = MAC ? '⌥' : 'Alt';
   var SHIFT = MAC ? '⇧' : 'Shift';
+  /* The key held to arm marking. Alt is the default because it is the modifier
+     no browser spends on ordinary clicking, but an app or an OS can want it
+     back — so the reviewer can move it, and every hint on screen names
+     whichever one is theirs rather than a hardcoded ⌥. */
+  var MODS = {
+    alt:  { prop: 'altKey',  key: 'Alt',     label: MAC ? '⌥' : 'Alt' },
+    ctrl: { prop: 'ctrlKey', key: 'Control', label: MAC ? '⌃' : 'Ctrl' },
+    meta: { prop: 'metaKey', key: 'Meta',    label: MAC ? '⌘' : 'Win' }
+  };
+  function mod() { return MODS[S.cfg.modifier] || MODS.alt; }
+  function modLabel() { return mod().label; }
+  function modDown(e) { return !!e[mod().prop]; }
+  function isModKey(e) { return e.key === mod().key; }
 
   /* ── state ─────────────────────────────────────────────── */
   var S = {
@@ -44,8 +56,30 @@
     ending: null,       // null | 'confirm' | 'cleaning' | 'ending' | 'ended'
     app: null,          // { target, spawned } — where the application is without Tailr
     dirty: false,       // ended before the cleanup the agent was given finished
-    learn: { welcomed: false, marked: false, sent: false }
+    learn: { welcomed: false, marked: false, sent: false },
+    /* The reviewer's own settings. They belong to the person, not to this page,
+       so they are not stored here — the server holds them and the bridge hands
+       them over. These are what Tailr ships with, and what the demo runs on. */
+    cfg: { sfx: true, modifier: 'alt' }
   };
+
+  /* Sound is the one thing Tailr does that a reviewer cannot see coming, so it
+     is deliberately sparse: one short cue for a moment that changes what is
+     staged or what the agent is doing, and never a pile of them at once. */
+
+  var lastCue = 0, lastCueName = null;
+  function cue(name) {
+    if (!S.cfg.sfx || !window.__tailrCue) return;
+    var now = Date.now();
+    /* A batch of marks landing at once is one sound, not ten. Only a repeat of
+       the same sound is dropped, and only for long enough to swallow a burst
+       that arrived in one tick: the cue that says the run is over follows the
+       last mark that landed, and two taps by a person are never this close. */
+    if (name === lastCueName && now - lastCue < 60) return;
+    lastCue = now;
+    lastCueName = name;
+    window.__tailrCue.play(name);
+  }
 
   function loadLearn() {
     try { Object.assign(S.learn, JSON.parse(localStorage.getItem(LEARN_KEY) || '{}')); } catch (e) {}
@@ -446,10 +480,14 @@
     }, extra || {});
     S.marks.push(m);
     if (!S.learn.marked) { learned('marked'); S.teach = false; }
+    cue('tick');
     save(); renderMarks(); renderIsland();
     return m;
   }
-  function removeMark(id) {
+  /* `quiet` is for the bookkeeping removal only — the choice mark that goes
+     with a version or a slider when the reviewer settles one. That moment has
+     already made its own sound; this would be a second one for the same act. */
+  function removeMark(id, quiet) {
     var m = S.marks.find(function (x) { return x.id === id; });
     if (m && m.type === 'text' && m.el && m.before != null) m.el.textContent = m.before;
     // Dropping the choice puts the set back to undecided rather than leaving a
@@ -461,6 +499,7 @@
       if (sl) { delete sl.kept; showSlide(sl); }
     }
     S.marks = S.marks.filter(function (x) { return x.id !== id; });
+    if (!quiet) cue('tick');
     save(); renderMarks(); renderIsland();
   }
   function markOnRoute(m) { return m.route === routeKey(); }
@@ -531,6 +570,7 @@
   function choose(id, i) {
     var s = setFor(id);
     if (!s || S.locked) return;
+    cue('toggle');
     var existing = S.marks.find(function (m) {
       return m.type === 'choice' && m.setId === s.id && m.status !== 'served';
     });
@@ -538,7 +578,7 @@
     // costs nothing and an undecided set stays undecided.
     if (s.choice === i) {
       s.choice = null;
-      if (existing) removeMark(existing.id);
+      if (existing) removeMark(existing.id, true);
       showVariant(s); save(); renderMarks(); renderIsland();
       return;
     }
@@ -635,6 +675,7 @@
   function keepSlide(id, v) {
     var s = slideFor(id);
     if (!s || S.locked) return;
+    cue('toggle');
     var existing = S.marks.find(function (m) {
       return m.type === 'choice' && m.sliderOf === s.ref && m.status !== 'served';
     });
@@ -644,7 +685,7 @@
     // reverting to the default is what Reset is for.
     if (typeof v === 'number' && s.kept === v) {
       delete s.kept; delete s.open;
-      if (existing) removeMark(existing.id);
+      if (existing) removeMark(existing.id, true);
       showSlide(s, v); save(); renderMarks(); renderIsland();
       return;
     }
@@ -652,7 +693,7 @@
       // Discarding when already discarded takes the discard back.
       if (s.kept === null) {
         delete s.kept;
-        if (existing) removeMark(existing.id);
+        if (existing) removeMark(existing.id, true);
         showSlide(s); save(); renderMarks(); renderIsland();
         return;
       }
@@ -693,10 +734,12 @@
   function resetSlide(id) {
     var s = slideFor(id);
     if (!s || S.locked) return;
+    cue('tick');
     var existing = S.marks.find(function (m) {
       return m.type === 'choice' && m.sliderOf === s.ref && m.status !== 'served';
     });
-    if (existing) removeMark(existing.id);
+    // The reset is the sound; the choice mark going with it is bookkeeping.
+    if (existing) removeMark(existing.id, true);
     delete s.kept; delete s.open;
     showSlide(s, s.value);
     save(); renderMarks(); renderIsland();
@@ -708,6 +751,7 @@
   function openSlide(id) {
     var s = slideFor(id);
     if (!s || S.locked) return;
+    cue('scan');
     s.open = true;
     save(); renderMarks();
   }
@@ -1092,7 +1136,7 @@
 
   function isOurs(el) { return !el || el === host || host.contains(el) || el.closest && el.closest('[data-tailr]'); }
 
-  // Alt+Shift pins a dot to the cursor; it can be dropped anywhere on screen.
+  // Modifier+Shift pins a dot to the cursor; it can be dropped anywhere on screen.
   function updateGhost(x, y) {
     if (!ghostEl.isConnected) layer.appendChild(ghostEl);
     ghostEl.style.transform = 'translate(' + x + 'px,' + y + 'px)';
@@ -1111,6 +1155,9 @@
   function openComposer(m, anchorRect, editing) {
     closeTextEdit(true);
     closeComposer();
+    // Editing is reopening: this mark was already made, and the reviewer has
+    // come back to it rather than started another.
+    if (editing) cue('page');
     var c = document.createElement('div');
     c.className = 'composer';
     c.innerHTML =
@@ -1176,8 +1223,8 @@
         var btn = e.target.closest('[data-act]');
         a = btn && btn.getAttribute('data-act');
       }
-      if (a === 'mult') { want = want >= VAR_MAX ? 1 : want + 1; drawMult(); return; }
-      if (a === 'slide') { wantSlide = !wantSlide; drawSlide(); return; }
+      if (a === 'mult') { cue('tick'); want = want >= VAR_MAX ? 1 : want + 1; drawMult(); return; }
+      if (a === 'slide') { cue('tick'); wantSlide = !wantSlide; drawSlide(); return; }
       if (a === 'save') commit();
       if (a === 'cancel') { editing ? removeMark(m.id) : cancel(); if (editing) closeComposer(); }
     });
@@ -1195,11 +1242,15 @@
     function commit() {
       if (!composer || composer.mark.id !== m.id) return;
       m.comment = ta.value.trim();
+      // Committing nothing is discarding it by another route, and sounds like it.
       if (!m.comment && m.type !== 'remove') { removeMark(m.id); closeComposer(); return; }
       if (canVary(m)) {
         m.variations = want > 1 ? want : undefined;
         m.slider = wantSlide || undefined;
       }
+      // Add, and the Enter in the field that means the same thing. Handing the
+      // agent something to do is the one keystroke that answers.
+      cue('tick');
       save(); closeComposer(); renderMarks(); renderIsland();
     }
   }
@@ -1277,6 +1328,7 @@
 
     var m = existing || markOn(el, 'text');
     var reopening = !!m;
+    if (reopening) cue('page');
     var start;
     if (m) {
       // A reload puts the host's original string back. Put the staged after on
@@ -1378,13 +1430,16 @@
     if (!keep) {
       el.textContent = te.start;
       // A brand-new mark that never left the original string is not a mark.
-      if (te.start === m.before) removeMark(m.id);
+      // Quiet because this is the Escape/blur way out, and a key going down is
+      // not something Tailr answers.
+      if (te.start === m.before) removeMark(m.id, true);
       else { m.after = te.start; m.snippet = snippetOf(el); save(); renderMarks(); renderIsland(); }
       return;
     }
     m.after = el.textContent;
+    // Done pressed on a string that never changed: the mark goes, and says so.
     if (m.after === m.before) removeMark(m.id);
-    else { m.snippet = snippetOf(el); save(); renderMarks(); renderIsland(); }
+    else { cue('tick'); m.snippet = snippetOf(el); save(); renderMarks(); renderIsland(); }
   }
 
   /** Delete an existing text mark from its reopen bar: restore the original. */
@@ -1470,6 +1525,7 @@
 
   function settle(corner, fromRect) {
     var A = fromRect || island.getBoundingClientRect();
+    cue('press');
     S.corner = corner;
     try { localStorage.setItem(CORNER_KEY, corner); } catch (e) {}
     island.style.transform = '';
@@ -1584,7 +1640,7 @@
       S.slides.filter(function (s) { return s.kept === undefined; }).length;
     var needsReload = !!(S.agent && S.agent.phase === 'done');
     var sig = [count, S.locked, S.armed, S.expanded, needsReload, S.teach, S.learn.welcomed,
-      S.ending, S.dirty, S.app && S.app.target,
+      S.ending, S.dirty, S.app && S.app.target, S.cfg.modifier,
       S.agent ? S.agent.phase : '-', S.agent ? S.agent.served.length : 0,
       S.marks.map(function (m) { return m.id + m.status; }).join(','),
       S.sets.map(function (s) { return s.id + s.choice; }).join(','),
@@ -1613,7 +1669,7 @@
     } else if (dormant) {
       IS.row.innerHTML = dismiss +
         '<span class="dot ' + (S.armed ? 'live' : '') + '"></span>' +
-        '<span class="hint">' + (S.armed ? 'Marking' : 'Hold ' + ALT + ' to mark') + '</span>';
+        '<span class="hint">' + (S.armed ? 'Marking' : 'Hold ' + modLabel() + ' to mark') + '</span>';
     } else {
       var label = needsReload ? 'Needs refresh'
         : S.locked ? 'Sent'
@@ -1737,10 +1793,10 @@
     var h = '<div class="teach">';
     if (welcome) {
       h += '<div class="t-head">Mark up this page</div>' +
-           '<div class="t-sub">Hold ' + ALT + ' and click anything that should change, ' +
+           '<div class="t-sub">Hold ' + modLabel() + ' and click anything that should change, ' +
            'then send the batch to your agent.</div>';
     }
-    h += '<div class="t-when">While ' + ALT + ' is held</div><dl class="t-key">';
+    h += '<div class="t-when">While ' + modLabel() + ' is held</div><dl class="t-key">';
     rows.forEach(function (r) {
       h += '<div class="t-row"><dt>' + r[0] + '</dt><dd>' + r[1] + '</dd></div>';
     });
@@ -1894,6 +1950,7 @@
     learned('sent');
     S.agent = { phase: 'working', served: [], total: batch.length };
     S.expanded = null;
+    cue('bloom');
     renderIsland();
     try {
       window.__tailr.transport.send(payload(batch));
@@ -1935,6 +1992,8 @@
       }
     }
     if (S.agent && S.agent.served.indexOf(ref) === -1) S.agent.served.push(ref);
+    /* No cue for one mark landing. The marks empty out on screen as they go,
+       and the run closing is the moment worth hearing. */
     save(); renderMarks(); renderIsland();
   }
   /* ── ending the session ────────────────────────────────────
@@ -2023,6 +2082,7 @@
   function finish(ok) {
     if (!S.agent) return;
     S.agent.phase = ok ? 'done' : 'failed';
+    cue(ok ? 'success' : 'error');
     S.locked = !ok ? false : true;
     if (!ok) S.marks.forEach(function (m) { if (m.status === 'served') return; m.status = 'staged'; });
     // The last batch of a session is the cleanup one. There is nothing to
@@ -2049,8 +2109,11 @@
   }
   function onKeyDown(e) {
     var into = field(e);
-    if (e.key === 'Alt') {
-      e.preventDefault();               // Windows/Linux: stop menu-bar focus
+    if (isModKey(e)) {
+      // Holding the key must not also reach the OS: Alt focuses the menu bar on
+      // Windows and Linux, and the Windows key opens the Start menu. This is the
+      // bare modifier's own keydown, so combinations through it still work.
+      e.preventDefault();
       if (!S.latched) arm(true);
       var now = Date.now();
       if (now - (onKeyDown._t || 0) < 320) { S.latched = true; arm(true); }
@@ -2095,27 +2158,27 @@
     }
   }
   function onKeyUp(e) {
-    if (e.key === 'Alt') { e.preventDefault(); if (!S.latched) arm(false); }
+    if (isModKey(e)) { e.preventDefault(); if (!S.latched) arm(false); }
     if (e.key === 'Shift') hideGhost();
   }
   function onMove(e) {
-    if (e.altKey && !S.armed) arm(true);
-    else if (!e.altKey && S.armed && !S.latched) arm(false);
+    if (modDown(e) && !S.armed) arm(true);
+    else if (!modDown(e) && S.armed && !S.latched) arm(false);
     if (!S.armed) return;
-    if (e.altKey && e.shiftKey) { updateGhost(e.clientX, e.clientY); hoverEl.style.opacity = '0'; return; }
+    if (modDown(e) && e.shiftKey) { updateGhost(e.clientX, e.clientY); hoverEl.style.opacity = '0'; return; }
     hoverEl.style.opacity = '1';
     hideGhost();
     var el = document.elementFromPoint(e.clientX, e.clientY);
     if (el && !isOurs(el)) S.hover = el;
   }
-  /* Arming derives from the event's own altKey, not only from a keydown we
+  /* Arming derives from the event's own modifier state, not only from a keydown we
      happened to see. A focus change, a swallowed keydown, or a synthetic click
      must never leave a gesture unrecognised. */
   function guard(e) {
     // Gate on the event's own modifier state, never on the sticky armed flag.
-    // A missed Alt keyup — window blur, a release outside the frame — would
+    // A missed keyup — window blur, a release outside the frame — would
     // otherwise leave Tailr swallowing ordinary clicks on the host app.
-    var live = (e.altKey || S.latched) && !S.ending;
+    var live = (modDown(e) || S.latched) && !S.ending;
     if (S.armed !== live) arm(live);
     if (!live || isOurs(e.target)) return false;
     e.preventDefault(); e.stopPropagation(); return true;
@@ -2125,7 +2188,7 @@
     if (el && !isOurs(el)) return el;
     return (S.hover && S.hover.isConnected) ? S.hover : e.target;
   }
-  function onDown(e) { if (guard(e)) {} }            // kills alt-click download + middle autoscroll
+  function onDown(e) { if (guard(e)) {} }            // kills modifier-click defaults + middle autoscroll
   function onCtx(e) {
     if (!guard(e)) return;
     var rel = targetAt(e);
@@ -2223,16 +2286,18 @@
       if (a === 'drop-slide') { clearTimeout(leaveT); keepSlide(b.getAttribute('data-slide'), null); }
       if (a === 'reset-slide') { clearTimeout(leaveT); resetSlide(b.getAttribute('data-slide')); }
       if (a === 'open-slide') { clearTimeout(leaveT); openSlide(b.getAttribute('data-slide')); }
-      if (a === 'reload') location.reload();
-      if (a === 'resend') { S.agent = null; S.locked = false; renderIsland(); }
-      if (a === 'abandon') abandon();
-      if (a === 'gotit') { learned('welcomed'); S.teach = false; S.expanded = null; renderIsland(); }
-      if (a === 'quit') { S.ending = 'confirm'; renderIsland(); }
-      if (a === 'stay') { S.ending = null; renderIsland(); }
-      if (a === 'quit-go') endSession();
-      if (a === 'quit-now') quit(true);
-      if (a === 'goto') location.href = (S.app && S.app.target) || '/';
-      if (a === 'dismiss') window.__tailr.destroy();
+      /* Anything that leaves the page takes its own sound with it, so the two
+         that navigate get a short one that finishes before the unload does. */
+      if (a === 'reload') { cue('release'); location.reload(); }
+      if (a === 'resend') { cue('bloom'); S.agent = null; S.locked = false; renderIsland(); }
+      if (a === 'abandon') { cue('page'); abandon(); }
+      if (a === 'gotit') { cue('release'); learned('welcomed'); S.teach = false; S.expanded = null; renderIsland(); }
+      if (a === 'quit') { cue('scan'); S.ending = 'confirm'; renderIsland(); }
+      if (a === 'stay') { cue('release'); S.ending = null; renderIsland(); }
+      if (a === 'quit-go') { cue('tick'); endSession(); }
+      if (a === 'quit-now') { cue('tick'); quit(true); }
+      if (a === 'goto') { cue('release'); location.href = (S.app && S.app.target) || '/'; }
+      if (a === 'dismiss') { cue('tick'); window.__tailr.destroy(); }
       return;
     }
     if (S.ending) return;
@@ -2265,6 +2330,22 @@
     session: function (app) {
       if (!app || (S.app && S.app.target === app.target && S.app.spawned === app.spawned)) return;
       S.app = app; renderIsland();
+    },
+    /* The reviewer's settings, as the server last read them. They are theirs
+       rather than this page's, so they arrive over the stream and are applied
+       live: a modifier changed from the agent has to be the one that works
+       here, and the hints on screen have to be naming it. */
+    config: function (cfg) {
+      if (!cfg) return;
+      var was = S.cfg.modifier;
+      if (typeof cfg.sfx === 'boolean') S.cfg.sfx = cfg.sfx;
+      if (MODS[cfg.modifier]) S.cfg.modifier = cfg.modifier;
+      if (S.cfg.modifier === was) return;
+      // A mode armed with the old key is over the moment the new one lands:
+      // nothing on the page would release it.
+      S.latched = false;
+      arm(false);
+      renderIsland();
     },
     /* The server names each process. Marks and their numbers belong to that
        process: a new Tailr session must not continue a previous one's count. */

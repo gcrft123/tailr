@@ -19,6 +19,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from '../src/server/server.js';
 import { readSession, writeSession, clearSession, isAlive } from '../src/server/session.js';
 import { waitForBatch } from '../src/server/watch.js';
+import { applyConfig, configFile, describeConfig, parseSettings, readConfig } from '../src/server/config.js';
 
 const argv = process.argv.slice(2);
 const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'slider', 'progress', 'done', 'fail', 'reset']);
@@ -48,6 +49,8 @@ if (cmd === 'mcp') {
     mcp: !args.includes('--no-mcp'),
     file: flag('file', null)
   });
+} else if (cmd === 'config') {
+  await configure(positional.slice(1));
 } else if (AGENT.has(cmd)) await agent(cmd, positional.slice(1));
 else await serve();
 
@@ -65,6 +68,9 @@ async function serve() {
 
   const { server } = createServer({
     target,
+    // Read once, here. A change made while the session is up arrives over the
+    // config endpoint rather than by the server going back to the file.
+    config: readConfig(),
     // Whether the dev server is ours to stop decides what the overlay tells the
     // reviewer to do once Tailr is gone.
     spawned: !!child,
@@ -104,6 +110,31 @@ async function serve() {
     process.on(sig, () => { shutdown(); process.exit(0); });
   }
   process.on('exit', shutdown);
+}
+
+/* ── settings ────────────────────────────────────────────── */
+
+/* The one command that does not need a session. Settings belong to the person,
+   so they are written whether or not Tailr is running; a session that is up is
+   told as well, so the change lands on the page they are already looking at. */
+async function configure(tokens) {
+  const report = (config, footer) => process.stdout.write(
+    `\n  Tailr settings — ${configFile()}\n\n${describeConfig(config)}\n\n  ${footer}\n\n`);
+
+  if (!tokens.length) {
+    return report(readConfig(), 'Change one with:  tailr config sfx:false modifier:cmd');
+  }
+
+  const { patch, errors } = parseSettings(tokens);
+  if (errors.length) {
+    process.stderr.write('\n' + errors.map((e) => `  ${e}`).join('\n') + '\n\n');
+    process.exit(1);
+  }
+
+  const { config, live } = await applyConfig(patch);
+  report(config, live
+    ? 'The open review page has them already.'
+    : 'They take effect the next time a session starts.');
 }
 
 /* ── agent-side commands ─────────────────────────────────── */
@@ -256,6 +287,11 @@ function usage() {
     tailr progress <ref>          one mark applied
     tailr done                    the run finished
     tailr fail [message]          the run returned incomplete
+
+  Settings, which belong to you rather than to a project
+    tailr config                  print them and where they live
+    tailr config sfx:false        mute the cues Tailr plays
+    tailr config modifier:cmd     hold ⌘ to mark instead of ⌥
 
   Or wire it in as an MCP server
     tailr mcp                     serve the same round trip as MCP tools over stdio

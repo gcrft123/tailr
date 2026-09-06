@@ -23,8 +23,9 @@ plugin/
   .mcp.json                     Claude, Codex, Copilot (`tailr mcp`)
   mcp.json                      Cursor / Agent Plugins (same server, stdio typed)
   skills/start/SKILL.md         /tailr:start — start a session, hand over the URL
+  skills/config/SKILL.md        /tailr:config — read or change the reviewer's settings
   skills/review/SKILL.md        the operating rules for the review loop
-  cursor-commands/start.md      the same start, as a Cursor slash command
+  cursor-commands/*.md          the same commands, as Cursor slash commands
   rules/review.mdc              the same loop, as a Cursor rule (not a slash command)
 ```
 
@@ -36,6 +37,12 @@ marketplace wrapping one. Marketplace installs still copy only `plugin/`.
 Gemini CLI clones the whole repository as an extension, so `skills/` at the
 repo root is a copy of `plugin/skills/` — Gemini only discovers skills next to
 `gemini-extension.json`.
+
+A skill marked `disable-model-invocation: true` is a command: the user invokes
+it by name and the model never reaches for it on its own. Those are the ones
+`scripts/plugin.js` copies into `cursor-commands/`, where Cursor reads them as
+`/<name>` rather than `/tailr:<name>`. Adding one is adding the skill; `--sync`
+generates the Cursor copy and `--check` fails if it drifts.
 
 ## What it is for
 
