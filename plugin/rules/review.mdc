@@ -41,6 +41,7 @@ The loop is `wait` → `pull` → `progress` per mark → `done` or `fail`.
 | `npx tailr progress <ref>` | `tailr_progress` | report one mark as applied |
 | `npx tailr done` | `tailr_done` | the run finished |
 | `npx tailr fail "reason"` | `tailr_fail` | it returned incomplete |
+| `npx tailr config [name:value…]` | `tailr_config` | their settings — `sfx`, `modifier`. Only when they ask |
 
 Each mark carries a `ref` ("01"), a `type`, the `route` it was made on, a
 best-effort source `address`, a CSS `selector`, the element's text, and the
