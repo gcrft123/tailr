@@ -41,12 +41,12 @@ export function init({ cwd = process.cwd(), install = true, mcp = true, file = n
   const at = (p) => resolve(cwd, p);
 
   const mcpTargets = mcp ? registerMcp(at, done, skipped) : [];
-  writeRules(at, { mcp: mcpTargets.length > 0 }, file, done);
+  const ruleFiles = writeRules(at, { mcp: mcpTargets.length > 0 }, file, done);
   if (install) addDependency(at, done, skipped);
   else skipped.push('install skipped (--no-install)');
   ignoreSessionDir(at, done);
 
-  report(done, skipped);
+  report(done, skipped, ruleFiles);
   return { done, skipped };
 }
 
@@ -95,6 +95,7 @@ function writeRules(at, opts, override, done) {
       : existed ? `added the Tailr section to ${target}`
       : `wrote the Tailr section to ${target}`);
   }
+  return targets;
 }
 
 /** Replace what is between the markers, or append a fresh block. */
@@ -151,20 +152,48 @@ function ignoreSessionDir(at, done) {
 
 /* ── what happened ───────────────────────────────────────── */
 
-function report(done, skipped) {
+/** `a`, `a and b`, `a, b and c` — however many instruction files a project has. */
+function list(items) {
+  if (items.length < 3) return items.join(' and ');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+/** Wrap a paragraph to the width the rest of this report is written at. */
+function wrap(text, width = 72, indent = '  ') {
+  const lines = [];
+  let line = '';
+  for (const word of text.split(/\s+/)) {
+    if (line && (line + ' ' + word).length > width) { lines.push(indent + line); line = word; }
+    else line = line ? `${line} ${word}` : word;
+  }
+  if (line) lines.push(indent + line);
+  return lines;
+}
+
+/* Whoever typed the command is who reads this, and that is as often a person
+   as an agent — the README offers `init` to both. So it is written for the
+   person, who has nowhere else to learn what happens next. An agent reading a
+   sentence meant for someone else loses nothing: the rules this command just
+   wrote say what to do, in the file it re-reads every turn, which is the whole
+   point of the command. Telling it twice here is what used to leave the person
+   holding `wait` and `pull`, which are not theirs to run. */
+function report(done, skipped, ruleFiles = []) {
   const lines = ['', '  Tailr is set up.', ''];
   for (const d of done) lines.push(`    ✓ ${d}`);
   for (const s of skipped) lines.push(`    · ${s}`);
+  // A project can carry four instruction files, so the sentence naming them
+  // is wrapped rather than written out at one guessed length.
+  const where = ruleFiles.length ? list(ruleFiles) : DEFAULT_INSTRUCTION_FILE;
   lines.push(
     '',
-    '  Start a session against your dev server, as a long-running background',
-    '  process, and review at the URL it prints:',
+    ...wrap(`The rules for the review loop are in ${where} now, where your agent ` +
+      're-reads them every turn. Ask it to start a Tailr session against your ' +
+      'dev server and it will hand you a review URL — mark the page there, ' +
+      'rather than on the dev server\'s own port.'),
+    '',
+    '  To start the session yourself instead:',
     '',
     '    npx tailr --target http://localhost:<dev server port>',
-    '',
-    '  Then wait for a batch. Its exit is your notification:',
-    '',
-    '    npx tailr wait && npx tailr pull',
     '');
   process.stdout.write(lines.join('\n'));
 }

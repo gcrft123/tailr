@@ -35,14 +35,33 @@ tell the agent to start a session:
 npx -y @gcrft123/tailr init
 ```
 
-Either way, `init` installs Tailr, registers its MCP server, and writes the
-agent's operating rules into your `AGENTS.md` / `CLAUDE.md`. It is safe to
-re-run, and it only rewrites its own marked-off block. `--no-mcp` and
-`--no-install` opt out of either half; `--file <path>` puts the rules somewhere
-else.
+Either way, `init` edits four things in your project and nothing else:
+
+- adds `@gcrft123/tailr` to your devDependencies
+- registers its MCP server in `.mcp.json`, and in `.cursor/mcp.json` too if the
+  project already uses Cursor
+- writes the agent's operating rules into your `AGENTS.md` / `CLAUDE.md`,
+  between markers of its own
+- adds `.tailr/` to your `.gitignore`, if the project is a git repository
+
+It is safe to re-run, and it only rewrites its own marked-off block. `--no-mcp`
+and `--no-install` opt out of either half; `--file <path>` puts the rules
+somewhere else.
 
 The agent then starts a session against your dev server, hands you a review URL,
 and watches for your first batch. See [PROMPT.md](PROMPT.md) for what it follows.
+
+## Try it first
+
+```bash
+npx -y @gcrft123/tailr demo
+```
+
+That starts a small sample application, proxies it, and prints a review URL.
+Nothing is installed into a project and no agent has to be involved. Hold Alt,
+mark a few things, press **Send** — then `npx -y @gcrft123/tailr pull` in
+another terminal, from the same directory, prints the batch an agent would
+receive. It is the whole round trip against something that is not your own work.
 
 ## As a plugin
 
@@ -90,10 +109,12 @@ agy plugin install https://github.com/gcrft123/tailr
 ```
 
 That reads the same extension manifest Gemini CLI did, and brings the skills
-and the MCP server with it. `/tailr:config` is the command there; Antigravity
-keeps `/config` for itself. (Gemini CLI still installs it with
-`gemini extensions install https://github.com/gcrft123/tailr`, but Google now
-turns individual accounts away from that client and points them at Antigravity.)
+and the MCP server with it. Nothing namespaces a skill on that path, so the
+commands are `/tailr-start` and `/tailr-config` — the names carry the product
+precisely because Antigravity keeps `/config` for itself. (Gemini CLI still
+installs it with `gemini extensions install https://github.com/gcrft123/tailr`,
+but Google now turns individual accounts away from that client and points them
+at Antigravity.)
 
 **Everywhere else** — Windsurf, OpenCode, Cline, Amp, and the rest of the
 agents that read a global `skills/` directory:
@@ -102,13 +123,15 @@ agents that read a global `skills/` directory:
 npx skills add gcrft123/tailr -g
 ```
 
-That puts `start`, `review` and `config` in the shared `~/.agents/skills`
-directory that Codex, Cursor, Antigravity and the rest read, with symlinks into
-the folders of agents that keep their own (`~/.claude/skills`). They arrive
-without the `tailr:` prefix there, so `/start` is the command and it can collide
-with a built-in of the same name — Antigravity's `/config` for one. It does not
-register the MCP server; for that, use the marketplace or extension command
-above, or `tailr init` in the project.
+That puts `tailr-start`, `tailr-review` and `tailr-config` in the shared
+`~/.agents/skills` directory that Codex, Cursor, Antigravity and the rest read,
+with symlinks into the folders of agents that keep their own
+(`~/.claude/skills`). Nothing namespaces them there the way a marketplace does,
+so they carry the product in their own names and `/tailr-start` is the command
+rather than `/tailr:start` — which is also why none of them can collide with an
+agent's own `/start` or `/config`. It does not register the MCP server; for
+that, use the marketplace or extension command above, or `tailr init` in the
+project.
 
 This is an alternative to `tailr init`, not an addition to it. The plugin suits
 someone reviewing across several projects; `tailr init` suits a project that wants
@@ -144,7 +167,8 @@ Review at the Tailr URL, not the original one.
 
 ## Marking up
 
-Hold **Alt** to arm — or whichever key you have set, see [Settings](#settings).
+Hold **Alt** to arm — **⌥ Option** is the same key on a Mac, and it is
+whichever key you have set, see [Settings](#settings).
 While it is held:
 
 | Gesture | Result |
@@ -198,7 +222,9 @@ Two things about Tailr are yours to set rather than the project's:
 | `sfx` | `true` / `false` | `true` | A short sound on each action — a mark made or dropped, a batch sent, a version picked, a run closing |
 | `modifier` | `alt` `ctrl` `cmd` | `alt` | The key you hold to arm marking |
 
-Ask your agent with `/tailr:config` (`/config` in Cursor), or set them yourself:
+Ask your agent with `/tailr:config` — `/config` on Cursor, and `/tailr-config`
+wherever the skills were installed without a marketplace to namespace them —
+or set them yourself:
 
 ```bash
 npx -y @gcrft123/tailr config sfx:false modifier:cmd
@@ -342,7 +368,21 @@ and tell you what to ask the user for rather than failing opaquely.
 
 ## Requirements
 
-Node 18 or newer. No dependencies.
+Node 18 or newer, and nothing else — Tailr has no dependencies.
+
+Of your dev server it asks almost nothing. Tailr injects into HTML responses and
+passes everything else through, so there is no framework list here: if it serves
+HTML over http or https, it works. A self-signed certificate is fine, and so is
+a server that compresses — Tailr asks for uncompressed HTML and decodes gzip,
+deflate or brotli when one arrives anyway. The hot-reload WebSocket is relayed
+untouched.
+
+Source addresses are the one part that depends on your setup, because nothing
+standard tells a page which file an element came from. Tailr reads what your dev
+tooling already emits, listed under [The agent side](#the-agent-side) below. A
+project that emits none of it loses nothing else: those marks carry the
+selector, the element's text and the route, and the address is `null` rather
+than a guess.
 
 ## License
 

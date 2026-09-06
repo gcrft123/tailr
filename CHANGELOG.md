@@ -11,6 +11,49 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Added
+
+- `tailr demo` starts a small sample application, proxies it, and prints a
+  review URL: the whole round trip against something that is not your own work,
+  with nothing installed into a project and no agent involved. The sample app
+  ships with the package now, so `npx -y @gcrft123/tailr demo` needs nothing
+  cloned first.
+
+### Changed
+
+- The line printed when a session starts names the key the reviewer will
+  actually be holding, instead of always saying Alt at someone who has changed
+  it. It also stops handing the reviewer's instructions and the agent's next
+  command to the same reader, since only one of those two people has a terminal.
+- `tailr init` closes by telling whoever ran it what to do next, rather than
+  what the agent should do next. It used to end on `tailr wait` and `tailr
+  pull`, the two commands that are not a person's to run, which is a fair way
+  to leave someone thinking they had misread who does what. It now says where
+  the rules landed, that the agent re-reads them from there, and leaves the one
+  command a person might actually want, which is starting the session.
+- The README lists everything `init` edits where `init` is first mentioned —
+  four things, where it used to name three — and PROMPT.md has the agent say so
+  before running it. Requirements now covers what Tailr asks of a dev server
+  rather than only which Node it needs, including that a mark's source address
+  is `null` on a project whose tooling emits none, and that this is a fallback
+  rather than a failure.
+- The skills installed by `npx skills add gcrft123/tailr -g` are now
+  `tailr-start`, `tailr-review` and `tailr-config`, so the commands are
+  `/tailr-start` and `/tailr-config`. That path namespaces nothing, so the old
+  names arrived bare and `/start` and `/config` landed on top of commands the
+  agent already had — Antigravity's own `/config` for one. A marketplace or
+  extension install is unaffected and still reads `/tailr:start`, because those
+  add the prefix themselves. Anyone who installed globally before this should
+  re-run the command; the old names are gone rather than aliased.
+
+### Fixed
+
+- A dev server that compresses its HTML regardless of what was asked of it now
+  gets the overlay. Tailr requests uncompressed HTML; the servers that send gzip,
+  deflate or brotli anyway had their pages passed through unrewritten, which put
+  the reviewer on a page where holding the key did nothing and said so nowhere.
+  An encoding Tailr still cannot undo passes through intact, as it did before.
+
 ## [1.3.1] — 2026-09-06
 
 ### Fixed
