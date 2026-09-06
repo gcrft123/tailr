@@ -1,3 +1,4 @@
+
 <pre>          
                                                                        #####   #####              
                                              ...                       #####   #####              
@@ -13,11 +14,58 @@
                                              .......   ######   ####   #####   #####   #####      
 </pre>
 
+<h1 align="center">Tailr</h1>
+
+### 
+
+<p align="center">
+  Mark up a running dev server and hand the changes to your coding agent as one batch.
+</p>
+
+<p align="center">
+  <a href="https://trytailr.app"><b>Website →</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/gcrft123/tailr/releases">Releases</a>
+  &nbsp;·&nbsp;
+  <a href="https://www.npmjs.com/package/@gcrft123/tailr">npm</a>
+</p>
+
+<div align="center">
+
+[![npm](https://img.shields.io/npm/v/%40gcrft123%2Ftailr)](https://www.npmjs.com/package/@gcrft123/tailr)
+[![CI](https://img.shields.io/github/actions/workflow/status/gcrft123/tailr/ci.yml?branch=main&label=CI)](https://github.com/gcrft123/tailr/actions/workflows/ci.yml)
+[![node](https://img.shields.io/node/v/%40gcrft123%2Ftailr)](https://github.com/gcrft123/tailr#readme)
+[![dependencies](https://img.shields.io/badge/dependencies-0-blue)](https://github.com/gcrft123/tailr/blob/main/package.json)
+[![license](https://img.shields.io/npm/l/%40gcrft123%2Ftailr)](LICENSE)
+
+</div>
+
+<h1> </h1>
+
+### 
+
+### 
+
+>[!TIP]
+>### Quick start
+>
+>Paste this to your coding agent:
+>
+>```
+>Set up Tailr so I can mark up my running dev server visually and hand you the changes as one batch. Fetch:
+>https://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md
+>and follow it exactly, without summarizing it.
+>```
+
+<h1> </h1>
+
+### 
+
 https://github.com/user-attachments/assets/bb164693-9f44-4e16-95c4-7357c798ab38
 
-Mark up a running dev server and hand the changes to your coding agent as one batch.
+---
 
-## Quick start
+## Get started
 
 Paste this to your coding agent:
 
@@ -27,6 +75,7 @@ changes as one batch. Fetch
 https://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md
 and follow it exactly, without summarizing it.
 ```
+
 
 Or, if you'd rather not have your agent fetch anything, run it yourself and then
 tell the agent to start a session:
