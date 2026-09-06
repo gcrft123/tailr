@@ -11,6 +11,27 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Changed
+
+- The README documents sliders. They shipped in 1.2.0 and never reached the one
+  file most people read: the composer's slider button and the pill's Keep for the
+  reviewer, `tailr slider` and the `data-tailr-slide-<ref>` switch for the agent.
+  Its MCP table now also lists `tailr_variants`, `tailr_slider` and
+  `tailr_config`, which have been implemented all along and were never named.
+  Four things it said that were not true are corrected, among them the note on
+  command names — which explained that routes without a marketplace are why
+  nothing collides with an agent's own `/start`, while Cursor's own marketplace
+  install ships `/start` and `/config` bare. The file is shorter than it was:
+  `init`'s behaviour had been described three times, and a whole section existed
+  to restate the rest of the document.
+
+### Fixed
+
+- Ending a session says what the cleanup batch actually covers. It takes sliders
+  nobody kept a value on as well as versions nobody chose between, and always
+  did, but all three cards said "versions" — so a reviewer who had only ever
+  asked for a slider was told about a session they did not have.
+
 ## [1.3.2] — 2026-09-06
 
 ### Added
