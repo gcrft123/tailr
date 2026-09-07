@@ -118,15 +118,33 @@ test('the marketplace advertises the plugin that is actually there', () => {
   const entry = load(...MARKETPLACE).plugins.find((p) => p.name === 'tailr');
   const plugin = load(...PLUGIN);
   assert.ok(entry, 'no "tailr" entry in the marketplace listing');
-  assert.equal(entry.source, './plugin');
+  assert.equal(entry.source.path, 'plugin');
   assert.equal(entry.name, plugin.name, 'installing by name has to reach this plugin');
   assert.equal(entry.version, plugin.version);
   assert.equal(plugin.version, load('package.json').version,
     'the plugin version is what `/plugin update` compares — it has to be the released one');
 });
 
+/* An installed Claude Code reads this catalog off `main`, but the plugin it
+   hands the user comes from whatever the source names — so a `ref` of `main`,
+   or the relative path this used to be, would ship every push to installed
+   users ahead of the release that implements it. The tag is the whole point;
+   `--sync` writes the one `npm version` is about to create. */
+test('Claude Code takes the plugin from the release tag, not from main', () => {
+  const entry = load(...MARKETPLACE).plugins.find((p) => p.name === 'tailr');
+  assert.deepEqual(entry.source, {
+    source: 'git-subdir',
+    url: 'https://github.com/gcrft123/tailr.git',
+    path: 'plugin',
+    ref: `v${load('package.json').version}`
+  });
+  assert.ok(existsSync(at(entry.source.path, '.claude-plugin', 'plugin.json')),
+    'the pinned subdirectory has to be the plugin directory in this repository');
+});
+
 test('every catalog points at the same plugin directory, in the shape that catalog reads', () => {
   const version = load('package.json').version;
+  assert.equal(load(...MARKETPLACE).plugins[0].source.path, 'plugin');
   assert.equal(load('.cursor-plugin', 'marketplace.json').plugins[0].source, 'plugin');
   assert.equal(load('.github', 'plugin', 'marketplace.json').plugins[0].source, './plugin');
   assert.equal(load('.agents', 'plugins', 'marketplace.json').plugins[0].source.path, './plugin');
@@ -310,6 +328,8 @@ test('--sync puts every catalog back in step in one move', () => {
   assert.equal(JSON.parse(readFileSync(join(dir, 'gemini-extension.json'), 'utf8')).version, '9.9.9');
   assert.equal(JSON.parse(readFileSync(join(dir, '.agents', 'plugins', 'marketplace.json'), 'utf8'))
     .plugins[0].source.path, './plugin');
+  assert.equal(JSON.parse(readFileSync(join(dir, ...MARKETPLACE), 'utf8'))
+    .plugins[0].source.ref, 'v9.9.9', 'the pin moves with the version it is released under');
   const copy = readFileSync(join(dir, 'skills', 'tailr-review', 'SKILL.md'), 'utf8');
   assert.match(copy, /Always close the run/, 'the unprefixed copy moved with the plugin skill');
   assert.match(copy, /^name: tailr-review$/m, 'and kept the name that does not collide');
