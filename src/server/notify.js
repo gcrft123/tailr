@@ -11,7 +11,10 @@
  * exactly one, it is either given on the command line or comes from a preset
  * for an agent Tailr can see it is running inside, and it fires once per batch.
  */
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import { readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 /* Thread ids are interpolated into a command line, so they are checked rather
    than trusted — the environment is not ours, and a value with a quote in it
@@ -92,6 +95,70 @@ export function rebind(spec, { thread, agent = 'codex' } = {}, { disabled = fals
   if (!spec) return { agent, thread, command: null, label };
   // A command the reviewer gave keeps its own label; only what it aims at moves.
   return { ...spec, thread, label: spec.command ? spec.label : label };
+}
+
+/* ── is the thread we hold still the conversation on screen? ──
+ *
+ * Clearing a Codex conversation starts a new thread, but does not stop the old
+ * one: it stays alive on the local app-server daemon and still runs anything
+ * queued to it. So a stale binding is not a wake that goes nowhere — it is an
+ * agent editing the reviewer's repository where they cannot see it. That is
+ * worse than not waking at all, and it is the one outcome this must prevent.
+ *
+ * A cleared conversation cannot be discovered, but it can be *noticed*: Codex
+ * records every thread with the directory it belongs to, and a thread created
+ * after ours in the same directory means the conversation moved on. `created_at`
+ * is the field to compare — `updated_at` is bumped by the very queueing whose
+ * safety is in question, so a dead thread looks fresher every time it is wrong.
+ */
+
+/** Codex's thread store. Its name carries a schema number, so this finds the
+ *  newest rather than assuming one, and gives up quietly if the shape changes. */
+export function codexStore(home = homedir()) {
+  try {
+    const dir = join(home, '.codex');
+    const found = readdirSync(dir)
+      .filter((f) => /^state_\d+\.sqlite$/.test(f))
+      .sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
+    return found.length ? join(dir, found[found.length - 1]) : null;
+  } catch { return null; }
+}
+
+/** Every thread Codex knows, as { id, createdAt, cwd }. Read through the
+ *  sqlite3 CLI so Tailr keeps its promise of no dependencies; a machine without
+ *  it simply cannot answer the question. */
+export function readThreads(db = codexStore()) {
+  if (!db) return null;
+  try {
+    const out = execFileSync('sqlite3', [db, '-separator', '\u0001',
+      'SELECT id, created_at, cwd FROM threads;'],
+      { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] });
+    return out.split('\n').filter(Boolean).map((line) => {
+      const [id, createdAt, cwd] = line.split('\u0001');
+      return { id, createdAt: Number(createdAt), cwd };
+    });
+  } catch { return null; }
+}
+
+/** The thread that replaced this one, if the conversation has moved on.
+ *  null means it has not; null is also what an unanswerable question returns,
+ *  so callers must treat "cannot tell" and "still current" the same way. */
+export function supersededBy(thread, cwd, rows) {
+  if (!rows || !thread) return null;
+  const mine = rows.find((r) => r.id === thread);
+  if (!mine) return null;
+  const newer = rows
+    .filter((r) => r.cwd === cwd && r.id !== thread && r.createdAt > mine.createdAt)
+    .sort((a, b) => b.createdAt - a.createdAt);
+  return newer.length ? newer[0].id : null;
+}
+
+/** Whether it is safe to wake this spec from this directory. */
+export function stale(spec, cwd, rows = undefined) {
+  // A command the reviewer wrote is theirs to aim; only the preset, which aims
+  // itself at a thread Tailr sniffed, can go stale without anyone noticing.
+  if (!spec || spec.command || !spec.thread) return null;
+  return supersededBy(spec.thread, cwd, rows === undefined ? readThreads() : rows);
 }
 
 function fill(template, ctx) {

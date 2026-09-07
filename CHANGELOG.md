@@ -49,6 +49,20 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ### Fixed
 
+- Tailr will not wake a conversation that has been cleared. Clearing a Codex
+  conversation starts a new thread but does not stop the old one: it stays alive
+  on the local app-server daemon and still runs whatever is queued to it. So the
+  thread Tailr held was not merely dead, it was an agent applying batches to the
+  reviewer's repository where they could not see it happen — observed for real,
+  two rounds of edits to a file after the conversation on screen had moved on.
+  Before waking, Tailr now checks Codex's own thread store for a thread created
+  later in the same directory, which is what a clear leaves behind; finding one,
+  it refuses and says why. `created_at` is the field compared, because
+  `updated_at` is bumped by the very queueing whose safety is in question, so a
+  dead thread looks fresher every time it is wrong. A machine that cannot read
+  the store cannot answer the question, and one that cannot answer does not
+  guess. The batch waits either way — refusing to wake never costs a mark.
+
 - The page shown when the dev server goes away no longer reads as Tailr having
   died. The reviewer has a browser and nothing else, and that page replaces the
   application overlay and all — so a screen that only talked about the dev
