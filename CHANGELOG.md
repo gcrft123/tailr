@@ -27,6 +27,17 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ### Fixed
 
+- `npx -y @gcrft123/tailr <command>` works inside a Tailr checkout. npm sees that
+  the package being asked for is the project you are standing in, decides there is
+  nothing to fetch, and runs `tailr` off the path — but a package's own bin is
+  never linked into its own `node_modules/.bin`, so the shell answered
+  `sh: tailr: command not found`. Every command the README hands out failed that
+  way here, `demo` and `pull` among them, and so did the MCP server, which `init`
+  registers as `npx -y @gcrft123/tailr mcp`. A self-referencing devDependency
+  links the bin, which also means a checkout runs its own working tree rather
+  than the last release. Installing Tailr is unaffected: devDependencies do not
+  reach the people who install it.
+
 - Ending a session says what the cleanup batch actually covers. It takes sliders
   nobody kept a value on as well as versions nobody chose between, and always
   did, but all three cards said "versions" — so a reviewer who had only ever
