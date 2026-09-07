@@ -58,6 +58,9 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ### Fixed
 
+- The release workflow installs dependencies before running the suite. Overlay
+  tests need `jsdom` from `devDependencies`; without `npm ci` the tag check
+  failed after the version bump had already landed.
 - Tailr will not wake a conversation that has been cleared. Clearing a Codex
   conversation starts a new thread but does not stop the old one: it stays alive
   on the local app-server daemon and still runs whatever is queued to it. So the

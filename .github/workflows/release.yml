@@ -58,6 +58,10 @@ jobs:
       - name: the release must have notes
         run: node scripts/changelog.js --notes "${{ steps.tag.outputs.version }}"
 
+      # Overlay tests need jsdom from devDependencies. Without this install the
+      # suite fails loudly in CI rather than skipping — see test/overlay-harness.js.
+      - run: npm ci
+
       - name: the tests must pass at the tag
         run: npm test
 
