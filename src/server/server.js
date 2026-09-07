@@ -19,7 +19,7 @@ import { brotliDecompressSync, gunzipSync, inflateRawSync, inflateSync } from 'n
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { defaults, KEYS, SETTINGS } from './config.js';
-import { fire as wake, rebind } from './notify.js';
+import { fire as wake, rebind, stale } from './notify.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CUE = join(HERE, '..', 'overlay', 'cuelume.js');
@@ -193,8 +193,19 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
          only thing that gets the batch looked at without the reviewer asking.
          It is fired after the batch is recorded and the response is not held
          for it: waking the agent is best effort, the batch is not. */
-      const woken = wake(waking, { count: marks.length, url: `http://localhost:${server.address()?.port ?? ''}` },
-        (line) => process.stdout.write(`  ⌁ ${line}\n`));
+      /* Never wake a conversation that has been cleared. The old thread is not
+         dead — it stays on Codex's daemon and will run this batch out of sight,
+         editing the reviewer's repository where they cannot see it happen. */
+      const gone = stale(waking, process.cwd());
+      if (gone) {
+        process.stdout.write(
+          `  ⌁ not waking ${waking.label} — that conversation was cleared, and ${gone.slice(0, 8)}…\n` +
+          `    replaced it. Waking it would apply this batch where you cannot see it.\n` +
+          `    Ask your agent for anything; its next Tailr command re-registers it.\n`);
+      }
+      const woken = gone ? null
+        : wake(waking, { count: marks.length, url: `http://localhost:${server.address()?.port ?? ''}` },
+          (line) => process.stdout.write(`  ⌁ ${line}\n`));
       /* A wake that goes to a thread nobody is on still reports success — Codex
          queues it against the dead id and says so. The only evidence that it
          landed is the agent turning up, so if it hasn't, say that rather than

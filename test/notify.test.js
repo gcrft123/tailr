@@ -10,7 +10,7 @@ import { mkdtempSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startTailr } from './helpers.js';
-import { detect, drift, fire, message, rebind, resolve } from '../src/server/notify.js';
+import { detect, drift, fire, message, rebind, resolve, stale, supersededBy } from '../src/server/notify.js';
 
 const THREAD = '01a07c3e-5155-7cb0-b29c-be73b6c3d857';
 
@@ -190,4 +190,59 @@ test('a session started with nothing to wake can be given someone', async (t) =>
   assert.equal((await tailr.api('state', null, 'GET')).body.wakesAgent, false);
   const bound = await tailr.api('notify', { agent: 'codex', thread: THREAD });
   assert.equal(bound.body.wakesAgent, true, 'the agent turning up is enough');
+});
+
+/* ── never wake a conversation that was cleared ───────────── */
+
+/* Clearing a Codex conversation starts a new thread but does not stop the old
+   one: it stays on the local daemon and still runs whatever is queued to it. A
+   stale binding is therefore not a wake that goes nowhere — it is an agent
+   editing the repository where the reviewer cannot see it. Observed for real:
+   a cleared session applied two batches to index.html out of sight. */
+
+const HERE = '/work/project';
+const rows = [
+  { id: 'a', createdAt: 100, cwd: HERE },
+  { id: 'b', createdAt: 200, cwd: HERE },              // the clear that replaced a
+  { id: 'c', createdAt: 300, cwd: '/somewhere/else' }  // another project entirely
+];
+
+test('a thread replaced by a newer one in the same project is superseded', () => {
+  assert.equal(supersededBy('a', HERE, rows), 'b');
+  assert.equal(supersededBy('b', HERE, rows), null, 'the newest is still current');
+});
+
+test('a newer conversation somewhere else does not supersede this one', () => {
+  assert.equal(supersededBy('b', HERE, rows), null);
+});
+
+test('what cannot be read cannot supersede', () => {
+  assert.equal(supersededBy('a', HERE, null), null, 'no store, no opinion');
+  assert.equal(supersededBy('unknown', HERE, rows), null, 'a thread not on file is left alone');
+});
+
+test('a command the reviewer wrote is never second-guessed', () => {
+  // Only the preset aims itself at a thread nobody chose; an explicit command
+  // is the reviewer's to point wherever they like.
+  const custom = { agent: 'codex', thread: 'a', command: 'poke %t', label: 'x' };
+  assert.equal(stale(custom, HERE, rows), null);
+  assert.equal(stale({ agent: 'codex', thread: 'a', command: null, label: 'x' }, HERE, rows), 'b');
+  assert.equal(stale(null, HERE, rows), null);
+});
+
+test('Send does not wake a cleared conversation, and the batch still waits', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'tailr-notify-'));
+  const out = join(dir, 'must-not-exist');
+  const tailr = await startTailr(undefined, {
+    notify: { agent: 'codex', thread: THREAD, command: null, label: 'codex' }
+  });
+  t.after(() => tailr.close());
+
+  // The preset builds its own argv, so nothing here can run a command anyway —
+  // what is asserted is that the batch survives the refusal to wake.
+  const sent = await tailr.api('batch', { marks: [{ ref: '01' }] });
+  assert.equal(sent.status, 200);
+  const state = await tailr.api('state', null, 'GET');
+  assert.equal(state.body.pending, true, 'the reviewer\'s batch is waiting either way');
+  assert.equal(existsSync(out), false);
 });
