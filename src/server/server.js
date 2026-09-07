@@ -19,6 +19,7 @@ import { brotliDecompressSync, gunzipSync, inflateRawSync, inflateSync } from 'n
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { defaults, KEYS, SETTINGS } from './config.js';
+import { fire as wake } from './notify.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CUE = join(HERE, '..', 'overlay', 'cuelume.js');
@@ -27,7 +28,7 @@ const BRIDGE = join(HERE, '..', 'bridge', 'client.js');
 
 const API = '/__tailr/';
 
-export function createServer({ target, onReady, onExit, spawned = false, config = defaults() }) {
+export function createServer({ target, onReady, onExit, spawned = false, config = defaults(), notify = null }) {
   const upstream = new URL(target);
   /* A dev server on https is still a dev server, and its certificate is nearly
      always self-signed or locally-minted. Refusing one would make https targets
@@ -69,6 +70,11 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       },
       pending: !!(state.batch && state.run && state.run.phase === 'working' && !state.run.leasedAt),
       ending: state.ending,
+      /* Whether Send reaches the agent on its own. An agent that has just been
+         woken, or has just lost its context, needs to know this to know whether
+         it has to arm `wait` — and it is the difference between a loop the
+         reviewer has to nudge and one they don't. */
+      wakesAgent: !!notify,
       config: { ...settings },
       /* Ending the session takes the review URL down with it, so the overlay has
          to be able to say where the application went — it is the last thing on
@@ -179,6 +185,12 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       state.run = { id, phase: 'working', served: [], total: marks.length, leasedAt: null, variants: {}, sliders: {} };
       publish();
       process.stdout.write(`\n  ⌁ batch ${id} — ${marks.length} mark${marks.length === 1 ? '' : 's'} waiting. Run: tailr pull\n`);
+      /* On an agent that cannot be told a background `wait` exited, this is the
+         only thing that gets the batch looked at without the reviewer asking.
+         It is fired after the batch is recorded and the response is not held
+         for it: waking the agent is best effort, the batch is not. */
+      wake(notify, { count: marks.length, url: `http://localhost:${server.address()?.port ?? ''}` },
+        (line) => process.stdout.write(`  ⌁ ${line}\n`));
       return json(res, 200, { id, total: marks.length });
     }
 

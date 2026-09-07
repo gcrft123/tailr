@@ -54,11 +54,17 @@ In the same message, do both:
   that they should use it instead of the original port. Tell them to hold their
   marking key — **Alt**, unless they have set another — and click to mark the
   page, then press **Send**.
-- Start `npx tailr wait` as a long-running background process.
+- Start `npx tailr wait` as a long-running background process — unless Tailr
+  said it will wake you, in which case skip it.
 
 `wait` prints nothing until Send is pressed, then exits — that exit is how you
 find out a batch has arrived, so they never have to tell you. Exit `0` a batch is
 waiting · `3` it timed out, start it again · `2` the session ended.
+
+Some agents cannot be told that a background process exited, so `wait` would exit
+into nothing. On those, Tailr says so when it starts — *Send will wake …* — and
+sends you the batch as a message instead. Then there is nothing to watch with:
+finish your turn, and the next batch arrives on its own.
 
 Then follow §4 for the rest of the session.
 
@@ -73,9 +79,11 @@ setting up by hand, copy it there verbatim.
 ## Tailr — visual markup from the reviewer
 
 The reviewer marks up the running app in the browser and hands you the changes
-as one batch. A session is up when `.tailr/session.json` exists; if it doesn't,
-start one as a long-running background process — it must stay up, so don't block
-your turn waiting on it:
+as one batch. A session is up when `.tailr/session.json` exists. If it does, it
+is already running: don't start another and don't hand out the review URL again
+— run `status` and pick the loop up where it stands. If it doesn't, start one as
+a long-running background process — it must stay up, so don't block your turn
+waiting on it:
 
     npx tailr --target http://localhost:<dev server port>
 
@@ -180,6 +188,12 @@ For a slider it carries `sliderOf` and `value`:
 - Run `wait` as a long-running background process and treat its exit as the
   notification. Never ask the reviewer to tell you a batch has arrived, and
   never poll for one. Start it again after each run you close.
+- Unless Tailr is waking you. Some agents cannot be told that a background
+  process exited, so on those Tailr sends the batch to you as a message the
+  moment Send is pressed. `status` says which you are: `wakesAgent` (`wakesYou`
+  on the MCP tool) is true when it will. When it is, skip `wait` entirely —
+  finish your turn and let the next batch arrive on its own. Running `wait`
+  anyway just blocks for nothing.
 - The reviewer can end the session from the page, which stops the server. `wait`
   then exits 2 and `.tailr/session.json` is gone. That is them finishing, not a
   crash: don't restart the session, and don't ask them to reopen the review URL.
