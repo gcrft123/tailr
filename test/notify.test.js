@@ -10,7 +10,7 @@ import { mkdtempSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startTailr } from './helpers.js';
-import { detect, fire, message, resolve } from '../src/server/notify.js';
+import { detect, drift, fire, message, rebind, resolve } from '../src/server/notify.js';
 
 const THREAD = '01a07c3e-5155-7cb0-b29c-be73b6c3d857';
 
@@ -124,4 +124,70 @@ test('with nothing to wake, a batch still lands', async (t) => {
   const sent = await tailr.api('batch', { marks: [{ ref: '01' }] });
   assert.equal(sent.status, 200);
   assert.equal(sent.body.total, 1);
+});
+
+/* ── surviving a cleared conversation ────────────────────── */
+
+const MOVED = '01a07c51-a5f1-70c1-a6d7-00372fcbe533';
+
+test('a thread that has moved is spotted; one that has not is left alone', () => {
+  const spec = resolve({ env: { CODEX_THREAD_ID: THREAD } });
+  assert.equal(drift(spec, { CODEX_THREAD_ID: THREAD }), null, 'same thread, nothing to do');
+  assert.deepEqual(drift(spec, { CODEX_THREAD_ID: MOVED }), { agent: 'codex', thread: MOVED });
+  assert.equal(drift(spec, {}), null, 'no agent in sight is not a move');
+});
+
+test('a session with nobody to wake gains one when the agent turns up', () => {
+  // Tailr started in the reviewer's own terminal knows no thread. The agent's
+  // first command is where it learns one.
+  assert.deepEqual(drift(null, { CODEX_THREAD_ID: THREAD }), { agent: 'codex', thread: THREAD });
+  const bound = rebind(null, { thread: THREAD });
+  assert.equal(bound.thread, THREAD);
+  assert.equal(bound.command, null);
+});
+
+test('rebinding moves what a wake aims at, and keeps a custom command', () => {
+  const custom = resolve({ explicit: 'poke %t', env: { CODEX_THREAD_ID: THREAD } });
+  const moved = rebind(custom, { thread: MOVED });
+  assert.equal(moved.command, 'poke %t', 'the command the reviewer gave is still theirs');
+  assert.equal(moved.thread, MOVED, 'but it now aims at the thread the agent is on');
+});
+
+test('--no-notify is not undone by an agent registering itself', () => {
+  assert.equal(rebind(null, { thread: THREAD }, { disabled: true }), null);
+});
+
+test('a thread id off the wire is checked the same as one off the environment', () => {
+  const spec = resolve({ env: { CODEX_THREAD_ID: THREAD } });
+  assert.equal(rebind(spec, { thread: 'x"; rm -rf /' }).thread, THREAD, 'refused, so nothing moved');
+});
+
+test('the agent re-registering changes who Send wakes', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'tailr-notify-'));
+  const out = join(dir, 'aimed');
+  const tailr = await startTailr(undefined, {
+    notify: { agent: 'codex', thread: THREAD, command: `echo '%t' > ${out}`, label: 'test' }
+  });
+  t.after(() => tailr.close());
+
+  const before = await tailr.api('state', null, 'GET');
+  assert.equal(before.body.wakesAgent, true);
+
+  const moved = await tailr.api('notify', { agent: 'codex', thread: MOVED });
+  assert.equal(moved.status, 200);
+  assert.equal(moved.body.thread, MOVED);
+
+  await tailr.api('batch', { marks: [{ ref: '01' }] });
+  assert.equal(await appears(out), MOVED, 'the wake follows the agent, not the id Tailr started with');
+});
+
+test('a session started with nothing to wake can be given someone', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'tailr-notify-'));
+  const out = join(dir, 'late');
+  const tailr = await startTailr();
+  t.after(() => tailr.close());
+
+  assert.equal((await tailr.api('state', null, 'GET')).body.wakesAgent, false);
+  const bound = await tailr.api('notify', { agent: 'codex', thread: THREAD });
+  assert.equal(bound.body.wakesAgent, true, 'the agent turning up is enough');
 });

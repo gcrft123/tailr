@@ -28,6 +28,18 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
   checked before they reach a command line, so nothing the environment holds can
   be read as shell syntax. `status` grew `wakesAgent` (`wakesYou` on the MCP
   tool), and the operating rules tell the agent to skip `wait` when it is true.
+- A wake survives the reviewer clearing their conversation. A thread id lasts
+  only until then: Codex starts a new thread for a cleared session, records it
+  nowhere until something is sent to it, and still accepts messages queued to
+  the dead one — so the captured id cannot be repaired by looking anywhere, and
+  a wake sent to it would report success and arrive nowhere. Every agent-side
+  command now carries the thread it is running on and re-registers it, so the
+  next thing the reviewer asks their agent repairs the handoff whatever it is;
+  the rules have it run `status` when a session is already up, which is enough
+  on its own. The same path gives a session started in the reviewer's own
+  terminal someone to wake as soon as the agent turns up, and `--no-notify` is
+  the one thing it will not undo. A batch still unclaimed 45 seconds after a
+  wake says so, rather than leaving a terminal claiming the agent was told.
 
 ### Changed
 

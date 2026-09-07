@@ -19,7 +19,7 @@ import { brotliDecompressSync, gunzipSync, inflateRawSync, inflateSync } from 'n
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { defaults, KEYS, SETTINGS } from './config.js';
-import { fire as wake } from './notify.js';
+import { fire as wake, rebind } from './notify.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CUE = join(HERE, '..', 'overlay', 'cuelume.js');
@@ -28,7 +28,11 @@ const BRIDGE = join(HERE, '..', 'bridge', 'client.js');
 
 const API = '/__tailr/';
 
-export function createServer({ target, onReady, onExit, spawned = false, config = defaults(), notify = null }) {
+export function createServer({ target, onReady, onExit, spawned = false, config = defaults(), notify = null, notifyDisabled = false }) {
+  /* Who to wake, as it stands. The agent's own calls move it: a thread id only
+     lasts until the conversation is cleared, and nothing but the agent knows
+     what replaced it. */
+  let waking = notify;
   const upstream = new URL(target);
   /* A dev server on https is still a dev server, and its certificate is nearly
      always self-signed or locally-minted. Refusing one would make https targets
@@ -74,7 +78,7 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
          woken, or has just lost its context, needs to know this to know whether
          it has to arm `wait` — and it is the difference between a loop the
          reviewer has to nudge and one they don't. */
-      wakesAgent: !!notify,
+      wakesAgent: !!waking,
       config: { ...settings },
       /* Ending the session takes the review URL down with it, so the overlay has
          to be able to say where the application went — it is the last thing on
@@ -189,9 +193,41 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
          only thing that gets the batch looked at without the reviewer asking.
          It is fired after the batch is recorded and the response is not held
          for it: waking the agent is best effort, the batch is not. */
-      wake(notify, { count: marks.length, url: `http://localhost:${server.address()?.port ?? ''}` },
+      const woken = wake(waking, { count: marks.length, url: `http://localhost:${server.address()?.port ?? ''}` },
         (line) => process.stdout.write(`  ⌁ ${line}\n`));
+      /* A wake that goes to a thread nobody is on still reports success — Codex
+         queues it against the dead id and says so. The only evidence that it
+         landed is the agent turning up, so if it hasn't, say that rather than
+         leave a terminal claiming the agent was told. */
+      if (woken) {
+        const waited = id;
+        setTimeout(() => {
+          if (state.run && state.run.id === waited && state.run.phase === 'working' && !state.run.leasedAt) {
+            process.stdout.write(
+              `  ⌁ ${waited} not picked up. If the agent's conversation was cleared it is on a new
+` +
+              `    thread now — ask it for anything and it will re-register itself.
+`);
+          }
+        }, 45000).unref?.();
+      }
       return json(res, 200, { id, total: marks.length });
+    }
+
+    /* The agent naming the thread it is on. Every agent-side command sends it,
+       so a conversation that was cleared repairs the wake as soon as the agent
+       does anything at all. */
+    if (path === 'notify' && req.method === 'POST') {
+      const body = await readBody(req);
+      const before = waking && waking.thread;
+      waking = rebind(waking, { thread: body.thread, agent: body.agent || 'codex' },
+        { disabled: notifyDisabled });
+      const after = waking && waking.thread;
+      if (after && after !== before) {
+        process.stdout.write(`  ⌁ waking ${waking.label} from now on\n`);
+        publish();
+      }
+      return json(res, 200, { wakesAgent: !!waking, thread: after || null });
     }
 
     if (path === 'pull' && req.method === 'POST') {

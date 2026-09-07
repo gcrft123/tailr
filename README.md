@@ -323,7 +323,37 @@ loop runs. Nobody types anything. `tailr status` reports `wakesAgent` when this
 is on, which is how an agent knows not to bother with `wait`.
 
 Started the session in your own terminal rather than through the agent? Then
-there is no thread to find, and `--notify` is how you name one.
+there is no thread to find at startup — but the first Tailr command the agent
+runs registers it, and Send wakes the agent from then on.
+
+### Clearing the conversation
+
+A thread id is only good until you clear the conversation. Codex starts a new
+thread for a cleared session, does not record it anywhere until something is
+sent to it, and still accepts messages queued to the old one — so a wake aimed
+at the id Tailr captured would report success and arrive nowhere.
+
+Nothing can look that up, so the agent corrects it instead: every Tailr command
+carries the thread it is running on, and Tailr re-aims at it. Clear the
+conversation and the very next thing you ask the agent repairs the handoff,
+whatever you ask for — the rules have it run `status` when a session is already
+up, and that alone is enough:
+
+```
+  ⌁ waking codex thread 01a07c57… from now on
+```
+
+Between the clear and that first command there is a gap where Send reaches
+nobody. Tailr says so rather than pretending, if a batch goes unclaimed:
+
+```
+  ⌁ r1 not picked up. If the agent's conversation was cleared it is on a new
+    thread now — ask it for anything and it will re-register itself.
+```
+
+The session itself is never the problem: it is a separate process, holding its
+state in `.tailr/session.json`, and a cleared conversation does not touch it.
+Only the address of who to wake goes stale.
 
 ## The agent side
 
