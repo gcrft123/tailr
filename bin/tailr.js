@@ -25,7 +25,7 @@ import { readSession, writeSession, clearSession, isAlive } from '../src/server/
 import { waitForBatch } from '../src/server/watch.js';
 import { applyConfig, configFile, describeConfig, modifierLabel, parseSettings, readConfig } from '../src/server/config.js';
 import { normalizeTarget } from '../src/server/target.js';
-import { resolve as resolveNotify } from '../src/server/notify.js';
+import { drift, resolve as resolveNotify } from '../src/server/notify.js';
 
 const argv = process.argv.slice(2);
 const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'slider', 'progress', 'done', 'fail', 'reset']);
@@ -97,6 +97,7 @@ async function serve({ target: only = null, command = null } = {}) {
   const { server } = createServer({
     target,
     notify,
+    notifyDisabled: args.includes('--no-notify'),
     // Read once, here. A change made while the session is up arrives over the
     // config endpoint rather than by the server going back to the file.
     config,
@@ -219,6 +220,18 @@ async function agent(cmd, rest) {
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, data };
   };
+
+  /* This command is running inside the agent's conversation, so its environment
+     names the thread the agent is on right now. That is the only way Tailr ever
+     learns it moved — a cleared conversation gets a new thread and tells
+     nobody — so every command re-registers it before doing anything else. */
+  const moved = drift(session.notify, process.env);
+  if (moved) {
+    const r = await call('notify', moved).catch(() => ({ ok: false }));
+    if (r.ok) {
+      writeSession({ ...session, notify: r.data.thread ? { agent: moved.agent, thread: r.data.thread } : null });
+    }
+  }
 
   if (cmd === 'status') {
     const { data } = await call('state', null, 'GET');

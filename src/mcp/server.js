@@ -10,8 +10,9 @@ import { createInterface } from 'node:readline';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readSession, isAlive } from '../server/session.js';
+import { readSession, isAlive, writeSession } from '../server/session.js';
 import { waitForBatch } from '../server/watch.js';
+import { drift } from '../server/notify.js';
 import { applyConfig, configFile, describeConfig, KEYS, readConfig, SETTINGS } from '../server/config.js';
 
 const { version: VERSION } = JSON.parse(
@@ -243,7 +244,27 @@ async function withTicks(promise, notify, seconds) {
   try { return await promise; } finally { clearInterval(timer); }
 }
 
+/* The MCP server runs inside the agent too, so it sees the same thing the CLI
+   does: which thread the agent is on now. Registering it is what survives a
+   cleared conversation. */
+async function reregister() {
+  const s = session();
+  if (!s) return;
+  const moved = drift(s.notify);
+  if (!moved) return;
+  try {
+    const res = await fetch(`http://127.0.0.1:${s.port}/__tailr/notify`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(moved)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) writeSession({ ...s, notify: data.thread ? { agent: moved.agent, thread: data.thread } : null });
+  } catch { /* the session is going away; the tool call below will say so */ }
+}
+
 async function runTool(name, args = {}, notify = null) {
+  await reregister();
   if (name === 'tailr_status') {
     const s = session();
     if (!s) {

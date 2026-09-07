@@ -66,6 +66,34 @@ export function resolve({ explicit = null, disabled = false, env = process.env }
   return null;
 }
 
+/** The thread the agent is on *now*, when that is not the one being held.
+ *
+ *  A thread id is only good until the reviewer clears the conversation: Codex
+ *  starts a new thread for a cleared session and does not record it anywhere
+ *  until something is sent to it, so the id Tailr captured at startup silently
+ *  stops being anyone. It cannot be looked up — but every command the agent
+ *  runs carries the current one, so the agent's own calls are what correct it.
+ *
+ *  @returns {{agent:string, thread:string}|null}
+ */
+export function drift(spec, env = process.env) {
+  const found = detect(env);
+  if (!found) return null;
+  if (spec && spec.thread === found.thread) return null;
+  return found;
+}
+
+/** Point an existing notify at a different thread, or start one for a session
+ *  that had nobody to wake until the agent turned up. `--no-notify` is the one
+ *  thing this will not undo. */
+export function rebind(spec, { thread, agent = 'codex' } = {}, { disabled = false } = {}) {
+  if (disabled || !thread || !THREAD.test(thread)) return spec;
+  const label = `${agent} thread ${thread.slice(0, 8)}…`;
+  if (!spec) return { agent, thread, command: null, label };
+  // A command the reviewer gave keeps its own label; only what it aims at moves.
+  return { ...spec, thread, label: spec.command ? spec.label : label };
+}
+
 function fill(template, ctx) {
   return template.replace(/%([ntu%])/g, (_, k) =>
     k === 'n' ? String(ctx.count)
