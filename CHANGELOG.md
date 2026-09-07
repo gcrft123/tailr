@@ -11,6 +11,67 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Added
+
+- Tailr can wake the agent when Send is pressed, so the handoff works on agents
+  whose clients cannot tell the model that a background process exited. On those
+  — Codex among them — `tailr wait` exits into nothing and the MCP `tailr_wait`
+  gives up after a minute and ends the turn, which left the reviewer telling
+  their agent they had pressed Send: the one thing Tailr exists to stop. The
+  direction now inverts. `--notify <command>` runs a command on each batch, with
+  `%n` the number of marks, `%t` the agent's thread and `%u` the review URL;
+  `TAILR_NOTIFY` sets the same thing from the environment, and `--no-notify`
+  turns it off. A session started from inside Codex needs none of that: Codex
+  exports `CODEX_THREAD_ID` into every command the agent runs, and that is the
+  id `codex queue --thread` takes, so Tailr picks it up and says at startup that
+  Send will wake it. The preset builds its argv itself and thread ids are shape-
+  checked before they reach a command line, so nothing the environment holds can
+  be read as shell syntax. `status` grew `wakesAgent` (`wakesYou` on the MCP
+  tool), and the operating rules tell the agent to skip `wait` when it is true.
+- A wake survives the reviewer clearing their conversation. A thread id lasts
+  only until then: Codex starts a new thread for a cleared session, records it
+  nowhere until something is sent to it, and still accepts messages queued to
+  the dead one — so the captured id cannot be repaired by looking anywhere, and
+  a wake sent to it would report success and arrive nowhere. Every agent-side
+  command now carries the thread it is running on and re-registers it, so the
+  next thing the reviewer asks their agent repairs the handoff whatever it is;
+  the rules have it run `status` when a session is already up, which is enough
+  on its own. The same path gives a session started in the reviewer's own
+  terminal someone to wake as soon as the agent turns up, and `--no-notify` is
+  the one thing it will not undo. A batch still unclaimed 45 seconds after a
+  wake says so, rather than leaving a terminal claiming the agent was told.
+- `tailr_status` asks the agent to run `npx tailr status` once when it cannot
+  see a thread id of its own. An MCP server is not told which conversation it
+  belongs to — Codex starts one per session and passes it no thread — so it is
+  the one place that cannot re-register itself, and an agent working only
+  through the MCP tools would otherwise stop being woken the moment the
+  conversation was cleared, with nothing saying so.
+
+### Fixed
+
+- Tailr will not wake a conversation that has been cleared. Clearing a Codex
+  conversation starts a new thread but does not stop the old one: it stays alive
+  on the local app-server daemon and still runs whatever is queued to it. So the
+  thread Tailr held was not merely dead, it was an agent applying batches to the
+  reviewer's repository where they could not see it happen — observed for real,
+  two rounds of edits to a file after the conversation on screen had moved on.
+  Before waking, Tailr now checks Codex's own thread store for a thread created
+  later in the same directory, which is what a clear leaves behind; finding one,
+  it refuses and says why. `created_at` is the field compared, because
+  `updated_at` is bumped by the very queueing whose safety is in question, so a
+  dead thread looks fresher every time it is wrong. A machine that cannot read
+  the store cannot answer the question, and one that cannot answer does not
+  guess. The batch waits either way — refusing to wake never costs a mark.
+
+- The page shown when the dev server goes away no longer reads as Tailr having
+  died. The reviewer has a browser and nothing else, and that page replaces the
+  application overlay and all — so a screen that only talked about the dev
+  server left the obvious conclusion that the session went with it, and the
+  reviewer restarting a Tailr that had never stopped. It now says whose fault it
+  is, that the session is still up, and that the marks in the browser are safe.
+  It also watches for the dev server and reloads itself when it answers, so
+  coming back costs no knowledge and no reload.
+
 ### Changed
 
 - The README documents sliders. They shipped in 1.2.0 and never reached the one
