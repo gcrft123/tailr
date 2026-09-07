@@ -25,6 +25,20 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
   `init`'s behaviour had been described three times, and a whole section existed
   to restate the rest of the document.
 
+- The Claude Code marketplace installs the plugin from the release tag instead
+  of from `main`. The catalog entry was a path into the marketplace clone, and
+  Claude Code keeps that clone on the default branch — so a push touching
+  `plugin/` reached everyone who had installed the plugin at their next update,
+  and could hand them skills describing a flag the published package did not
+  have yet. The entry is now a `git-subdir` source pinned to `v<version>`,
+  written by `scripts/plugin.js --sync` during the version bump, and the tests
+  fail if it ever names a branch. What Tailr actually runs was already
+  release-only: the MCP server is `npx -y @gcrft123/tailr`, which resolves the
+  latest npm release, and npm is published from a tag and nothing else. Cursor,
+  Codex, Copilot, and the Gemini and Antigravity clones still read `plugin/`
+  from the default branch — those catalogs are other schemas, and pinning them
+  is its own change.
+
 ### Fixed
 
 - `npx -y @gcrft123/tailr <command>` works inside a Tailr checkout. npm sees that

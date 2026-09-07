@@ -23,6 +23,7 @@ const KEYWORDS = ['dev-server', 'feedback', 'agent', 'overlay', 'markup', 'mcp',
 const OWNER = { name: 'gcrft123', url: 'https://github.com/gcrft123' };
 const HOME = 'https://github.com/gcrft123/tailr#readme';
 const REPO = 'https://github.com/gcrft123/tailr';
+const CLONE = `${REPO}.git`;
 const SHORT = 'Mark up a running dev server and hand the changes to your coding agent as one batch.';
 const REVIEW = join(ROOT, 'plugin', 'skills', 'review', 'SKILL.md');
 const CURSOR_RULE = join(ROOT, 'plugin', 'rules', 'review.mdc');
@@ -162,6 +163,19 @@ function catalogs(version, pkgName) {
     license: 'MIT',
     tags: KEYWORDS
   };
+  /* Claude Code resolves a plugin's source itself rather than reading it out of
+     the marketplace clone, so this is the one catalog that can name a tag. The
+     listing around it still comes off the default branch, which is how the pin
+     ever moves; what the pin buys is that a push to `main` can no longer hand
+     an installed user skills for a release that has not happened yet. A `sha`
+     would hold harder, but the commit this ref names does not exist while
+     `--sync` is running — it is the commit `--sync` is part of. The tag is the
+     one `npm version` is about to write, so the two arrive together or not at
+     all. */
+  const pinned = {
+    ...listing,
+    source: { source: 'git-subdir', url: CLONE, path: 'plugin', ref: `v${version}` }
+  };
   const mcp = servers(pkgName);
   return [
     [at('plugin', '.claude-plugin', 'plugin.json'), id],
@@ -203,7 +217,7 @@ function catalogs(version, pkgName) {
       name: NAME,
       owner: OWNER,
       metadata: { description: SHORT },
-      plugins: [listing]
+      plugins: [pinned]
     }],
     [at('.cursor-plugin', 'plugin.json'), {
       ...id,
