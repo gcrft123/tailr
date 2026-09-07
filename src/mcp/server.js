@@ -278,6 +278,17 @@ async function runTool(name, args = {}, notify = null) {
       /* True when Tailr wakes the agent itself on Send. Then tailr_wait is not
          needed at all: end the turn, and the next batch arrives as a message. */
       wakesYou: !!r.data.wakesAgent,
+      /* A thread id lasts only until the conversation is cleared, and an MCP
+         server is not told which conversation it belongs to — Codex starts one
+         per session and passes it no thread id. So this process cannot keep the
+         wake aimed at the agent; only a command run inside the conversation
+         can, because that one carries the id in its environment. Say so rather
+         than let a cleared conversation quietly stop being woken. */
+      ...(r.data.wakesAgent && !drift(null)
+        ? { reRegister: 'Run `npx tailr status` in the shell once now. This MCP server cannot see ' +
+            'your conversation\'s thread id, so a shell command is the only thing that can keep Send ' +
+            'reaching you after the conversation has been cleared.' }
+        : {}),
       // Which key they hold to mark, so telling them is never a guess.
       settings: r.data.config
     }, null, 2) };

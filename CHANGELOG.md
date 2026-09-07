@@ -40,6 +40,12 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
   terminal someone to wake as soon as the agent turns up, and `--no-notify` is
   the one thing it will not undo. A batch still unclaimed 45 seconds after a
   wake says so, rather than leaving a terminal claiming the agent was told.
+- `tailr_status` asks the agent to run `npx tailr status` once when it cannot
+  see a thread id of its own. An MCP server is not told which conversation it
+  belongs to — Codex starts one per session and passes it no thread — so it is
+  the one place that cannot re-register itself, and an agent working only
+  through the MCP tools would otherwise stop being woken the moment the
+  conversation was cleared, with nothing saying so.
 
 ### Changed
 
