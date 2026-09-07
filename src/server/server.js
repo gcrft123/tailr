@@ -19,6 +19,7 @@ import { brotliDecompressSync, gunzipSync, inflateRawSync, inflateSync } from 'n
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { defaults, KEYS, SETTINGS } from './config.js';
+import { fire as wake, rebind, stale } from './notify.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CUE = join(HERE, '..', 'overlay', 'cuelume.js');
@@ -27,7 +28,11 @@ const BRIDGE = join(HERE, '..', 'bridge', 'client.js');
 
 const API = '/__tailr/';
 
-export function createServer({ target, onReady, onExit, spawned = false, config = defaults() }) {
+export function createServer({ target, onReady, onExit, spawned = false, config = defaults(), notify = null, notifyDisabled = false }) {
+  /* Who to wake, as it stands. The agent's own calls move it: a thread id only
+     lasts until the conversation is cleared, and nothing but the agent knows
+     what replaced it. */
+  let waking = notify;
   const upstream = new URL(target);
   /* A dev server on https is still a dev server, and its certificate is nearly
      always self-signed or locally-minted. Refusing one would make https targets
@@ -69,6 +74,11 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       },
       pending: !!(state.batch && state.run && state.run.phase === 'working' && !state.run.leasedAt),
       ending: state.ending,
+      /* Whether Send reaches the agent on its own. An agent that has just been
+         woken, or has just lost its context, needs to know this to know whether
+         it has to arm `wait` — and it is the difference between a loop the
+         reviewer has to nudge and one they don't. */
+      wakesAgent: !!waking,
       config: { ...settings },
       /* Ending the session takes the review URL down with it, so the overlay has
          to be able to say where the application went — it is the last thing on
@@ -179,7 +189,56 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       state.run = { id, phase: 'working', served: [], total: marks.length, leasedAt: null, variants: {}, sliders: {} };
       publish();
       process.stdout.write(`\n  ⌁ batch ${id} — ${marks.length} mark${marks.length === 1 ? '' : 's'} waiting. Run: tailr pull\n`);
+      /* On an agent that cannot be told a background `wait` exited, this is the
+         only thing that gets the batch looked at without the reviewer asking.
+         It is fired after the batch is recorded and the response is not held
+         for it: waking the agent is best effort, the batch is not. */
+      /* Never wake a conversation that has been cleared. The old thread is not
+         dead — it stays on Codex's daemon and will run this batch out of sight,
+         editing the reviewer's repository where they cannot see it happen. */
+      const gone = stale(waking, process.cwd());
+      if (gone) {
+        process.stdout.write(
+          `  ⌁ not waking ${waking.label} — that conversation was cleared, and ${gone.slice(0, 8)}…\n` +
+          `    replaced it. Waking it would apply this batch where you cannot see it.\n` +
+          `    Ask your agent for anything; its next Tailr command re-registers it.\n`);
+      }
+      const woken = gone ? null
+        : wake(waking, { count: marks.length, url: `http://localhost:${server.address()?.port ?? ''}` },
+          (line) => process.stdout.write(`  ⌁ ${line}\n`));
+      /* A wake that goes to a thread nobody is on still reports success — Codex
+         queues it against the dead id and says so. The only evidence that it
+         landed is the agent turning up, so if it hasn't, say that rather than
+         leave a terminal claiming the agent was told. */
+      if (woken) {
+        const waited = id;
+        setTimeout(() => {
+          if (state.run && state.run.id === waited && state.run.phase === 'working' && !state.run.leasedAt) {
+            process.stdout.write(
+              `  ⌁ ${waited} not picked up. If the agent's conversation was cleared it is on a new
+` +
+              `    thread now — ask it for anything and it will re-register itself.
+`);
+          }
+        }, 45000).unref?.();
+      }
       return json(res, 200, { id, total: marks.length });
+    }
+
+    /* The agent naming the thread it is on. Every agent-side command sends it,
+       so a conversation that was cleared repairs the wake as soon as the agent
+       does anything at all. */
+    if (path === 'notify' && req.method === 'POST') {
+      const body = await readBody(req);
+      const before = waking && waking.thread;
+      waking = rebind(waking, { thread: body.thread, agent: body.agent || 'codex' },
+        { disabled: notifyDisabled });
+      const after = waking && waking.thread;
+      if (after && after !== before) {
+        process.stdout.write(`  ⌁ waking ${waking.label} from now on\n`);
+        publish();
+      }
+      return json(res, 200, { wakesAgent: !!waking, thread: after || null });
     }
 
     if (path === 'pull' && req.method === 'POST') {
@@ -395,15 +454,45 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
   return { server, state };
 }
 
+/* The page the reviewer gets when their dev server goes away.
+ *
+ * They have a browser and nothing else — no terminal, no logs — and this page
+ * replaces the application overlay and all. So the thing it must not do is let
+ * them conclude that Tailr died: it is the only page they can see, and if it
+ * only talks about the dev server, the obvious reading of a blank screen where
+ * the app used to be is that the whole session went with it. It says whose
+ * fault it is, that the session is still up, that their marks are safe — and
+ * then it watches for the dev server itself, so coming back costs them nothing.
+ */
 function downPage(target, err) {
-  return `<!doctype html><meta charset="utf-8"><title>Tailr — dev server unreachable</title>
+  return `<!doctype html><meta charset="utf-8"><title>Tailr — your dev server stopped answering</title>
 <style>body{font:13px/1.6 ui-sans-serif,-apple-system,system-ui,sans-serif;background:#0B0B0C;color:#FFFFFF;
 display:grid;place-items:center;height:100vh;margin:0}main{max-width:34rem;padding:2rem}
 code{background:rgba(255, 255, 255, 0.12);padding:2px 6px;border-radius:5px;font-family:ui-monospace,Menlo,monospace}
-h1{font-size:19px;margin:0 0 .6rem;letter-spacing:-0.01em}p{color:rgba(255, 255, 255, 0.56);margin:.4rem 0}</style>
-<main><h1>Tailr can't reach your dev server</h1>
+h1{font-size:19px;margin:0 0 .6rem;letter-spacing:-0.01em}p{color:rgba(255, 255, 255, 0.56);margin:.4rem 0}
+b{color:#FFFFFF;font-weight:500}
+.live{margin-top:1.4rem;font-size:13px;color:rgba(255,255,255,.4);display:flex;align-items:center;gap:.5rem}
+.dot{width:6px;height:6px;border-radius:50%;background:#4ADE80;animation:p 1.6s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:.25}50%{opacity:1}}</style>
+<main><h1>Your dev server stopped answering</h1>
 <p>Nothing is answering at <code>${escapeHtml(target)}</code>.</p>
-<p>Start it, then reload this page — Tailr will pick it up. Anything you already marked up is still saved in this browser.</p>
-<p style="margin-top:1.2rem;font-size:13px;opacity:.5">${escapeHtml(err && err.code || 'connection failed')}</p></main>`;
+<p><b>Tailr is still running.</b> This session is up, and every mark you have made is
+still saved in this browser — none of it is lost, and you do not need to start Tailr again.</p>
+<p>Start your dev server back up and this page returns on its own.</p>
+<p class="live"><span class="dot"></span>Watching for it — <span id="s">checking…</span></p>
+<p style="margin-top:1.2rem;font-size:13px;opacity:.35">${escapeHtml(err && err.code || 'connection failed')}</p></main>
+<script>
+/* Poll the app through the proxy. Anything but another down page means the dev
+   server is back, and the reviewer should not have to know to press reload. */
+let n = 0;
+setInterval(async () => {
+  n++;
+  document.getElementById('s').textContent = 'checked ' + n + (n === 1 ? ' time' : ' times');
+  try {
+    const r = await fetch(location.href, { cache: 'no-store', headers: { 'x-tailr-probe': '1' } });
+    if (r.status !== 502) location.reload();
+  } catch {}
+}, 2000);
+</script>`;
 }
 function escapeHtml(s) { return String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }

@@ -10,8 +10,9 @@ import { createInterface } from 'node:readline';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readSession, isAlive } from '../server/session.js';
+import { readSession, isAlive, writeSession } from '../server/session.js';
 import { waitForBatch } from '../server/watch.js';
+import { drift } from '../server/notify.js';
 import { applyConfig, configFile, describeConfig, KEYS, readConfig, SETTINGS } from '../server/config.js';
 
 const { version: VERSION } = JSON.parse(
@@ -243,7 +244,27 @@ async function withTicks(promise, notify, seconds) {
   try { return await promise; } finally { clearInterval(timer); }
 }
 
+/* The MCP server runs inside the agent too, so it sees the same thing the CLI
+   does: which thread the agent is on now. Registering it is what survives a
+   cleared conversation. */
+async function reregister() {
+  const s = session();
+  if (!s) return;
+  const moved = drift(s.notify);
+  if (!moved) return;
+  try {
+    const res = await fetch(`http://127.0.0.1:${s.port}/__tailr/notify`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(moved)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) writeSession({ ...s, notify: data.thread ? { agent: moved.agent, thread: data.thread } : null });
+  } catch { /* the session is going away; the tool call below will say so */ }
+}
+
 async function runTool(name, args = {}, notify = null) {
+  await reregister();
   if (name === 'tailr_status') {
     const s = session();
     if (!s) {
@@ -254,6 +275,20 @@ async function runTool(name, args = {}, notify = null) {
     return { text: JSON.stringify({
       running: true, reviewUrl: s.url, proxying: s.target,
       batchWaiting: !!r.data.pending, run: r.data.run,
+      /* True when Tailr wakes the agent itself on Send. Then tailr_wait is not
+         needed at all: end the turn, and the next batch arrives as a message. */
+      wakesYou: !!r.data.wakesAgent,
+      /* A thread id lasts only until the conversation is cleared, and an MCP
+         server is not told which conversation it belongs to — Codex starts one
+         per session and passes it no thread id. So this process cannot keep the
+         wake aimed at the agent; only a command run inside the conversation
+         can, because that one carries the id in its environment. Say so rather
+         than let a cleared conversation quietly stop being woken. */
+      ...(r.data.wakesAgent && !drift(null)
+        ? { reRegister: 'Run `npx tailr status` in the shell once now. This MCP server cannot see ' +
+            'your conversation\'s thread id, so a shell command is the only thing that can keep Send ' +
+            'reaching you after the conversation has been cleared.' }
+        : {}),
       // Which key they hold to mark, so telling them is never a guess.
       settings: r.data.config
     }, null, 2) };

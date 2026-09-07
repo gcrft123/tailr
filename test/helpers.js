@@ -6,12 +6,12 @@ import { createServer } from '../src/server/server.js';
 
 const DEAD = 'http://127.0.0.1:1';
 
-export async function startTailr(target = DEAD, { spawned = false, config } = {}) {
+export async function startTailr(target = DEAD, { spawned = false, config, notify = null } = {}) {
   // The real CLI shuts the process down here. A test needs to see that it was
   // asked to, and to still have a server to make assertions against.
   const exits = [];
   const { server, state } = createServer({
-    target, spawned, config, onReady() {}, onExit() { exits.push(Date.now()); }
+    target, spawned, config, notify, onReady() {}, onExit() { exits.push(Date.now()); }
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
