@@ -11,17 +11,49 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSession, isAlive, writeSession } from '../server/session.js';
+import { startDetached, stopSession } from '../server/lifecycle.js';
 import { waitForBatch } from '../server/watch.js';
 import { drift } from '../server/notify.js';
 import { applyConfig, configFile, describeConfig, KEYS, readConfig, SETTINGS } from '../server/config.js';
+import { normalizeTarget } from '../server/target.js';
 
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const BIN = join(ROOT, 'bin', 'tailr.js');
 const { version: VERSION } = JSON.parse(
-  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json'), 'utf8'));
+  readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
 const DEFAULT_PROTOCOL = '2024-11-05';
 const SUPPORTED = new Set(['2024-11-05', '2025-03-26', '2025-06-18']);
 
 const TOOLS = [
+  {
+    name: 'tailr_start',
+    description:
+      'Start a Tailr review session against a running dev server. Detaches inside Tailr and returns ' +
+      'once the review URL is ready — do not shell-background `tailr` yourself. Idempotent if a ' +
+      'session is already up. Prefer this (or `npx tailr start`) over inventing process management.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Dev server URL to proxy, e.g. http://localhost:5173. Default http://localhost:3000.'
+        },
+        port: {
+          type: 'number',
+          description: 'Port for Tailr itself. Default 4100.'
+        }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'tailr_stop',
+    description:
+      'Stop the Tailr review session for this project. Idempotent if none is running. Prefer this ' +
+      'over deleting anything under .tailr/.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+  },
   {
     name: 'tailr_status',
     description:
@@ -213,7 +245,7 @@ async function call(path, body, method = 'POST') {
   const s = session();
   if (!s) {
     const err = new Error(
-      'No Tailr session is running in this project. Ask the user to start one with `npx tailr --target <their dev server url>`, ' +
+      'No Tailr session is running in this project. Start one with `tailr_start` (or `npx tailr start --target <their dev server url>`), ' +
       'then open the URL it prints and mark up the page.');
     err.noSession = true;
     throw err;
@@ -265,11 +297,41 @@ async function reregister() {
 
 async function runTool(name, args = {}, notify = null) {
   await reregister();
+  if (name === 'tailr_start') {
+    const asked = normalizeTarget(args.target || 'http://localhost:3000');
+    if (asked.error) return { text: asked.error, isError: true };
+    const childArgs = ['--target', asked.url];
+    if (args.port != null) childArgs.push('--port', String(args.port));
+    const result = await startDetached({ bin: BIN, args: childArgs });
+    if (!result.ok) return { text: result.error, isError: true };
+    const { session, already } = result;
+    return {
+      text: JSON.stringify({
+        running: true,
+        already: !!already,
+        reviewUrl: session.url,
+        proxying: session.target,
+        next: 'Hand the reviewer reviewUrl, then call tailr_wait.'
+      }, null, 2)
+    };
+  }
+
+  if (name === 'tailr_stop') {
+    const result = await stopSession();
+    return {
+      text: JSON.stringify({
+        stopped: !!result.stopped,
+        reason: result.reason || (result.stopped ? 'stopped' : 'none'),
+        was: result.session || null
+      }, null, 2)
+    };
+  }
+
   if (name === 'tailr_status') {
     const s = session();
     if (!s) {
       return { text: JSON.stringify({ running: false,
-        hint: 'No Tailr session. Ask the user to run `npx tailr --target <dev server url>`.' }, null, 2) };
+        hint: 'No Tailr session. Call tailr_start with the dev server URL.' }, null, 2) };
     }
     const r = await call('state', null, 'GET');
     return { text: JSON.stringify({
@@ -297,7 +359,7 @@ async function runTool(name, args = {}, notify = null) {
   if (name === 'tailr_wait') {
     const s = session();
     if (!s) {
-      return { text: 'No Tailr session is running. Ask the user to run `npx tailr --target <dev server url>`.',
+      return { text: 'No Tailr session is running. Call tailr_start with the dev server URL.',
                isError: true };
     }
     const seconds = Number(args.timeoutSeconds) || WAIT_DEFAULT_SECONDS;

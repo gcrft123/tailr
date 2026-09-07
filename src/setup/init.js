@@ -193,7 +193,7 @@ function report(done, skipped, ruleFiles = []) {
     '',
     '  To start the session yourself instead:',
     '',
-    '    npx tailr --target http://localhost:<dev server port>',
+    '    npx tailr start --target http://localhost:<dev server port>',
     '');
   process.stdout.write(lines.join('\n'));
 }

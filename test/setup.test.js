@@ -40,9 +40,10 @@ test('what it prints is for whoever typed it, not past them to the agent', () =>
   const { out } = captured(() => init({ cwd, install: false }));
 
   assert.match(out, /AGENTS\.md/, 'it says where the rules landed');
-  assert.match(out, /npx tailr --target/, 'and leaves them the one command that is theirs');
+  assert.match(out, /npx tailr start --target/, 'and leaves them the one command that is theirs');
   assert.doesNotMatch(out, /tailr wait/, 'waiting for a batch is the agent\u2019s half');
   assert.doesNotMatch(out, /tailr pull/, 'and so is leasing it');
+  assert.doesNotMatch(out, /session\.json/, 'session files stay internal');
   for (const line of out.split('\n')) {
     assert.ok(line.length <= 78, `a report line ran long: ${line}`);
   }
