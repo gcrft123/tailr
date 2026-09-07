@@ -41,6 +41,19 @@ that path, so `plugin/skills/start` has to arrive as `skills/tailr-start` or it
 would install as `/start` over somebody's built-in. `--sync` renames the copy
 and changes nothing else; `--check` fails on a bare name left behind.
 
+`--sync` also writes the Claude Code catalog's source as a `git-subdir` pinned
+to `v<version>` — the tag the same `npm version` run is about to create. Claude
+Code reads `.claude-plugin/marketplace.json` off `main`, but fetches `plugin/`
+from the tag that entry names, so the skills and the MCP registration reach
+people who have installed the plugin on releases rather than on every push. It
+is the only catalog pinned this way; the rest still resolve `plugin/` out of the
+default branch.
+
+That makes `--follow-tags` load-bearing rather than tidy. A plain `git push`
+leaves a catalog on `main` naming a tag GitHub has not got, and Claude Code has
+nothing to resolve — installing and updating fail until the tag arrives. Push
+both or push neither.
+
 To list Tailr on Cursor's public marketplace, submit
 `https://github.com/gcrft123/tailr` at
 [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish).
