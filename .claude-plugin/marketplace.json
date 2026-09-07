@@ -16,7 +16,12 @@
       "author": {
         "name": "gcrft123"
       },
-      "source": "./plugin",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/gcrft123/tailr.git",
+        "path": "plugin",
+        "ref": "v1.3.2"
+      },
       "category": "design",
       "homepage": "https://github.com/gcrft123/tailr#readme",
       "license": "MIT",

@@ -134,7 +134,9 @@ session and hands you the review URL.
 
 Use the git URL, not the `owner/repo` shorthand: the Claude Code app clones the
 shorthand over SSH and has nothing to answer the host-key prompt with, so the add
-hangs and then fails. Updating is `/plugin` → **Update**.
+hangs and then fails. Updating is `/plugin` → **Update**, which moves you to the
+last release: the listing is read from the default branch, but the plugin it
+installs is pinned to the release tag.
 
 **Cursor**
 
