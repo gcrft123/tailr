@@ -75,7 +75,7 @@ test('handshake and tool list', async (t) => {
   const listId = mcp.send('tools/list');
   const list = await mcp.until((m) => m.id === listId);
   const names = list.result.tools.map((x) => x.name);
-  for (const n of ['tailr_status', 'tailr_wait', 'tailr_pull', 'tailr_progress', 'tailr_done', 'tailr_fail', 'tailr_config']) {
+  for (const n of ['tailr_start', 'tailr_stop', 'tailr_status', 'tailr_wait', 'tailr_pull', 'tailr_progress', 'tailr_done', 'tailr_fail', 'tailr_config']) {
     assert.ok(names.includes(n), n);
   }
   const wait = list.result.tools.find((x) => x.name === 'tailr_wait');

@@ -197,20 +197,26 @@ both is harmless — the rules are the same text either way.
 ## Start a session
 
 ```bash
-npx tailr --target http://localhost:3000
+npx tailr start --target http://localhost:3000
 ```
+
+`start` detaches inside Tailr and returns once the review URL is ready — that is
+what agents should use. Bare `npx tailr --target …` still serves in the
+foreground if you want the process attached to your terminal.
 
 That assumes Tailr is in the project, which `init` sees to; `npm install
 --save-dev @gcrft123/tailr` is the same thing by hand, and `npx
-@gcrft123/tailr --target …` skips it altogether.
+@gcrft123/tailr start --target …` skips it altogether.
 
 Tailr proxies your dev server on `http://localhost:4100` and injects its overlay
 into the HTML. Your application is not modified — no script tag, no build step, no
 config. Hot-reload WebSockets pass through untouched.
 
 ```bash
-npx tailr                         # proxies http://localhost:3000
-npx tailr --target <url>          # a different dev server
+npx tailr                         # proxies http://localhost:3000 (foreground)
+npx tailr --target <url>          # a different dev server (foreground)
+npx tailr start --target <url>    # same, detached — returns when ready
+npx tailr stop                    # stop the project's session
 npx tailr --port <n>              # serve Tailr somewhere else
 npx tailr -- npm run dev          # start the dev server too, then proxy it
 npx tailr --notify <command>      # run this when Send is pressed, to wake the agent
@@ -218,7 +224,7 @@ npx tailr --no-notify             # don't, even if there is an agent to wake
 ```
 
 Review at the Tailr URL, not the original one. A session writes nothing to your
-repository except `.tailr/session.json`, so the CLI can find it.
+repository except a locator under `.tailr/`, so the CLI can find it.
 
 ## Marking up
 
@@ -362,6 +368,8 @@ Only the address of who to wake goes stale.
 Run these from the same project directory, while a session is up.
 
 ```bash
+tailr start --target <url>  # start the session (detached); prefer this to shell &
+tailr stop                  # stop it
 tailr status          # is a batch waiting? exit 0 if yes, 3 if not
 tailr wait            # block until one is; exit 0 waiting, 3 timed out, 2 session ended
 tailr pull            # lease the pending batch, printed as JSON on stdout
@@ -477,6 +485,8 @@ Same round trip as the CLI:
 
 | Tool | What it does |
 |---|---|
+| `tailr_start` | Start a session (detached); returns the review URL when ready |
+| `tailr_stop` | Stop the project's session |
 | `tailr_status` | Is a session running, is a batch waiting, and where should the reviewer go |
 | `tailr_wait` | Block until the reviewer sends a batch, so they never have to tell you |
 | `tailr_pull` | Lease the pending batch. `wait: true` blocks until one arrives |
@@ -487,9 +497,9 @@ Same round trip as the CLI:
 | `tailr_fail` | Close it as incomplete with a `reason`, releasing the send lock |
 | `tailr_config` | Read or change the reviewer's settings, when they ask |
 
-The server must still be running — the MCP tools talk to the same session the CLI
-does, found through `.tailr/session.json`. If none is running, the tools say so
-and tell you what to ask the user for rather than failing opaquely.
+The MCP tools talk to the same session the CLI does. If none is running,
+`tailr_start` (or `npx tailr start --target <url>`) creates one — do not
+shell-background a bare `tailr`, and do not edit anything under `.tailr/`.
 
 ## Requirements
 

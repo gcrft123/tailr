@@ -20,13 +20,13 @@ instead, so nothing in the user's repository has to be edited.
 ## Tailr — visual markup from the reviewer
 
 The reviewer marks up the running app in the browser and hands you the changes
-as one batch. A session is up when `.tailr/session.json` exists. If it does, it
-is already running: don't start another and don't hand out the review URL again
-— run `status` and pick the loop up where it stands. If it doesn't, start one as
-a long-running background process — it must stay up, so don't block your turn
-waiting on it:
+as one batch. Check whether a session is up with `status` (exit 2 means none).
+If one is already running, don't start another and don't hand out the review URL
+again — pick the loop up where it stands. If there isn't one, start it — `start`
+detaches inside Tailr and returns once the review URL is ready, so do not
+background the command yourself and do not touch files under `.tailr/`:
 
-    npx tailr --target http://localhost:<dev server port>
+    npx tailr start --target http://localhost:<dev server port>
 
 It prints a review URL (usually http://localhost:4100). Tell the reviewer to use
 that URL, not the original port. Tailr proxies the app and injects its overlay;
@@ -36,6 +36,8 @@ The loop is `wait` → `pull` → `progress` per mark → `done` or `fail`.
 
 | Command | MCP tool | |
 |---|---|---|
+| `npx tailr start --target <url>` | `tailr_start` | start a session (detached); exit 0 when the review URL is ready |
+| `npx tailr stop` | `tailr_stop` | stop the session |
 | `npx tailr status` | `tailr_status` | is a batch waiting? exit 0 yes · 3 session up, nothing waiting · 2 no session |
 | `npx tailr wait` | `tailr_wait` | block until Send is pressed; exit 0 a batch is waiting · 3 timed out, start it again · 2 session ended |
 | `npx tailr pull` | `tailr_pull` | lease the batch, printed as JSON |
@@ -136,11 +138,12 @@ For a slider it carries `sliderOf` and `value`:
   finish your turn and let the next batch arrive on its own. Running `wait`
   anyway just blocks for nothing.
 - The reviewer can end the session from the page, which stops the server. `wait`
-  then exits 2 and `.tailr/session.json` is gone. That is them finishing, not a
-  crash: don't restart the session, and don't ask them to reopen the review URL.
-  A last batch of `choice` marks usually arrives just before it — that is the
-  cleanup, and it is the one batch worth closing quickly, because they are
-  waiting on it to leave.
+  then exits 2. That is them finishing, not a crash: don't restart the session,
+  and don't ask them to reopen the review URL. A last batch of `choice` marks
+  usually arrives just before it — that is the cleanup, and it is the one batch
+  worth closing quickly, because they are waiting on it to leave.
+- Do not create, edit, or delete anything under `.tailr/`. Session state is
+  Tailr's; use `start`, `stop`, and `status` instead.
 - Report each mark with `progress` as you land it, not all at once at the end.
   The reviewer watches them clear on screen; batching makes it look like nothing
   is happening.
@@ -163,21 +166,20 @@ For a slider it carries `sliderOf` and `value`:
 
 ## Running the commands from this plugin
 
-This plugin registers Tailr's **MCP server**, so `tailr_status`, `tailr_wait`,
-`tailr_pull`, `tailr_progress`, `tailr_done` and `tailr_fail` are available to
-you directly. Prefer them to the CLI: they are always present, whereas the
-`npx tailr` shorthand only resolves in a project that has installed Tailr.
+This plugin registers Tailr's **MCP server**, so `tailr_start`, `tailr_stop`,
+`tailr_status`, `tailr_wait`, `tailr_pull`, `tailr_progress`, `tailr_done` and
+`tailr_fail` are available to you directly. Prefer them to the CLI: they are
+always present, whereas the `npx tailr` shorthand only resolves in a project
+that has installed Tailr.
 
 Where you do reach for the CLI, use the full package name so it works in a
 project that has not installed anything:
 
     npx -y @gcrft123/tailr <command>
 
-Starting a session is the one step with no MCP tool, because the session is the
-server those tools talk to. Start it as a long-running background process — it
-has to stay up, so don't block your turn waiting on it:
-
-    npx -y @gcrft123/tailr --target http://localhost:<dev server port>
+Start a session with `tailr_start` (or `npx -y @gcrft123/tailr start --target
+<url>`). It detaches inside Tailr and returns once the review URL is ready —
+do not background it with `&`, and do not touch files under `.tailr/`.
 
 If the project has Tailr as a dependency, plain `npx tailr` is equivalent and
 shorter.

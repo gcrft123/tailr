@@ -46,6 +46,13 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
   the one place that cannot re-register itself, and an agent working only
   through the MCP tools would otherwise stop being woken the moment the
   conversation was cleared, with nothing saying so.
+- `tailr start` / `tailr stop`, and matching `tailr_start` / `tailr_stop` MCP
+  tools. Agents were told to background a foreground `tailr` themselves; host
+  runners (OpenCode among them) then SIGTERM'd the process group after
+  "Tailr is up", and recovered by deleting `.tailr/session.json`. `start`
+  detaches inside Node and returns once the review URL is ready; `stop` is the
+  teardown. Serve also ignores SIGHUP so a hung-up agent shell cannot take the
+  session with it.
 
 ### Fixed
 
@@ -74,6 +81,10 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ### Changed
 
+- Agent rules, start skills, `init`'s handoff, the landing-page assure line,
+  and PRODUCT/DESIGN no longer mention `.tailr/session.json` or ask agents to
+  shell-background the server. Session liveness goes through `status` /
+  `start` / `stop` only; human docs say a locator under `.tailr/`.
 - The README documents sliders. They shipped in 1.2.0 and never reached the one
   file most people read: the composer's slider button and the pill's Keep for the
   reviewer, `tailr slider` and the `data-tailr-slide-<ref>` switch for the agent.

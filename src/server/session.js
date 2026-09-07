@@ -22,11 +22,21 @@ export function clearSession() {
   try {
     const current = readSession();
     if (current && current.pid !== process.pid) return;
-    rmSync(FILE, { force: true });
-    // Tailr made this directory; with the session file gone there is nothing
-    // left in it worth keeping, and leaving an empty one behind is residue.
-    rmdirSync(DIR);                        // throws, and is ignored, if not empty
+    removeSessionFile();
   } catch {}
+}
+
+/** Drop the locator regardless of who wrote it — used by `tailr stop` and by
+ *  `tailr start` when a dead pid left the file behind. */
+export function forceClearSession() {
+  try { removeSessionFile(); } catch {}
+}
+
+function removeSessionFile() {
+  rmSync(FILE, { force: true });
+  // Tailr made this directory; with the session file gone there is nothing
+  // left in it worth keeping, and leaving an empty one behind is residue.
+  try { rmdirSync(DIR); } catch {}
 }
 
 /** A session file can outlive the process that wrote it. */

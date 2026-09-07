@@ -22,12 +22,16 @@ plugin/
   plugin.json                   Agent Plugins / Copilot
   .mcp.json                     Claude, Codex, Copilot (`tailr mcp`)
   mcp.json                      Cursor / Agent Plugins (same server, stdio typed)
-  skills/start/SKILL.md         /tailr:start — start a session, hand over the URL
+  skills/start/SKILL.md         /tailr:start — `tailr start` / `tailr_start`, hand over the URL
   skills/config/SKILL.md        /tailr:config — read or change the reviewer's settings
   skills/review/SKILL.md        the operating rules for the review loop
   cursor-commands/*.md          the same commands, as Cursor slash commands
   rules/review.mdc              the same loop, as a Cursor rule (not a slash command)
 ```
+
+`/tailr:start` (and Cursor's `/start`) tell the agent to run `npx … tailr start`
+or call `tailr_start` — Tailr detaches itself. Agents must not shell-background
+a bare `tailr`, and must not edit anything under `.tailr/`.
 
 The repository root also carries Claude and Cursor plugin manifests that point
 into this directory. That is what the in-app directories read when someone

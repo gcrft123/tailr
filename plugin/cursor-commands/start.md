@@ -20,16 +20,18 @@ genuinely cannot determine it.
 
 ## 2. Start Tailr against it
 
-As a **long-running background process**. It has to stay up, so do not block
-your turn waiting on it:
+Use Tailr's own detach — do **not** background the command with `&`, and do not
+touch anything under `.tailr/`:
 
-    npx -y @gcrft123/tailr --target <dev server url>
+    npx -y @gcrft123/tailr start --target <dev server url>
 
-It proxies the app on its own port (usually 4100) and injects its overlay.
-Nothing in the project's source is modified, and hot reload keeps working.
+Or call the `tailr_start` MCP tool with the same target. Either returns once the
+session is up and prints the review URL. It proxies the app on its own port
+(usually 4100) and injects its overlay. Nothing in the project's source is
+modified, and hot reload keeps working.
 
-If it reports the port is taken by an existing session, that session is already
-serving — use the URL it names rather than starting a second one.
+If it reports a session is already up, use the URL it names rather than
+starting a second one.
 
 ## 3. Hand over the URL and start watching
 
@@ -37,7 +39,7 @@ In the same message, do both:
 
 - Tell the reviewer the review URL Tailr printed, and that they should use it
   **instead of** the original dev server port. Tell them to hold their marking
-  key — **Alt**, unless they have set another with `/tailr:config` — and click
+  key — **Alt**, unless they have set another with `/tailr-config` — and click
   an element to comment, right-click to mark it for removal, double-click text
   to edit it, and Shift-click to mark a spot — then press **Send**.
 - Call the `tailr_wait` MCP tool, or run `npx -y @gcrft123/tailr wait` as a

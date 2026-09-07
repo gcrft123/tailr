@@ -34,7 +34,7 @@ Three parts of that are load-bearing together:
 
 ## Operating Context
 
-- The user runs a local development server on their own machine. Tailr is invoked by the agent as a CLI that wraps or proxies that dev server and injects its overlay into the served pages. The user opens the Tailr-served URL and works there.
+- The user runs a local development server on their own machine. Tailr is invoked by the agent as a CLI that wraps or proxies that dev server and injects its overlay into the served pages. Agents start it with `tailr start` (or `tailr_start`), which detaches inside Tailr so the session outlives the agent's shell turn; bare `tailr` remains available for a human at a foreground terminal. The user opens the Tailr-served URL and works there.
 - A session is a loop: browse → mark up across one or more pages → Send → wait while the agent works → reload when prompted → keep going.
 - Staged markup lives in browser storage and survives reloads, including the reload that follows an agent's changes.
 - The user is free to keep marking the page while the agent is working. Sending is what is blocked, not marking.
