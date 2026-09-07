@@ -254,6 +254,9 @@ async function runTool(name, args = {}, notify = null) {
     return { text: JSON.stringify({
       running: true, reviewUrl: s.url, proxying: s.target,
       batchWaiting: !!r.data.pending, run: r.data.run,
+      /* True when Tailr wakes the agent itself on Send. Then tailr_wait is not
+         needed at all: end the turn, and the next batch arrives as a message. */
+      wakesYou: !!r.data.wakesAgent,
       // Which key they hold to mark, so telling them is never a guess.
       settings: r.data.config
     }, null, 2) };

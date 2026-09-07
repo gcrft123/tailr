@@ -25,6 +25,7 @@ import { readSession, writeSession, clearSession, isAlive } from '../src/server/
 import { waitForBatch } from '../src/server/watch.js';
 import { applyConfig, configFile, describeConfig, modifierLabel, parseSettings, readConfig } from '../src/server/config.js';
 import { normalizeTarget } from '../src/server/target.js';
+import { resolve as resolveNotify } from '../src/server/notify.js';
 
 const argv = process.argv.slice(2);
 const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'slider', 'progress', 'done', 'fail', 'reset']);
@@ -71,6 +72,12 @@ async function serve({ target: only = null, command = null } = {}) {
   const config = readConfig();
   const app = command || (devCommand && devCommand.length ? devCommand : null);
   let child = null;
+  /* Who to poke when Send is pressed. On an agent whose client can report a
+     background process exiting, nothing needs poking and this stays null. */
+  const notify = resolveNotify({
+    explicit: flag('notify', null),
+    disabled: args.includes('--no-notify')
+  });
 
   // One session per project: the CLI and the MCP tools find it through
   // .tailr/session.json, which holds exactly one. A second server on another
@@ -89,6 +96,7 @@ async function serve({ target: only = null, command = null } = {}) {
 
   const { server } = createServer({
     target,
+    notify,
     // Read once, here. A change made while the session is up arrives over the
     // config endpoint rather than by the server going back to the file.
     config,
@@ -103,7 +111,13 @@ async function serve({ target: only = null, command = null } = {}) {
     },
     onReady(actual) {
       const url = `http://localhost:${actual}`;
-      writeSession({ port: actual, url, target, pid: process.pid, startedAt: new Date().toISOString() });
+      writeSession({
+        port: actual, url, target, pid: process.pid, startedAt: new Date().toISOString(),
+        // Recorded so `tailr status` can say whether Send will reach the agent
+        // on its own, which is the difference between a loop that needs the
+        // reviewer to speak up and one that does not.
+        notify: notify ? { agent: notify.agent, thread: notify.thread } : null
+      });
       /* Only one person reads a terminal, and it is not the reviewer — they
          have a browser and nothing else. So this says what to hand them, in
          their words, and then what to do next, in the agent's. And it names
@@ -114,8 +128,10 @@ async function serve({ target: only = null, command = null } = {}) {
         `    proxying    ${target}\n\n` +
         `  Hand the reviewer the review URL, not the dev server's. They hold ` +
         `${modifierLabel(config)} and\n  click to mark the page, then press Send.\n\n` +
-        `  Wait for their batch. Its exit is the notification:\n\n` +
-        `    tailr wait && tailr pull\n\n`);
+        (notify
+          ? `  Send will wake ${notify.label} on its own — nothing needs to watch for it.\n\n`
+          : `  Wait for their batch. Its exit is the notification:\n\n` +
+            `    tailr wait && tailr pull\n\n`));
     }
   });
 
@@ -323,6 +339,10 @@ function usage() {
     tailr --target <url>          proxy a different dev server
     tailr --port <n>              serve Tailr on a different port
     tailr -- npm run dev          start the dev server too, then proxy it
+      --notify <command>          run this when Send is pressed, to wake an
+                                  agent that cannot be told a background
+                                  wait exited. %n marks, %t thread, %u url
+      --no-notify                 don't, even if Tailr can see an agent to wake
 
   From your agent, in the same project directory
     tailr status                  is a batch waiting?

@@ -211,6 +211,8 @@ npx tailr                         # proxies http://localhost:3000
 npx tailr --target <url>          # a different dev server
 npx tailr --port <n>              # serve Tailr somewhere else
 npx tailr -- npm run dev          # start the dev server too, then proxy it
+npx tailr --notify <command>      # run this when Send is pressed, to wake the agent
+npx tailr --no-notify             # don't, even if there is an agent to wake
 ```
 
 Review at the Tailr URL, not the original one. A session writes nothing to your
@@ -289,6 +291,39 @@ npx -y @gcrft123/tailr config sfx:false modifier:cmd
 Either way they are written to `~/.tailr/config.json` and hold across every
 project. With no arguments the command prints where they stand. A change made
 while a session is up lands on the open review page without a reload.
+
+## Waking the agent
+
+`tailr wait` is the handoff on any agent whose client can tell the model that a
+background process exited. Not every one can. On Codex a backgrounded `wait`
+exits into nothing, and the MCP `tailr_wait` gives up after a minute and ends the
+turn — so the session goes idle and the reviewer is back to saying "I've sent you
+a batch", which is the thing Tailr exists to stop.
+
+So on those the direction inverts, and Tailr pokes the agent instead:
+
+```bash
+npx tailr --notify 'codex queue --thread %t --message "%n Tailr marks are waiting"'
+```
+
+`%n` is the number of marks, `%t` the agent's thread, `%u` the review URL, `%%` a
+literal `%`. The command runs once per batch, and a Send never fails because it
+did.
+
+If the agent started the session itself, none of that is needed. Codex exports
+`CODEX_THREAD_ID` into every command it runs, and that is the same id `codex
+queue --thread` takes — so Tailr finds it and says so on the way up:
+
+```
+  Send will wake codex thread 01a07c3e… on its own — nothing needs to watch for it.
+```
+
+The reviewer presses Send, the idle Codex session wakes with the batch, and the
+loop runs. Nobody types anything. `tailr status` reports `wakesAgent` when this
+is on, which is how an agent knows not to bother with `wait`.
+
+Started the session in your own terminal rather than through the agent? Then
+there is no thread to find, and `--notify` is how you name one.
 
 ## The agent side
 

@@ -11,6 +11,24 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Added
+
+- Tailr can wake the agent when Send is pressed, so the handoff works on agents
+  whose clients cannot tell the model that a background process exited. On those
+  — Codex among them — `tailr wait` exits into nothing and the MCP `tailr_wait`
+  gives up after a minute and ends the turn, which left the reviewer telling
+  their agent they had pressed Send: the one thing Tailr exists to stop. The
+  direction now inverts. `--notify <command>` runs a command on each batch, with
+  `%n` the number of marks, `%t` the agent's thread and `%u` the review URL;
+  `TAILR_NOTIFY` sets the same thing from the environment, and `--no-notify`
+  turns it off. A session started from inside Codex needs none of that: Codex
+  exports `CODEX_THREAD_ID` into every command the agent runs, and that is the
+  id `codex queue --thread` takes, so Tailr picks it up and says at startup that
+  Send will wake it. The preset builds its argv itself and thread ids are shape-
+  checked before they reach a command line, so nothing the environment holds can
+  be read as shell syntax. `status` grew `wakesAgent` (`wakesYou` on the MCP
+  tool), and the operating rules tell the agent to skip `wait` when it is true.
+
 ### Changed
 
 - The README documents sliders. They shipped in 1.2.0 and never reached the one
