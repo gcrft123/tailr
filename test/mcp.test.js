@@ -123,3 +123,34 @@ test('a batch arriving ends the wait at once, with the run in the answer', async
   assert.equal(body.waiting, true);
   assert.equal(body.run.total, 1);
 });
+
+/* An MCP server is not told which conversation it belongs to: Codex starts one
+   per session and passes it no thread id. So it cannot keep a wake aimed at the
+   agent when the conversation is cleared, and the one thing that can — a shell
+   command, which does carry the id — has to be asked for rather than assumed. */
+test('status asks the agent to re-register from the shell, because this process cannot', async (t) => {
+  const s = await startTailr(undefined, {
+    notify: { agent: 'codex', thread: '01a07c3e-5155-7cb0-b29c-be73b6c3d857', command: null, label: 'codex' }
+  });
+  const mcp = startMcp(projectWithSession(s.port), { CODEX_THREAD_ID: '' });
+  t.after(() => { mcp.close(); return s.close(); });
+
+  const id = mcp.send('tools/call', { name: 'tailr_status', arguments: {} });
+  const out = await mcp.until((m) => m.id === id);
+  const body = JSON.parse(out.result.content[0].text);
+  assert.equal(body.wakesYou, true);
+  assert.match(body.reRegister, /npx tailr status/);
+});
+
+test('a server that can see the thread itself does not ask', async (t) => {
+  const s = await startTailr(undefined, {
+    notify: { agent: 'codex', thread: '01a07c3e-5155-7cb0-b29c-be73b6c3d857', command: null, label: 'codex' }
+  });
+  const mcp = startMcp(projectWithSession(s.port),
+    { CODEX_THREAD_ID: '01a07c3e-5155-7cb0-b29c-be73b6c3d857' });
+  t.after(() => { mcp.close(); return s.close(); });
+
+  const id = mcp.send('tools/call', { name: 'tailr_status', arguments: {} });
+  const out = await mcp.until((m) => m.id === id);
+  assert.equal(JSON.parse(out.result.content[0].text).reRegister, undefined);
+});
