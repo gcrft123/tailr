@@ -3,12 +3,16 @@
  *
  *   tailr init                 set the project up so the rules stick
  *   tailr demo                 try the whole loop against a sample app
+ *   tailr start [--target <url>]  detach a session and return once it is up
+ *   tailr stop                 stop the project's session
  *   tailr                      proxy http://localhost:3000 on :4100
  *   tailr --target <url>       proxy something else
  *   tailr -- npm run dev       start the dev server too, then proxy it
  *
  * Agent side, run from the same project directory:
  *
+ *   tailr start --target <url> detach; prefer this over shell backgrounding
+ *   tailr stop                 stop the session
  *   tailr status               is a batch waiting?
  *   tailr pull [--wait]        lease the pending batch and print it as JSON
  *   tailr variants <ref> ...   name the versions built for a mark
@@ -22,6 +26,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from '../src/server/server.js';
 import { readSession, writeSession, clearSession, isAlive } from '../src/server/session.js';
+import { startDetached, stopSession } from '../src/server/lifecycle.js';
 import { waitForBatch } from '../src/server/watch.js';
 import { applyConfig, configFile, describeConfig, modifierLabel, parseSettings, readConfig } from '../src/server/config.js';
 import { normalizeTarget } from '../src/server/target.js';
@@ -29,6 +34,7 @@ import { drift, resolve as resolveNotify } from '../src/server/notify.js';
 
 const argv = process.argv.slice(2);
 const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'slider', 'progress', 'done', 'fail', 'reset']);
+const SELF = fileURLToPath(import.meta.url);
 
 const dashdash = argv.indexOf('--');
 const devCommand = dashdash === -1 ? null : argv.slice(dashdash + 1);
@@ -59,10 +65,52 @@ if (cmd === 'mcp') {
   await demo();
 } else if (cmd === 'config') {
   await configure(positional.slice(1));
+} else if (cmd === 'start') {
+  await startCmd();
+} else if (cmd === 'stop') {
+  await stopCmd();
 } else if (AGENT.has(cmd)) await agent(cmd, positional.slice(1));
 else await serve();
 
 /* ────────────────────────────────────────────────────────── */
+
+/** Args to hand a detached child so it runs `serve` rather than `start`. */
+function serveArgsFromStart() {
+  const out = args.filter((a) => a !== 'start');
+  if (dashdash !== -1) out.push('--', ...devCommand);
+  return out;
+}
+
+async function startCmd() {
+  const result = await startDetached({ bin: SELF, args: serveArgsFromStart() });
+  if (!result.ok) {
+    process.stderr.write(`\n  ${result.error}\n\n`);
+    process.exit(1);
+  }
+  const { session, already } = result;
+  process.stdout.write(
+    `\n  Tailr is ${already ? 'already ' : ''}up.\n\n` +
+    `    review at   ${session.url}\n` +
+    `    proxying    ${session.target}\n\n` +
+    (already
+      ? ''
+      : `  Hand the reviewer the review URL, not the dev server's.\n\n` +
+        `  Wait for their batch. Its exit is the notification:\n\n` +
+        `    tailr wait && tailr pull\n\n`));
+  process.exit(0);
+}
+
+async function stopCmd() {
+  const result = await stopSession();
+  if (result.stopped) {
+    process.stdout.write(`\n  Tailr stopped (was ${result.session.url}).\n\n`);
+  } else if (result.reason === 'stale') {
+    process.stdout.write('\n  Cleared a stale session file; nothing was running.\n\n');
+  } else {
+    process.stdout.write('\n  No Tailr session is running in this project.\n\n');
+  }
+  process.exit(0);
+}
 
 async function serve({ target: only = null, command = null } = {}) {
   const asked = normalizeTarget(only || flag('target', 'http://localhost:3000'));
@@ -154,6 +202,9 @@ async function serve({ target: only = null, command = null } = {}) {
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, () => { shutdown(); process.exit(0); });
   }
+  // Detached sessions (and agent shells that hang up) must not die on SIGHUP —
+  // that was Issue #19. SIGINT/SIGTERM and the reviewer's End session still stop it.
+  process.on('SIGHUP', () => {});
   process.on('exit', shutdown);
 }
 
@@ -206,7 +257,7 @@ async function configure(tokens) {
 async function agent(cmd, rest) {
   const session = readSession();
   if (!session || !isAlive(session)) {
-    process.stderr.write('\n  No Tailr session is running in this project. Start one with:  tailr\n\n');
+    process.stderr.write('\n  No Tailr session is running in this project. Start one with:  tailr start\n\n');
     process.exit(2);
   }
   const base = `http://127.0.0.1:${session.port}/__tailr/`;
@@ -348,16 +399,21 @@ function usage() {
     tailr demo                    start the sample app and proxy it on :4100
 
   Start a session
-    tailr                         proxy http://localhost:3000 on :4100
-    tailr --target <url>          proxy a different dev server
+    tailr                         proxy http://localhost:3000 on :4100 (foreground)
+    tailr --target <url>          proxy a different dev server (foreground)
     tailr --port <n>              serve Tailr on a different port
     tailr -- npm run dev          start the dev server too, then proxy it
+    tailr start [--target <url>]  same, but detach and return once it is up —
+                                  what agents should use
+    tailr stop                    stop the project's session
       --notify <command>          run this when Send is pressed, to wake an
                                   agent that cannot be told a background
                                   wait exited. %n marks, %t thread, %u url
       --no-notify                 don't, even if Tailr can see an agent to wake
 
   From your agent, in the same project directory
+    tailr start --target <url>    start the session (detached)
+    tailr stop                    stop it
     tailr status                  is a batch waiting?
     tailr wait [--timeout <s>]    block until one is; run it in the background
                                   and its exit is your notification
