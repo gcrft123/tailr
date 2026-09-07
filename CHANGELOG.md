@@ -11,6 +11,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.3.3] — 2026-09-07
+
 ### Added
 
 - Tailr can wake the agent when Send is pressed, so the handoff works on agents

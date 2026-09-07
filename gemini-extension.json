@@ -1,6 +1,6 @@
 {
   "name": "tailr",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Visual markup on a running dev server, handed to the agent as one locked batch. Registers Tailr's MCP server and the operating rules for the review loop.",
   "mcpServers": {
     "tailr": {
