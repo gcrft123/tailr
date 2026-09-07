@@ -47,6 +47,17 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
   through the MCP tools would otherwise stop being woken the moment the
   conversation was cleared, with nothing saying so.
 
+### Fixed
+
+- The page shown when the dev server goes away no longer reads as Tailr having
+  died. The reviewer has a browser and nothing else, and that page replaces the
+  application overlay and all — so a screen that only talked about the dev
+  server left the obvious conclusion that the session went with it, and the
+  reviewer restarting a Tailr that had never stopped. It now says whose fault it
+  is, that the session is still up, and that the marks in the browser are safe.
+  It also watches for the dev server and reloads itself when it answers, so
+  coming back costs no knowledge and no reload.
+
 ### Changed
 
 - The README documents sliders. They shipped in 1.2.0 and never reached the one

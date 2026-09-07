@@ -443,15 +443,45 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
   return { server, state };
 }
 
+/* The page the reviewer gets when their dev server goes away.
+ *
+ * They have a browser and nothing else — no terminal, no logs — and this page
+ * replaces the application overlay and all. So the thing it must not do is let
+ * them conclude that Tailr died: it is the only page they can see, and if it
+ * only talks about the dev server, the obvious reading of a blank screen where
+ * the app used to be is that the whole session went with it. It says whose
+ * fault it is, that the session is still up, that their marks are safe — and
+ * then it watches for the dev server itself, so coming back costs them nothing.
+ */
 function downPage(target, err) {
-  return `<!doctype html><meta charset="utf-8"><title>Tailr — dev server unreachable</title>
+  return `<!doctype html><meta charset="utf-8"><title>Tailr — your dev server stopped answering</title>
 <style>body{font:13px/1.6 ui-sans-serif,-apple-system,system-ui,sans-serif;background:#0B0B0C;color:#FFFFFF;
 display:grid;place-items:center;height:100vh;margin:0}main{max-width:34rem;padding:2rem}
 code{background:rgba(255, 255, 255, 0.12);padding:2px 6px;border-radius:5px;font-family:ui-monospace,Menlo,monospace}
-h1{font-size:19px;margin:0 0 .6rem;letter-spacing:-0.01em}p{color:rgba(255, 255, 255, 0.56);margin:.4rem 0}</style>
-<main><h1>Tailr can't reach your dev server</h1>
+h1{font-size:19px;margin:0 0 .6rem;letter-spacing:-0.01em}p{color:rgba(255, 255, 255, 0.56);margin:.4rem 0}
+b{color:#FFFFFF;font-weight:500}
+.live{margin-top:1.4rem;font-size:13px;color:rgba(255,255,255,.4);display:flex;align-items:center;gap:.5rem}
+.dot{width:6px;height:6px;border-radius:50%;background:#4ADE80;animation:p 1.6s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:.25}50%{opacity:1}}</style>
+<main><h1>Your dev server stopped answering</h1>
 <p>Nothing is answering at <code>${escapeHtml(target)}</code>.</p>
-<p>Start it, then reload this page — Tailr will pick it up. Anything you already marked up is still saved in this browser.</p>
-<p style="margin-top:1.2rem;font-size:13px;opacity:.5">${escapeHtml(err && err.code || 'connection failed')}</p></main>`;
+<p><b>Tailr is still running.</b> This session is up, and every mark you have made is
+still saved in this browser — none of it is lost, and you do not need to start Tailr again.</p>
+<p>Start your dev server back up and this page returns on its own.</p>
+<p class="live"><span class="dot"></span>Watching for it — <span id="s">checking…</span></p>
+<p style="margin-top:1.2rem;font-size:13px;opacity:.35">${escapeHtml(err && err.code || 'connection failed')}</p></main>
+<script>
+/* Poll the app through the proxy. Anything but another down page means the dev
+   server is back, and the reviewer should not have to know to press reload. */
+let n = 0;
+setInterval(async () => {
+  n++;
+  document.getElementById('s').textContent = 'checked ' + n + (n === 1 ? ' time' : ' times');
+  try {
+    const r = await fetch(location.href, { cache: 'no-store', headers: { 'x-tailr-probe': '1' } });
+    if (r.status !== 502) location.reload();
+  } catch {}
+}, 2000);
+</script>`;
 }
 function escapeHtml(s) { return String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }

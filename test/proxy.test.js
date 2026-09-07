@@ -137,7 +137,16 @@ test('a dev server that is down becomes one dead page, not a dead session', asyn
 
   const res = await fetch(s.base + '/');
   assert.equal(res.status, 502);
-  assert.match(await res.text(), /can't reach your dev server/);
+  const page = await res.text();
+  assert.match(page, /Your dev server stopped answering/);
+  /* The reviewer has no terminal. If this page only talked about the dev
+     server, a blank screen where the app was reads as Tailr having died too —
+     and they would go and restart a session that never stopped. */
+  assert.match(page, /Tailr is still running/);
+  assert.match(page, /still saved in this browser/);
+  assert.match(page, /do not need to start Tailr again/);
+  // And it comes back by itself, so getting back costs no knowledge.
+  assert.match(page, /location\.reload\(\)/);
 
   const after = await s.api('state', null, 'GET');
   assert.equal(after.status, 200, 'the bridge is still answering');
