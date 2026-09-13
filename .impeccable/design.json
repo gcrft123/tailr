@@ -1,0 +1,541 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-12T23:59:30Z",
+  "title": "Design System: Tailr — Island",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "primary",
+        "displayName": "Object Black",
+        "canonical": "oklch(15.0% 0.002 286.1)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#252526",
+          "#424243",
+          "#616162",
+          "#828283",
+          "#A5A5A6",
+          "#C9C9CA",
+          "#EEEEF0"
+        ],
+        "purpose": "The object itself. Opaque, never translucent — glass reads as another app's chrome."
+      },
+      "ink-raised": {
+        "role": "primary",
+        "displayName": "Raised Ink",
+        "canonical": "oklch(22.2% 0.006 271.1)",
+        "tonalRamp": [
+          "#0A0B0E",
+          "#242528",
+          "#414245",
+          "#606165",
+          "#818286",
+          "#A3A5A9",
+          "#C7C9CD",
+          "#EDEEF3"
+        ]
+      },
+      "paper": {
+        "role": "secondary",
+        "displayName": "Warm Paper",
+        "canonical": "oklch(94.7% 0.017 88.0)",
+        "tonalRamp": [
+          "#0E0B04",
+          "#28251C",
+          "#464238",
+          "#656157",
+          "#868277",
+          "#A9A599",
+          "#CEC9BD",
+          "#F3EEE2"
+        ],
+        "purpose": "The single committed action on screen. Its scarcity is what makes it read as the commitment."
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Pure White",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Muted On Ink",
+        "canonical": "rgba(255, 255, 255, 0.56)"
+      },
+      "live": {
+        "role": "tertiary",
+        "displayName": "Live Teal",
+        "canonical": "oklch(77.8% 0.145 169.7)",
+        "tonalRamp": [
+          "#001802",
+          "#003719",
+          "#005835",
+          "#007A54",
+          "#009D74",
+          "#00C196",
+          "#4BE7BA",
+          "#79FFDF"
+        ],
+        "purpose": "Armed state and the 2px focus ring. Encodes readiness, nothing decorative."
+      },
+      "redline": {
+        "role": "tertiary",
+        "displayName": "Redline",
+        "canonical": "oklch(62.8% 0.199 28.4)",
+        "tonalRamp": [
+          "#3F0000",
+          "#670000",
+          "#8F0000",
+          "#B7070B",
+          "#E04035",
+          "#FF6859",
+          "#FF8E7C",
+          "#FFB5A0"
+        ],
+        "purpose": "Removal, and only removal. A mark staged for deletion, never a warning or an error."
+      },
+      "working": {
+        "role": "tertiary",
+        "displayName": "Working Amber",
+        "canonical": "oklch(78.5% 0.146 73.8)",
+        "tonalRamp": [
+          "#290000",
+          "#4B0A00",
+          "#6D2E00",
+          "#904F00",
+          "#B57200",
+          "#DB951D",
+          "#FFB94E",
+          "#FFDF77"
+        ],
+        "purpose": "The running loader. The one colour that means the agent has the batch."
+      },
+      "halo": {
+        "role": "neutral",
+        "displayName": "Halo",
+        "canonical": "rgba(255, 255, 255, 0.92)",
+        "purpose": "The outer half of every on-page outline, so a mark reads on white, black or a photograph."
+      },
+      "halo-soft": {
+        "role": "neutral",
+        "displayName": "Soft Halo",
+        "canonical": "rgba(255, 255, 255, 0.65)"
+      },
+      "fill-1": {
+        "role": "neutral",
+        "displayName": "Fill One",
+        "canonical": "rgba(255, 255, 255, 0.06)"
+      },
+      "fill-2": {
+        "role": "neutral",
+        "displayName": "Fill Two",
+        "canonical": "rgba(255, 255, 255, 0.12)"
+      },
+      "fill-3": {
+        "role": "neutral",
+        "displayName": "Fill Three",
+        "canonical": "rgba(255, 255, 255, 0.18)"
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "rgba(255, 255, 255, 0.10)"
+      },
+      "indicator": {
+        "role": "neutral",
+        "displayName": "Indicator",
+        "canonical": "rgba(255, 255, 255, 0.28)",
+        "purpose": "A small solid mark at rest: the status dot, the consequence bullet, the comment box thumb."
+      },
+      "shadow": {
+        "role": "neutral",
+        "displayName": "Cast Shadow",
+        "canonical": "rgba(0, 0, 0, 0.30)"
+      },
+      "shadow-near": {
+        "role": "neutral",
+        "displayName": "Near Shadow",
+        "canonical": "rgba(0, 0, 0, 0.34)"
+      },
+      "served": {
+        "role": "neutral",
+        "displayName": "Served Grey",
+        "canonical": "rgba(11, 11, 12, 0.30)"
+      },
+      "on-live": {
+        "role": "neutral",
+        "displayName": "On Live",
+        "canonical": "oklch(23.1% 0.040 172.5)",
+        "tonalRamp": [
+          "#001009",
+          "#0D2B23",
+          "#2B4940",
+          "#4A695F",
+          "#6A8A80",
+          "#8CAEA2",
+          "#B0D2C6",
+          "#D5F8EC"
+        ]
+      },
+      "yellow": {
+        "role": "secondary",
+        "displayName": "Wordmark Yellow",
+        "canonical": "oklch(90.5% 0.182 98.6)",
+        "tonalRamp": [
+          "#1F0100",
+          "#3D1D00",
+          "#5C3C00",
+          "#7D5E00",
+          "#9F8000",
+          "#C3A400",
+          "#E8C900",
+          "#FFEF3E"
+        ],
+        "purpose": "The wordmark's own colour, from the source file. Two places on the landing page and nowhere else."
+      },
+      "lemon": {
+        "role": "secondary",
+        "displayName": "Lemon Ground",
+        "canonical": "oklch(94.8% 0.164 107.3)",
+        "tonalRamp": [
+          "#160800",
+          "#312400",
+          "#4E4400",
+          "#6D6500",
+          "#8E8700",
+          "#B1AB00",
+          "#D5D037",
+          "#FBF665"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Footer Ink",
+        "canonical": "oklch(35.0% 0.007 286.0)",
+        "tonalRamp": [
+          "#0B0B0E",
+          "#252528",
+          "#414146",
+          "#616165",
+          "#828286",
+          "#A4A4A9",
+          "#C8C8CD",
+          "#EEEEF3"
+        ]
+      },
+      "on-ink-2": {
+        "role": "neutral",
+        "displayName": "Secondary On Ink",
+        "canonical": "rgba(255, 255, 255, 0.62)"
+      },
+      "code-well": {
+        "role": "neutral",
+        "displayName": "Code Well",
+        "canonical": "oklch(22.2% 0.006 271.1)",
+        "tonalRamp": [
+          "#0A0B0E",
+          "#242528",
+          "#414245",
+          "#606165",
+          "#818286",
+          "#A3A5A9",
+          "#C7C9CD",
+          "#EDEEF3"
+        ]
+      },
+      "page-fill": {
+        "role": "neutral",
+        "displayName": "Page Fill",
+        "canonical": "oklch(95.7% 0.007 106.5)",
+        "tonalRamp": [
+          "#0B0B08",
+          "#252522",
+          "#42423E",
+          "#61615D",
+          "#83837E",
+          "#A5A5A1",
+          "#C9C9C5",
+          "#EFEFEA"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The full-page notice the CLI serves when the proxied dev server cannot be reached. Never inside the island."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Actions and titles in the island."
+      },
+      "strong": {
+        "displayName": "Strong",
+        "purpose": "The committed action, and a row's kind."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Comment text and list rows."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Kinds and secondary labels."
+      },
+      "count": {
+        "displayName": "Count",
+        "purpose": "The staged count on the pill. Tabular."
+      },
+      "badge": {
+        "displayName": "Badge",
+        "purpose": "Reference numbers. Tabular."
+      },
+      "address": {
+        "displayName": "Address",
+        "purpose": "Source file and line. The only monospace, so paths align down the batch list."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "The mark in the landing page masthead, at the source file's own metrics."
+      },
+      "wordmark-footer": {
+        "displayName": "Wordmark Footer",
+        "purpose": "The same mark in the footer, never enlarged into a poster."
+      },
+      "page-headline": {
+        "displayName": "Page Headline",
+        "purpose": "The landing page hero statement."
+      },
+      "page-display": {
+        "displayName": "Page Display",
+        "purpose": "Landing page section headings."
+      },
+      "page-lede": {
+        "displayName": "Page Lede",
+        "purpose": "The hero paragraph under the headline."
+      },
+      "page-body": {
+        "displayName": "Page Body",
+        "purpose": "Landing page prose."
+      },
+      "page-body-large": {
+        "displayName": "Page Body Large",
+        "purpose": "The upper bound of fluid showcase copy."
+      },
+      "page-body-small": {
+        "displayName": "Page Body Small",
+        "purpose": "Its lower bound."
+      },
+      "page-meta": {
+        "displayName": "Page Meta",
+        "purpose": "Landing page secondary lines."
+      },
+      "page-kbd": {
+        "displayName": "Page Kbd",
+        "purpose": "Gesture key chips on the landing page."
+      }
+    },
+    "shadows": [
+      {
+        "name": "island",
+        "value": "0 8px 30px rgba(0, 0, 0, 0.30), 0 0 0 1px rgba(255, 255, 255, 0.10)",
+        "purpose": "The island at rest and expanded. One soft cast plus a hairline inner light, so the object holds an edge against a white host and a black one."
+      },
+      {
+        "name": "near",
+        "value": "0 10px 34px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.10)",
+        "purpose": "Chrome sitting directly on the page — the composer and the text bar — which is nearer the reader than the island."
+      },
+      {
+        "name": "on-element",
+        "value": "0 4px 14px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.10)",
+        "purpose": "The version and slider pills, which perch on the element rather than float over the page."
+      },
+      {
+        "name": "ring-halo",
+        "value": "0 0 0 1px #0B0B0C, 0 0 0 2px rgba(255, 255, 255, 0.92)",
+        "purpose": "Every on-page outline. The pair is what survives an unknown background; a single stroke does not."
+      },
+      {
+        "name": "ring-halo-remove",
+        "value": "0 0 0 1.5px #E8483C, 0 0 0 2.5px rgba(255, 255, 255, 0.92)",
+        "purpose": "The same pair for a removal, thicker because redline on a busy page needs the weight."
+      },
+      {
+        "name": "badge-halo",
+        "value": "0 0 0 1px rgba(255, 255, 255, 0.65)",
+        "purpose": "The reference badge, which is small enough that it needs a lighter halo than the ring it sits on."
+      }
+    ],
+    "motion": [
+      {
+        "name": "morph",
+        "value": "cubic-bezier(0.32, 0.72, 0, 1)",
+        "purpose": "Every shape change. Width and height together, 140ms for a small adjustment up to 380ms for a full open."
+      },
+      {
+        "name": "settle",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "460ms, for the island travelling to a corner. Longer and softer than the morph, because it is travel rather than a change of shape."
+      },
+      {
+        "name": "cross-fade",
+        "value": "120-140ms, 4px vertical offset",
+        "purpose": "Content inside a morphing container. Always starts after the shape has begun moving."
+      },
+      {
+        "name": "mark-land",
+        "value": "180ms scale-and-settle",
+        "purpose": "A mark arriving on the page. Marks never fade in."
+      },
+      {
+        "name": "arm",
+        "value": "120ms",
+        "purpose": "The armed state in and out, because it has to feel instantaneous."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Island — batch pill",
+      "kind": "custom",
+      "refersTo": "pill",
+      "description": "The resting object: staged count and the action. Its label is the state; the action never moves, because the row packs against the anchored corner.",
+      "html": "<div class=\"ds-pill\"><span class=\"ds-count\">3</span><span class=\"ds-send\">Send batch</span></div>",
+      "css": ".ds-pill{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;height:38px;padding:0 14px;background:#0B0B0C;color:#fff;border-radius:19px;cursor:pointer;white-space:nowrap;font-family:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.30),0 0 0 1px rgba(255,255,255,.10);transition:transform 180ms cubic-bezier(0.32,0.72,0,1)}.ds-pill:hover{transform:translateY(-1px)}.ds-pill:focus-visible{outline:2px solid #2FD4A8;outline-offset:2px}.ds-count{min-width:20px;height:20px;padding:0 6px;display:flex;align-items:center;justify-content:center;background:#F2EDE1;color:#0B0B0C;border-radius:999px;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums}.ds-send{font-size:13px;font-weight:650;letter-spacing:-.005em}"
+    },
+    {
+      "name": "Review row",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "One staged mark in the panel: number, kind, flags, address, comment, drop. The flags are their own column. The dimmed variant is a mark whose element is no longer on screen — hollow number, never red.",
+      "html": "<div class=\"ds-list\"><div class=\"ds-grp\">/invoices</div><div class=\"ds-li\"><span class=\"ds-li-n\">01</span><span class=\"ds-li-k\">Comment</span><span class=\"ds-li-a\">Hero.tsx:14</span><span class=\"ds-li-c\">Greet by first name only</span><button class=\"ds-li-x\">&times;</button></div><div class=\"ds-grp ds-note\">Hidden — not on screen. Open one to edit it.</div><div class=\"ds-li ds-dim\"><span class=\"ds-li-n\">02</span><span class=\"ds-li-k\">Comment</span><span class=\"ds-li-f\"><span class=\"ds-li-v\">3×</span><span class=\"ds-li-v\">slider</span></span><span class=\"ds-li-a\">MetricCard.tsx:8</span><span class=\"ds-li-c\">Overdue should read as a warning</span><button class=\"ds-li-x\">&times;</button></div></div>",
+      "css": ".ds-list{background:#0B0B0C;border-radius:16px;padding:6px;width:430px;max-width:100%;font-family:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.30),0 0 0 1px rgba(255,255,255,.10)}.ds-grp{padding:6px 8px 4px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;color:rgba(255,255,255,.56);overflow-wrap:anywhere}.ds-note{font-family:inherit;font-size:11px;line-height:1.45;letter-spacing:-.005em;padding-bottom:6px}.ds-li{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 8px;border-radius:9px;min-width:0;cursor:pointer}.ds-li:hover{background:rgba(255,255,255,.06)}.ds-li:focus-visible{outline:2px solid #2FD4A8;outline-offset:2px}.ds-li-n{min-width:19px;height:19px;padding:0 4px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);color:#fff;border-radius:5px;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto}.ds-li-k{font-size:11px;font-weight:650;flex:0 0 52px;min-width:0;color:rgba(255,255,255,.56);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-li-f{display:flex;align-items:center;gap:4px;flex:0 0 auto;min-width:0}.ds-li-v{padding:0 4px;border-radius:5px;background:rgba(255,255,255,.12);color:#fff;font-size:9.5px;font-variant-numeric:tabular-nums;white-space:nowrap}.ds-li-a{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10.5px;color:rgba(255,255,255,.56);width:118px;flex:0 1 118px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-li-c{font-size:12.5px;color:#fff;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-dim .ds-li-n{background:transparent;color:rgba(255,255,255,.72);box-shadow:inset 0 0 0 1px rgba(255,255,255,.24)}.ds-dim .ds-li-c{color:rgba(255,255,255,.72)}.ds-li-x{background:transparent;border:none;color:rgba(255,255,255,.56);font-size:13px;width:26px;height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:center;padding:0;border-radius:999px;cursor:pointer;font-family:inherit}.ds-li-x:hover{background:rgba(255,255,255,.12);color:#fff}"
+    },
+    {
+      "name": "Composer",
+      "kind": "input",
+      "refersTo": "composer",
+      "description": "A text field on the element being commented, 268px, opening from the point of click. Its scrollbar is drawn here rather than left to the platform. The multiplier and slider toggle sit between the ghost and the committed action.",
+      "html": "<div class=\"ds-composer\"><div class=\"ds-c-head\"><span class=\"ds-c-badge\">02</span><span class=\"ds-c-kind\">Comment</span><span class=\"ds-c-addr\">MetricCard.tsx:8</span></div><div class=\"ds-c-ta\"><textarea rows=\"3\">Overdue should read as a warning without shouting — try a few weights, and let me scrub the emphasis.</textarea><div class=\"ds-c-sb\"><div class=\"ds-c-sb-t\"></div></div></div><div class=\"ds-c-foot\"><button class=\"ds-ghost\">Delete</button><button class=\"ds-mult ds-on\">3×</button><button class=\"ds-mult\" aria-pressed=\"false\" aria-label=\"Ask for a slider\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" fill=\"none\" aria-hidden=\"true\"><path d=\"M2 4.5v5M12 4.5v5M2 7h10\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><circle cx=\"8.5\" cy=\"7\" r=\"2.75\" fill=\"currentColor\"/><circle cx=\"8.5\" cy=\"7\" r=\"1.1\" fill=\"#0B0B0C\"/></svg></button><button class=\"ds-paper\">Save</button></div></div>",
+      "css": ".ds-composer{width:268px;background:#0B0B0C;border-radius:12px;padding:10px;color:#fff;font-family:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif;box-shadow:0 10px 34px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.10)}.ds-c-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}.ds-c-badge{min-width:17px;height:17px;padding:0 4px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);border-radius:5px;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums}.ds-c-kind{font-size:11px;font-weight:650;letter-spacing:-.005em}.ds-c-addr{margin-left:auto;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10.5px;color:rgba(255,255,255,.56);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-c-ta{position:relative}.ds-composer textarea{display:block;width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:none;outline:none;color:#fff;border-radius:9px;padding:8px 14px 8px 8px;font-size:12.5px;line-height:1.45;font-family:inherit;resize:none;max-height:180px;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}.ds-composer textarea::-webkit-scrollbar{width:0;height:0;display:none}.ds-composer textarea:focus{box-shadow:0 0 0 2px rgba(47,212,168,.55)}.ds-c-sb{position:absolute;top:6px;right:4px;bottom:6px;width:6px;border-radius:999px;touch-action:none}.ds-c-sb-t{position:absolute;left:1px;top:4px;width:4px;height:26px;border-radius:999px;background:rgba(255,255,255,.28);transition:background 120ms ease}.ds-c-sb:hover .ds-c-sb-t{background:rgba(255,255,255,.52)}.ds-c-foot{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}.ds-c-foot button{border:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:650;border-radius:999px;padding:6px 14px;letter-spacing:-.005em}.ds-ghost{background:transparent;color:rgba(255,255,255,.56)}.ds-ghost:hover{color:#fff}.ds-mult{background:rgba(255,255,255,.06);color:rgba(255,255,255,.56);padding:6px 10px;font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;justify-content:center}.ds-mult.ds-on{background:rgba(255,255,255,.18);color:#fff}.ds-mult:hover{color:#fff}.ds-paper{background:#F2EDE1;color:#0B0B0C}.ds-c-foot button:focus-visible{outline:2px solid #2FD4A8;outline-offset:2px}.ds-mult svg{display:block;flex:0 0 auto}"
+    },
+    {
+      "name": "Selection + reference badge",
+      "kind": "custom",
+      "refersTo": "badge",
+      "description": "What Tailr draws on a page it does not own: a halo-paired outline that survives white, black or a photograph, and a small corner badge that names the mark. The badge is a control — clicking it reopens the mark.",
+      "html": "<div class=\"ds-stage\"><div class=\"ds-mark\"><div class=\"ds-ring\"></div><span class=\"ds-badge\">01</span><span class=\"ds-target\">Good afternoon, Pamela</span></div><div class=\"ds-mark ds-remove\"><div class=\"ds-ring\"></div><span class=\"ds-badge\">02</span><span class=\"ds-target\">Export</span></div></div>",
+      "css": ".ds-stage{display:flex;gap:28px;align-items:flex-start;padding:22px 12px 12px;background:#FAFAF8;border-radius:10px;font-family:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif}.ds-mark{position:relative;display:inline-block}.ds-ring{position:absolute;inset:-3px;border-radius:3px;pointer-events:none;box-shadow:0 0 0 1px #0B0B0C,0 0 0 2px rgba(255,255,255,.92)}.ds-remove .ds-ring{box-shadow:0 0 0 1.5px #E8483C,0 0 0 2.5px rgba(255,255,255,.92)}.ds-badge{position:absolute;left:-4px;top:-12px;min-width:17px;height:17px;padding:0 4px;display:flex;align-items:center;justify-content:center;background:#0B0B0C;color:#fff;border-radius:5px;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer;box-shadow:0 0 0 1px rgba(255,255,255,.65);transition:opacity 120ms}.ds-remove .ds-badge{background:#E8483C}.ds-badge:hover{opacity:.82}.ds-target{font-size:15px;font-weight:600;color:#0B0B0C}"
+    },
+    {
+      "name": "Version pill",
+      "kind": "custom",
+      "refersTo": "version-pill",
+      "description": "One tab per version the agent built, sitting clear above the element. The number is always there; the name arrives on reach, widening the pill rather than opening anything over the page. Keeping one goes paper, because keeping is a commitment.",
+      "html": "<div class=\"ds-vpill\"><button class=\"ds-vt\"><span class=\"ds-vt-n\">1</span><span class=\"ds-vt-l\"><span>Softer edges</span></span></button><button class=\"ds-vt ds-vt-on\"><span class=\"ds-vt-n\">2</span><span class=\"ds-vt-l\"><span>Full width</span></span></button><button class=\"ds-vt\"><span class=\"ds-vt-n\">3</span><span class=\"ds-vt-l\"><span>Two columns</span></span></button></div>",
+      "css": ".ds-vpill{display:inline-flex;align-items:center;gap:2px;padding:2px;background:#0B0B0C;border-radius:999px;font-family:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.10)}.ds-vt{display:flex;align-items:center;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.56);height:18px;padding:0;border-radius:999px;font-size:10px;font-weight:700;font-family:inherit;font-variant-numeric:tabular-nums;overflow:hidden}.ds-vt-n{width:18px;flex:0 0 18px;text-align:center;line-height:18px}.ds-vt-l{display:grid;grid-template-columns:0fr;transition:grid-template-columns 340ms cubic-bezier(0.32,0.72,0,1),opacity 140ms ease}.ds-vt-l > span{overflow:hidden;white-space:nowrap;font-size:10.5px;font-weight:650;letter-spacing:-.005em;max-width:150px;text-overflow:ellipsis}.ds-vt:hover,.ds-vt:focus-visible{background:rgba(255,255,255,.12);color:#fff}.ds-vt:hover .ds-vt-l,.ds-vt:focus-visible .ds-vt-l{grid-template-columns:1fr;padding-right:7px}.ds-vt-on{background:#F2EDE1;color:#0B0B0C}.ds-vt-on .ds-vt-l{grid-template-columns:1fr;padding-right:7px}.ds-vt-on:hover{background:#F2EDE1;color:#0B0B0C}"
+    },
+    {
+      "name": "Slider pill",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "The continuous counterpart to the version pill. Track and thumb are drawn here rather than left to the platform, and the value carries no spinner arrows: this is a number to scrub, not a form to fill in. It is the one on-page control that stays in the tab order.",
+      "html": "<div class=\"ds-spill\"><span class=\"ds-slab\">Glow</span><input class=\"ds-srange\" type=\"range\" min=\"0\" max=\"100\" value=\"60\" aria-label=\"Glow\"><span class=\"ds-sval\">60%</span><button class=\"ds-skeep\">Keep</button></div>",
+      "css": ".ds-spill{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 6px 0 10px;background:#0B0B0C;color:#fff;border-radius:999px;font-family:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.10)}.ds-slab{font-size:10.5px;font-weight:650;letter-spacing:-.005em;color:rgba(255,255,255,.56)}.ds-srange{-webkit-appearance:none;appearance:none;width:104px;height:18px;margin:0;padding:0;background:transparent;cursor:pointer;vertical-align:middle}.ds-srange:focus{outline:none}.ds-srange:focus-visible{outline:2px solid #2FD4A8;outline-offset:2px;border-radius:999px}.ds-srange::-webkit-slider-runnable-track{height:3px;border-radius:999px;background:rgba(255,255,255,.18)}.ds-srange::-moz-range-track{height:3px;border-radius:999px;background:rgba(255,255,255,.18)}.ds-srange::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;margin-top:-4.5px;border-radius:50%;background:#F2EDE1;border:none}.ds-srange::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:#F2EDE1;border:none}.ds-sval{font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em;min-width:34px;text-align:right}.ds-skeep{border:none;cursor:pointer;font-family:inherit;font-size:11px;font-weight:650;border-radius:999px;padding:5px 10px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.56)}.ds-skeep:hover{background:rgba(255,255,255,.12);color:#fff}.ds-skeep:focus-visible{outline:2px solid #2FD4A8;outline-offset:2px}"
+    },
+    {
+      "name": "Gesture key",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "The four markup gestures, shown before the reviewer has marked anything and on demand forever after. It retires on the first mark and retires everywhere, because learning to mark happens once rather than once per dev server. Its dismiss rides in the pill's row, which grows to 46px to clear the 19px corner.",
+      "html": "<div class=\"ds-teachwrap\"><div class=\"ds-teach\"><div class=\"ds-t-head\">Mark up this page</div><div class=\"ds-t-sub\">Hold ⌥ and click anything that should change, then send the batch to your agent.</div><div class=\"ds-t-when\">While ⌥ is held</div><dl class=\"ds-t-key\"><div class=\"ds-t-row\"><dt>Click</dt><dd>Comment on an element</dd></div><div class=\"ds-t-row\"><dt>Right-click</dt><dd>Remove an element</dd></div><div class=\"ds-t-row\"><dt>Double-click</dt><dd>Edit text</dd></div><div class=\"ds-t-row\"><dt>⇧ Click</dt><dd>Comment on a spot</dd></div></dl></div><div class=\"ds-t-foot\"><button class=\"ds-t-quit\">End session</button></div><div class=\"ds-t-row-bar\"><button class=\"ds-paper2\">Got it</button><span class=\"ds-dot\"></span><span class=\"ds-hint\">Hold ⌥ to mark</span></div></div>",
+      "css": ".ds-teachwrap{display:inline-flex;flex-direction:column;background:#0B0B0C;color:#fff;border-radius:19px;font-family:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.30),0 0 0 1px rgba(255,255,255,.10)}.ds-teach{padding:4px 10px 10px;min-width:300px;max-width:340px}.ds-t-head{font-size:13px;font-weight:650;letter-spacing:-.005em;margin:6px 0 4px}.ds-t-sub{font-size:12.5px;line-height:1.45;color:rgba(255,255,255,.56);margin-bottom:14px}.ds-t-when{font-size:11px;font-weight:650;color:rgba(255,255,255,.56);margin-bottom:6px}.ds-t-key{margin:0}.ds-t-row{display:flex;align-items:baseline;gap:10px;padding:4px 0}.ds-t-row dt{flex:0 0 96px;font-size:11.5px;font-weight:650;color:rgba(255,255,255,.56);white-space:nowrap}.ds-t-row dd{margin:0;font-size:12.5px;flex:1 1 0}.ds-t-foot{display:flex;justify-content:flex-end;padding:4px 14px 2px;margin:2px 0 0;border-top:1px solid rgba(255,255,255,.10)}.ds-t-quit{background:transparent;border:none;cursor:pointer;font-family:inherit;font-size:11.5px;font-weight:650;color:rgba(255,255,255,.56);padding:5px 0;border-radius:999px}.ds-t-quit:hover{color:#fff}.ds-t-row-bar{display:flex;align-items:center;justify-content:flex-end;gap:8px;height:46px;padding:0 14px 0 10px;white-space:nowrap}.ds-paper2{margin-right:auto;background:#F2EDE1;color:#0B0B0C;border:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:650;border-radius:999px;padding:6px 14px;letter-spacing:-.005em}.ds-paper2:focus-visible{outline:2px solid #2FD4A8;outline-offset:2px}.ds-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.28);flex:0 0 auto}.ds-hint{font-size:12.5px;font-weight:500;color:rgba(255,255,255,.56);letter-spacing:-.005em}"
+    }
+  ],
+  "narrative": {
+    "northStar": "One small dark object at the corner of someone else's app, which changes shape to match its state.",
+    "overview": "Not a toolbar, not a panel system, not a set of windows that open and close. A single continuous thing that is tiny when there is nothing to say and grows only as far as the current state requires. Everything Tailr needs to tell you happens by that object changing shape.\n\nMotion is the identity here, and it is the one place Tailr spends. The island morphs; it does not appear. Shape changes animate width and height together, longer than product-UI convention, because the morph is the thing being expressed — and every one of them is interruptible, because two animations on the same pill is what makes rapid hovering flicker.\n\nTailr renders inside applications it does not own, so restraint is structural rather than stylistic: no translucency, no glass, no second bar, and no colour that does not encode state. What it draws on the host page is drawn as a halo pair, because a single stroke does not survive an unknown background.",
+    "keyCharacteristics": [
+      "One object, many shapes — states are transitions of the same element, never new elements appearing.",
+      "Resting size is the design; every pixel it occupies at rest must be earned.",
+      "The page is never touched: no dimming, tinting, insetting, padding, resizing or restyling of the host.",
+      "One radius in every state (19px), so collapsed it is a pill and expanded it is a window — never a different object.",
+      "Exactly one paper element on screen; its scarcity is what makes it read as the commitment.",
+      "Colour is state-encoding only: live for armed, redline for removal, working for the agent."
+    ],
+    "rules": [
+      {
+        "name": "The One Object Rule",
+        "body": "States are transitions of the same element, never new elements appearing. If something new must be shown, the island morphs to contain it.",
+        "section": "overview"
+      },
+      {
+        "name": "The Resting Size Rule",
+        "body": "Idle is nearly nothing. Every pixel it occupies at rest must be earned.",
+        "section": "layout"
+      },
+      {
+        "name": "The Untouched Page Rule",
+        "body": "No dimming, tinting, insetting, padding, resizing, or restyling of the host application.",
+        "section": "overview"
+      },
+      {
+        "name": "The One Radius Rule",
+        "body": "The island carries one radius in every state — 19px, exactly half its 38px resting height — with no radius transition between them. A panel that changes its corner as it grows announces itself as a different object.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Halo Pair Rule",
+        "body": "Every on-page outline is a paired stroke: ink inside, halo outside. Test on white, on black, and on a photograph.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Pointer-Alone Rule",
+        "body": "The version pill's width must follow the pointer alone. Expanding on a class the pointer has just caused feeds the geometry back into the hover that produced it, and the page flickers between versions while the pointer sits still.",
+        "section": "components"
+      },
+      {
+        "name": "The Row Follows Its Mark Rule",
+        "body": "Reopening a mark changes neither the length of the list nor any status in it, so a panel that redraws on those alone goes on showing the note the composer over it has already replaced.",
+        "section": "components"
+      },
+      {
+        "name": "The Nothing Is Red Rule",
+        "body": "A hidden mark is dimmed rather than coloured. Nothing in that state is red, because nothing in it has gone wrong — the element stopped rendering, and the mark is intact.",
+        "section": "components"
+      },
+      {
+        "name": "The Told And Not Told Rule",
+        "body": "The reviewer is told a mark is hidden and the agent is not: the missing badge is the reviewer's to explain, and the batch has nothing to say about it.",
+        "section": "components"
+      },
+      {
+        "name": "The Live Indicator Rule",
+        "body": "A running indicator is never re-created by a re-render. Rewriting the node restarts its animation, and a spinner that restarts every time a result lands reads as stalling rather than working.",
+        "section": "motion"
+      }
+    ],
+    "dos": [
+      "Make idle nearly invisible, then let hover do the work.",
+      "Animate the container and its content as one gesture.",
+      "Keep exactly one `paper` element on screen.",
+      "Suppress the platform's scrollbar on every engine, not just the one in front of you — a strip of the host browser's chrome is a seam across an object Tailr drew every other pixel of. Where scrolling then needs to be legible, draw the bar: the staged list scrolls bare, and the comment box carries a 4px `indicator` thumb on a transparent track, present only while there is somewhere to scroll.",
+      "Draw every on-page mark as a halo pair; test on white, on black, and on a photograph."
+    ],
+    "donts": [
+      "Never dim, tint, inset, pad, resize, or restyle the host page.",
+      "No translucency, no backdrop blur, no glass.",
+      "No leader lines, no callout balloons, no technical-drawing apparatus. The reference number is a small corner badge and nothing more.",
+      "No second bar, dock, sidebar, or persistent panel. If it can't be the island, it doesn't ship.",
+      "No color that doesn't encode state."
+    ]
+  }
+}

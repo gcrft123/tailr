@@ -282,12 +282,13 @@ on the way out rather than pretending the cleanup happened.
 
 ## Settings
 
-Two things about Tailr are yours to set rather than the project's:
+A few things about Tailr are yours to set rather than the project's:
 
 | Setting | Values | Default | What it does |
 |---|---|---|---|
 | `sfx` | `true` / `false` | `true` | A short sound on each action — a mark made or dropped, a batch sent, a version picked, a run closing |
 | `modifier` | `alt` `ctrl` `cmd` | `alt` | The key you hold to arm marking |
+| `tutorial` | `true` / `false` | `true` | The walkthrough shown until your first mark. Tailr turns it off once you make one, across every project at once — set it back to `true` to see it again |
 
 Ask your agent with the config command your install gave you — see the table
 [above](#as-a-plugin) — or set them yourself:
@@ -397,8 +398,7 @@ tailr fail "reason"   # it returned incomplete
       "address": "InvoiceTable.tsx:20",
       "selector": "body > div > section:nth-of-type(2) > div:nth-of-type(3)",
       "element": "Bellweather Ltd",
-      "comment": "Overdue pills should link to the invoice",
-      "orphaned": false
+      "comment": "Overdue pills should link to the invoice"
     }
   ]
 }
@@ -407,9 +407,8 @@ tailr fail "reason"   # it returned incomplete
 `type` is one of `comment`, `remove`, `text`, `point`, `choice`. A `text` mark
 carries `before` and `after`. A `point` mark carries page coordinates `x`/`y`
 instead of an element, and its comment says whether the reviewer wants something
-new there or is noting the spot. `orphaned: true` means the element was gone when
-the batch was sent — the address is the last one known, and the mark is worth
-raising with the reviewer rather than guessing at.
+new there or is noting the spot. A mark whose element was not on screen when the
+batch was sent looks like every other one, because in the source it is one.
 
 **Versions.** A mark carrying `"variations": 3` asks for three answers to the same
 comment, built together so the reviewer can compare them on the running page.

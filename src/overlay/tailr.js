@@ -18,7 +18,7 @@
 
   var ORIGIN_KEY = 'tailr:' + location.origin;
   var LEARN_KEY = 'tailr:learned:' + location.origin;
-  var STORE_V = 3;            // bumped when a stored verdict stops being trustworthy
+  var STORE_V = 4;            // bumped when a stored verdict stops being trustworthy
   var SETTLE_MS = 1500;       // grace for a route to render before it is judged
   var enteredAt = Date.now(); // when the current route came on screen
   var EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
@@ -57,11 +57,13 @@
     app: null,          // { target, spawned } — where the application is without Tailr
     dirty: false,       // ended before the cleanup the agent was given finished
     leftBehind: null,   // what that cleanup was for, named while the lists still exist
-    learn: { welcomed: false, marked: false, sent: false },
+    /* `tutorialDone` is this origin's copy of a setting that lives with the
+       reviewer's others; the rest is only ever true of this origin. */
+    learn: { welcomed: false, sent: false, tutorialDone: false },
     /* The reviewer's own settings. They belong to the person, not to this page,
        so they are not stored here — the server holds them and the bridge hands
        them over. These are what Tailr ships with, and what the demo runs on. */
-    cfg: { sfx: true, modifier: 'alt' }
+    cfg: { sfx: true, modifier: 'alt', tutorial: true }
   };
 
   /* Sound is the one thing Tailr does that a reviewer cannot see coming, so it
@@ -84,11 +86,37 @@
 
   function loadLearn() {
     try { Object.assign(S.learn, JSON.parse(localStorage.getItem(LEARN_KEY) || '{}')); } catch (e) {}
+    /* The settings answer this, and they arrive over the stream a moment after
+       here. This is the last answer that reached this origin, so a page comes up
+       without a walkthrough rather than flashing one and taking it back. */
+    if (S.learn.tutorialDone) S.cfg.tutorial = false;
   }
-  function learned(key) {
-    if (S.learn[key]) return;
-    S.learn[key] = true;
+  function learned(key, value) {
+    var v = value === undefined ? true : !!value;
+    if (S.learn[key] === v) return;
+    S.learn[key] = v;
     try { localStorage.setItem(LEARN_KEY, JSON.stringify(S.learn)); } catch (e) {}
+  }
+  /* Marking is learned once, not once per dev server, so the first mark on any
+     origin is the last time the walkthrough appears on any of them. The fact
+     goes to the reviewer's own settings; the copy kept here is only so the next
+     page load need not wait to be told. */
+  function tutorialDone() {
+    if (!S.cfg.tutorial) return;
+    S.cfg.tutorial = false;
+    learned('tutorialDone');
+    try { window.__tailr.transport.tutorialDone(); } catch (e) {}
+  }
+  /* Opening the walkthrough unasked, which is only ever done once. Called when
+     the settings land and again on a timer, so it opens as soon as there is an
+     answer and still opens when nothing answers. */
+  var welcomeTried = false;
+  function maybeWelcome() {
+    if (welcomeTried || !S.cfg.tutorial || S.learn.welcomed) return;
+    welcomeTried = true;
+    S.teach = true;
+    S.expanded = 'batch';
+    renderIsland();
   }
 
   /* ── persistence ───────────────────────────────────────── */
@@ -145,25 +173,26 @@
       var d = JSON.parse(raw);
       S.sessionId = d.sessionId || null;
       S.seq = d.seq || 1;
-      // Before the store carried a version, a mark was orphaned for being on
-      // another route — a verdict about where the reviewer was standing, not
-      // about the element. Drop those and let reconcile re-derive them.
-      var trustOrphans = d.v >= STORE_V;
+      // A mark that cannot be found is `hidden`, and older stores spelled that
+      // state differently and meant something harsher by it. Whatever the file
+      // says, an out-of-date verdict is not this version's — drop it and let
+      // reconcile decide again from what is actually on the page.
+      var trustHidden = d.v >= STORE_V;
       // Marks the agent already applied are history once the page reloads.
       S.marks = (d.marks || []).filter(function (m) { return m.status !== 'served'; }).map(function (m) {
         if (m.type === 'insert') m.type = 'point';   // the two were merged
-        if (m.status === 'orphan' && !trustOrphans) m.status = 'staged';
+        if (m.status === 'orphan' || (m.status === 'hidden' && !trustHidden)) m.status = 'staged';
         m.el = null;
         // Only the route on screen can be looked at, and even it may still be
         // rendering. Adopt an element when one is already there; everything
-        // else is left to reconcile, which counts misses before it declares
-        // anything gone. Orphaning from here would condemn every mark made on
-        // a page the reviewer has since navigated away from.
+        // else is left to reconcile, which counts misses before it calls
+        // anything hidden. Deciding that here would dim every mark made on a
+        // page the reviewer has since navigated away from.
         if (m.selector && m.route === routeKey()) {
           var hit = safeQuery(m.selector);
           if (hit && sameElement(m, hit)) {
             m.el = hit;
-            if (m.status === 'orphan') m.status = 'staged';
+            if (m.status === 'hidden') m.status = 'staged';
           }
         }
         return m;
@@ -193,11 +222,11 @@
   }
 
   /* Frameworks replace nodes on every render, so a live element reference goes
-     stale without the mark being gone. Re-resolve before declaring an orphan,
-     and only orphan after it has stayed missing across a few checks. */
-  /* Re-anchoring to the wrong element is worse than losing the anchor: the
-     agent would act on it. Adopt a re-resolved node only when its identity
-     still matches; otherwise let the mark orphan and say so. */
+     stale without the mark being gone. Re-resolve before calling it hidden, and
+     only do so after it has stayed missing across a few checks. */
+  /* Re-anchoring to the wrong element would move the mark to something the
+     reviewer never touched. Adopt a re-resolved node only when its identity
+     still matches; otherwise let the mark go quiet and say where it was. */
   function sameElement(m, el) {
     if (m.tag && el.tagName !== m.tag) return false;
     // A text mark changes the string it is anchored to. Match either the
@@ -212,9 +241,14 @@
     }
     return snippetOf(el) === m.snippet;
   }
-  /* Orphaning is a claim about the element, so it may only be made about the
-     page the mark was made on, once that page has had a chance to render. Off
-     the route, or before it settles, absence is not evidence. */
+  /* Calling a mark hidden is a claim about the element, so it may only be made
+     about the page the mark was made on, once that page has had a chance to
+     render. Off the route, or before it settles, absence is not evidence.
+
+     Hidden is a display state and nothing more: the mark keeps its number, its
+     comment and its address, and reaches the agent indistinguishable from any
+     other, because in the source — where the agent works — it is one. What it
+     has lost is somewhere on screen to pin a badge to. */
   function reconcile() {
     var changed = false;
     var settling = document.readyState === 'loading' || Date.now() - enteredAt < SETTLE_MS;
@@ -226,7 +260,7 @@
       var found = safeQuery(m.selector);
       if (found && sameElement(m, found)) {
         m.el = found; m.misses = 0;
-        if (m.status === 'orphan') { m.status = 'staged'; changed = true; }
+        if (m.status === 'hidden') { m.status = 'staged'; changed = true; }
         return;
       }
       m.el = null;
@@ -234,9 +268,9 @@
       // rather than counting an element that has not been drawn yet as gone.
       if (settling) return;
       m.misses = (m.misses || 0) + 1;
-      if (m.misses >= 3 && m.status !== 'orphan') { m.status = 'orphan'; changed = true; }
+      if (m.misses >= 3 && m.status !== 'hidden') { m.status = 'hidden'; changed = true; }
     });
-    /* A set never orphans. Losing its element costs it the pill on the page,
+    /* A set is never dimmed. Losing its element costs it the pill on the page,
        not the choice itself — that stays reachable in the island, which is the
        only thing standing between the reviewer and scaffolding left in their
        source forever. */
@@ -456,7 +490,10 @@
         : m.el.getBoundingClientRect();
       openComposer(m, r, true);
     }, true);
-    if (!S.learn.welcomed) { S.teach = true; S.expanded = 'batch'; }
+    // Usually the settings have already landed and opened it, and this does
+    // nothing. The wait is for the run where they are slow, and for the demo,
+    // where there is no stream to carry them.
+    setTimeout(maybeWelcome, 400);
     renderIsland();
     renderMarks();
     watchRoute();
@@ -480,7 +517,7 @@
       status: 'staged'
     }, extra || {});
     S.marks.push(m);
-    if (!S.learn.marked) { learned('marked'); S.teach = false; }
+    if (S.cfg.tutorial) { tutorialDone(); S.teach = false; }
     cue('tick');
     save(); renderMarks(); renderIsland();
     return m;
@@ -780,7 +817,7 @@
       // A choice is shown by which version of the pill is lit, so a badge on
       // top of that pill would be the same fact said twice.
       if (m.type === 'choice') return;
-      if (!markOnRoute(m) || m.status === 'orphan') return;
+      if (!markOnRoute(m) || m.status === 'hidden') return;
       // Nothing to point at yet — the route is still rendering. Don't plant a
       // badge at the origin. One already on screen stays: a re-render is not a
       // disappearance, and it holds its place until reconcile rules either way.
@@ -1121,7 +1158,7 @@
     if (S.armed === on) return;
     S.armed = on;
     // reinforcement at the point of use, and only until they have marked once
-    if (on && !S.learn.marked) S.teach = true;
+    if (on && S.cfg.tutorial) S.teach = true;
     else if (!on && !S.expanded) S.teach = false;
     if (on) {
       wake();
@@ -1165,7 +1202,8 @@
       '<div class="c-head"><span class="c-badge">' + pad(m.n) + '</span>' +
       '<span class="c-kind">' + kindLabel(m.type) + '</span>' +
       '<span class="c-addr">' + esc(m.address) + '</span></div>' +
-      '<textarea rows="2" placeholder="' + placeholderFor(m.type) + '"></textarea>' +
+      '<div class="c-ta"><textarea rows="2" placeholder="' + placeholderFor(m.type) + '"></textarea>' +
+      '<div class="c-sb"><div class="c-sb-t"></div></div></div>' +
       '<div class="c-foot"><button class="ghost" data-act="cancel">' +
       (editing ? 'Delete' : 'Discard') + '</button>' +
       (canVary(m) ? '<button class="mult" data-act="mult" type="button"></button>' +
@@ -1182,6 +1220,7 @@
     renderMarks();
     var ta = c.querySelector('textarea');
     ta.value = m.comment || '';
+    bindScrollbar(ta, c.querySelector('.c-sb'), c.querySelector('.c-sb-t'));
     setTimeout(function () { ta.focus(); }, 20);
     if (!reduced) c.animate([{ opacity: 0, transform: 'translateY(4px) scale(.98)' },
       { opacity: 1, transform: 'translateY(0) scale(1)' }], { duration: 200, easing: EASE });
@@ -1259,6 +1298,63 @@
      outcome, and an inline text edit is the reviewer writing the answer
      themselves — there is nothing left to offer versions of. */
   function canVary(m) { return m.type === 'comment' || isPoint(m); }
+  /* The composer's own scrollbar, over a textarea whose native one is
+     suppressed. It appears only when there is somewhere to scroll, and it
+     drags; grabbing the track jumps the thumb to the pointer. */
+  function bindScrollbar(ta, bar, thumb) {
+    if (!bar || !thumb) return;
+    var MIN = 18;
+    function sync() {
+      var over = ta.scrollHeight - ta.clientHeight;
+      if (over <= 1) { bar.classList.remove('on'); return; }
+      bar.classList.add('on');
+      var track = bar.clientHeight;
+      var h = Math.max(MIN, Math.round(track * (ta.clientHeight / ta.scrollHeight)));
+      thumb.style.height = h + 'px';
+      thumb.style.top = Math.round((ta.scrollTop / over) * (track - h)) + 'px';
+    }
+    ta.addEventListener('scroll', sync);
+    ta.addEventListener('input', sync);
+    bar.addEventListener('pointerdown', function (e) {
+      // The composer sits over a page Tailr does not own; a drag that starts
+      // here belongs to the bar and to nothing underneath it.
+      e.preventDefault(); e.stopPropagation();
+      var track = bar.clientHeight, h = thumb.offsetHeight, span = track - h;
+      var over = ta.scrollHeight - ta.clientHeight;
+      if (span <= 0 || over <= 0) return;
+      var box = bar.getBoundingClientRect();
+      // Grabbing the thumb keeps the point under the pointer; grabbing the
+      // track centres it there.
+      var grab = e.target === thumb ? e.clientY - thumb.getBoundingClientRect().top : h / 2;
+      function to(y) {
+        var pos = Math.min(Math.max(0, y - box.top - grab), span);
+        ta.scrollTop = (pos / span) * over;
+        sync();
+      }
+      function up() {
+        bar.classList.remove('grabbing');
+        try { bar.releasePointerCapture(e.pointerId); } catch (err) {}
+        bar.removeEventListener('pointermove', move);
+        bar.removeEventListener('pointerup', up);
+        bar.removeEventListener('pointercancel', up);
+      }
+      function move(ev) { to(ev.clientY); }
+      bar.classList.add('grabbing');
+      to(e.clientY);
+      try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+      bar.addEventListener('pointermove', move);
+      bar.addEventListener('pointerup', up);
+      bar.addEventListener('pointercancel', up);
+    });
+    sync();
+  }
+
+  /* A hidden mark has no element to sit on, so its composer opens in the middle
+     of the viewport instead of being pinned to a place that isn't there. */
+  function centerRect() {
+    var top = Math.max(8, innerHeight / 2 - 96);
+    return { left: Math.max(8, (innerWidth - 268) / 2), top: top, bottom: top, right: 0 };
+  }
   function place(c, r) {
     var w = 268, gap = 8;
     var left = Math.min(Math.max(8, r.left), innerWidth - w - 8);
@@ -1641,9 +1737,17 @@
       S.slides.filter(function (s) { return s.kept === undefined; }).length;
     var needsReload = !!(S.agent && S.agent.phase === 'done');
     var sig = [count, S.locked, S.armed, S.expanded, needsReload, S.teach, S.learn.welcomed,
+      S.cfg.tutorial,
       S.ending, S.dirty, S.app && S.app.target, S.cfg.modifier,
       S.agent ? S.agent.phase : '-', S.agent ? S.agent.served.length : 0,
-      S.marks.map(function (m) { return m.id + m.status; }).join(','),
+      /* What each row draws, not merely which rows there are. Reopening a mark
+         to change its note, its versions or its slider leaves the list the same
+         length with every status where it was, and the panel would go on
+         showing the old text underneath the composer that just changed it. */
+      S.marks.map(function (m) {
+        return m.id + m.status + '\u0001' + (m.comment || '') + '\u0001' + (m.after || '') +
+          '\u0001' + (m.variations || '') + (m.slider ? 's' : '');
+      }).join(','),
       S.sets.map(function (s) { return s.id + s.choice; }).join(','),
       S.slides.map(function (s) { return s.id + s.kept; }).join(',')].join('|');
     if (sig === renderIsland._sig) return;
@@ -1862,14 +1966,14 @@
   }
 
   function listHtml() {
-    var byRoute = {}, orph = [];
+    var byRoute = {}, hid = [];
     staged().forEach(function (m) {
-      if (m.status === 'orphan') orph.push(m);
+      if (m.status === 'hidden') hid.push(m);
       else (byRoute[m.route] = byRoute[m.route] || []).push(m);
     });
     var h = '';
     if (S.storageFailed) {
-      h += '<div class="grp bad">Not being saved — this browser is blocking site data. ' +
+      h += '<div class="grp bad note">Not being saved — this browser is blocking site data. ' +
            'Send before you reload.</div>';
     }
     if (S.sets.length) {
@@ -1880,14 +1984,16 @@
       h += '<div class="grp">Sliders the agent built — keep a value</div>';
       S.slides.forEach(function (s) { h += slideRowHtml(s); });
     }
-    if (orph.length) {
-      h += '<div class="grp bad">Orphaned — element no longer on the page</div>';
-      orph.forEach(function (m) { h += rowHtml(m, true); });
-    }
     Object.keys(byRoute).forEach(function (r) {
       h += '<div class="grp">' + esc(r) + '</div>';
       byRoute[r].forEach(function (m) { h += rowHtml(m, false); });
     });
+    /* Last, and stated rather than warned about: the element is off screen,
+       which costs the mark its badge and nothing else. */
+    if (hid.length) {
+      h += '<div class="grp note">Hidden — not on screen. Open one to edit it.</div>';
+      hid.forEach(function (m) { h += rowHtml(m, true); });
+    }
     return h;
   }
   /* The pill on the page is small enough not to cover what it labels, which
@@ -1921,23 +2027,29 @@
       s.id + '" title="Keep none of it" aria-label="Discard the slider on ' +
       esc(s.ref) + '">×</button></div>';
   }
-  function rowHtml(m, orphan) {
+  /* `hidden` is a fact about the element, not a problem with the mark. The row
+     is dimmed because there is no badge on the page to match it to, and for no
+     other reason. */
+  function rowHtml(m, hidden) {
     var text = m.type === 'text' ? '“' + esc(m.before) + '” → “' + esc(m.after) + '”' : esc(m.comment || m.snippet);
     // The on-page badge is deliberately small so it never covers what it labels,
     // which leaves it under the minimum target size. The row is its equivalent —
     // and the only route to editing a mark without a pointer.
     // A choice has no comment of its own to reopen: the version pill above it in
     // this same list is where it is changed, and the × is how it is dropped.
-    var editable = m.type !== 'choice' &&
-      m.route === routeKey() && (isPoint(m) || (m.el && m.el.isConnected));
+    // An inline text edit is the one thing a hidden element really does block —
+    // the reviewer types into the element, so there has to be one to type into.
+    var editable = m.type !== 'choice' && m.route === routeKey() &&
+      (isPoint(m) || (m.el && m.el.isConnected) || (hidden && m.type !== 'text'));
     var attrs = editable
       ? ' role="button" tabindex="0" data-act="edit" data-id="' + m.id + '" title="Edit mark ' + pad(m.n) + '"'
       : '';
     var flags = (m.variations > 1 ? '<span class="li-v">' + m.variations + '×</span>' : '') +
       (m.slider ? '<span class="li-v">slider</span>' : '');
-    return '<div class="li' + (orphan ? ' orph' : '') + (editable ? ' editable' : '') + '"' + attrs + '>' +
+    return '<div class="li' + (hidden ? ' dim' : '') + (editable ? ' editable' : '') + '"' + attrs + '>' +
       '<span class="li-n ' + m.type + '">' + pad(m.n) + '</span>' +
-      '<span class="li-k">' + kindLabel(m.type) + flags + '</span>' +
+      '<span class="li-k">' + kindLabel(m.type) + '</span>' +
+      (flags ? '<span class="li-f">' + flags + '</span>' : '') +
       '<span class="li-a">' + esc(m.address) + '</span>' +
       '<span class="li-c" title="' + text.replace(/"/g, '&quot;') + '">' + text + '</span>' +
       '<button class="li-x" data-act="drop" data-id="' + m.id +
@@ -1970,7 +2082,7 @@
       marks: batch.map(function (m) {
         return { ref: pad(m.n), type: m.type, route: m.route, address: m.address,
           selector: m.selector, element: m.snippet, comment: m.comment,
-          before: m.before, after: m.after, x: m.x, y: m.y, orphaned: m.status === 'orphan',
+          before: m.before, after: m.after, x: m.x, y: m.y,
           variations: m.variations > 1 ? m.variations : undefined,
           slider: m.slider || undefined,
           variantOf: m.variantOf, variant: m.variant, label: m.label,
@@ -2279,7 +2391,8 @@
     var open = function () {
       var r = isPoint(m)
         ? { left: m.x - scrollX, top: m.y - scrollY, bottom: m.y - scrollY, right: m.x - scrollX }
-        : m.el.getBoundingClientRect();
+        : (m.el && m.el.isConnected) ? m.el.getBoundingClientRect()
+        : centerRect();
       openComposer(m, r, true);
     };
     if (!isPoint(m) && m.el && m.el.isConnected) {
@@ -2360,11 +2473,21 @@
       var was = S.cfg.modifier;
       if (typeof cfg.sfx === 'boolean') S.cfg.sfx = cfg.sfx;
       if (MODS[cfg.modifier]) S.cfg.modifier = cfg.modifier;
-      if (S.cfg.modifier === was) return;
-      // A mode armed with the old key is over the moment the new one lands:
-      // nothing on the page would release it.
-      S.latched = false;
-      arm(false);
+      if (typeof cfg.tutorial === 'boolean' && cfg.tutorial !== S.cfg.tutorial) {
+        S.cfg.tutorial = cfg.tutorial;
+        learned('tutorialDone', !cfg.tutorial);
+        // Asked for back from the agent side, it comes back whole — including
+        // the welcome this origin had already been dismissed out of.
+        if (cfg.tutorial) { welcomeTried = false; learned('welcomed', false); }
+        else if (S.teach) { S.teach = false; S.expanded = null; }
+      }
+      maybeWelcome();
+      if (S.cfg.modifier !== was) {
+        // A mode armed with the old key is over the moment the new one lands:
+        // nothing on the page would release it.
+        S.latched = false;
+        arm(false);
+      }
       renderIsland();
     },
     /* The server names each process. Marks and their numbers belong to that
@@ -2456,7 +2579,9 @@
         finish(false);
       },
       // Nothing to tell, so the page is the only thing left to end.
-      exit: function () { shutdown(); }
+      exit: function () { shutdown(); },
+      // No settings file to reach, so this origin's copy is the whole record.
+      tutorialDone: function () {}
     }
   };
 
@@ -2618,10 +2743,23 @@
 .c-kind{font-size:11px;font-weight:650;letter-spacing:-.005em}
 .c-addr{margin-left:auto;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10.5px;
   color:rgba(255, 255, 255, 0.56);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.composer textarea{width:100%;background:rgba(255, 255, 255, 0.06);border:none;outline:none;color:#fff;
-  border-radius:9px;padding:8px;font-size:12.5px;line-height:1.45;resize:none;
-  max-height:180px;overflow-y:auto;overflow-wrap:break-word}
-.composer textarea::-webkit-scrollbar{width:0;display:none}
+.c-ta{position:relative}
+.composer textarea{display:block;width:100%;background:rgba(255, 255, 255, 0.06);border:none;outline:none;
+  color:#fff;border-radius:9px;padding:8px 14px 8px 8px;font-size:12.5px;line-height:1.45;resize:none;
+  max-height:180px;overflow-y:auto;overflow-wrap:break-word;
+  scrollbar-width:none;-ms-overflow-style:none}
+.composer textarea::-webkit-scrollbar{width:0;height:0;display:none}
+/* The host browser's scrollbar is the host browser's chrome — a light track and
+   platform metrics dropped into a dark panel Tailr drew every other pixel of.
+   This is the island's own bar: a thumb, no track, and only while there is
+   something to scroll. */
+.c-sb{position:absolute;top:6px;right:4px;bottom:6px;width:6px;border-radius:999px;
+  opacity:0;transition:opacity .14s ease;pointer-events:none;touch-action:none}
+.c-sb.on{opacity:1;pointer-events:auto}
+.c-sb-t{position:absolute;left:1px;width:4px;border-radius:999px;
+  background:rgba(255, 255, 255, 0.28);transition:background .12s ease}
+.c-sb:hover .c-sb-t,.c-sb.grabbing .c-sb-t{background:rgba(255, 255, 255, 0.52)}
+
 .composer textarea::placeholder{color:rgba(255, 255, 255, 0.56)}
 .composer textarea:focus{box-shadow:0 0 0 2px rgba(47, 212, 168, 0.55)}
 
@@ -2723,10 +2861,17 @@ button.ghost:hover{color:#fff}
 .qli.bad{color:#FFFFFF}
 .qli.bad::before{background:#E8483C}
 .row-dismiss{margin-right:auto}
-.row.has-dismiss{padding-left:6px}
+/* The pill's corner is 19px, so a button tucked 6px into it comes out fused to
+   the curve. This clears the arc and lines the button's left edge up with the
+   card's own text margin above it; the row grows to keep the air even. */
+.row.has-dismiss{padding-left:10px;height:46px}
 .grp{padding:6px 8px 4px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;
   color:rgba(255, 255, 255, 0.56);overflow-wrap:anywhere}
 .grp.bad{color:#E8483C}
+/* A sentence, not a route. The path headers own the monospace; prose that
+   happens to sit in the same slot should not have to wear it. */
+.grp.note{font-family:inherit;font-size:11px;line-height:1.45;letter-spacing:-.005em;
+  padding-bottom:6px;overflow-wrap:break-word}
 .li{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 8px;border-radius:9px;min-width:0}
 .li.editable{cursor:pointer}
 .li.editable:hover,.li.editable:focus-visible{background:rgba(255, 255, 255, 0.06)}
@@ -2734,18 +2879,27 @@ button.ghost:hover{color:#fff}
   background:rgba(255, 255, 255, 0.12);border-radius:5px;font-size:10px;font-weight:700;
   font-variant-numeric:tabular-nums;flex:0 0 auto}
 .li-n.remove{background:#E8483C}
-.li-k{font-size:11px;font-weight:650;width:52px;flex:0 0 auto;color:rgba(255, 255, 255, 0.56)}
+.li-k{font-size:11px;font-weight:650;flex:0 0 52px;min-width:0;color:rgba(255, 255, 255, 0.56);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Its own column. Nested inside .li-k these spilled out of a 52px box that
+   "Comment" already fills and painted over the address beside it. */
+.li-f{display:flex;align-items:center;gap:4px;flex:0 0 auto;min-width:0}
 .li-a{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10.5px;color:rgba(255, 255, 255, 0.56);
-  width:118px;flex:0 0 118px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  width:118px;flex:0 1 118px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .li-c{font-size:12.5px;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.li.orph .li-n{background:transparent;color:#E8483C;box-shadow:inset 0 0 0 1px #E8483C}
+/* Off screen, so there is no badge on the page for this number to match: it is
+   drawn hollow instead of filled. Dimmed, never coloured — the mark is intact,
+   it just has nowhere to point. */
+.li.dim .li-n{background:transparent;color:rgba(255, 255, 255, 0.72);
+  box-shadow:inset 0 0 0 1px rgba(255, 255, 255, 0.24)}
+.li.dim .li-c{color:rgba(255, 255, 255, 0.72)}
 .li-x{background:transparent;color:rgba(255, 255, 255, 0.56);font-size:13px;font-weight:400;
   width:26px;height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:center;
   padding:0;border-radius:999px}
 .li-x:hover{background:rgba(255, 255, 255, 0.12);color:#FFFFFF}
 .li-x.on{background:#F2EDE1;color:#0B0B0C}
-.li-v{margin-left:4px;padding:0 4px;border-radius:5px;background:rgba(255, 255, 255, 0.12);
-  color:#FFFFFF;font-size:9.5px;font-variant-numeric:tabular-nums}
+.li-v{padding:0 4px;border-radius:5px;background:rgba(255, 255, 255, 0.12);
+  color:#FFFFFF;font-size:9.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* the same versions as the pill on the page, named rather than hovered */
 .vli .li-a{flex:0 0 118px}
 .vtabs{display:flex;align-items:center;gap:3px;flex:1 1 0;min-width:0;overflow:hidden}
