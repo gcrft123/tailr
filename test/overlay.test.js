@@ -55,7 +55,130 @@ test('each gesture stages the mark it promises', needsDom, async (t) => {
   // Every mark says where it was made, and none of them claims a source
   // address this page cannot support.
   assert.ok(marks.every((x) => x.route === '/'));
-  assert.ok(marks.every((x) => x.orphaned === false));
+
+  // Nothing in the batch reports whether an element was on screen when it was
+  // sent. The agent works in the source, where that is not a difference.
+  assert.ok(marks.every((x) => !('orphaned' in x)), 'no mark is flagged to the agent');
+});
+
+/* A drawer closed, a tab switched, a row filtered away: the one case where the
+   reviewer and the agent are told different things. The reviewer has lost a
+   badge and needs to know where it went; the agent has lost nothing. */
+test('a mark whose element goes off screen keeps everything but its badge', needsDom, async (t) => {
+  const o = await mountOverlay();
+  t.after(() => o.destroy());
+
+  await o.comment('#cta');
+  o.compose('This should say Download');
+  assert.ok(o.shadow().querySelector('[data-mark]'), 'a badge while the element is there');
+
+  o.at('#cta').remove();
+  // Past the grace a route gets to render, then the misses that have to add up
+  // before Tailr will say anything about an element it cannot find.
+  await delay(3900);
+
+  const m = o.payload().marks.find((x) => x.ref === '01');
+  assert.equal(m.comment, 'This should say Download', 'the note is untouched');
+  assert.equal(m.selector, '#cta', 'and so is the address it was made against');
+  assert.ok(!('orphaned' in m), 'nothing in the batch would stop the agent acting on it');
+
+  // The badge is the one thing that goes: there is nowhere left to put it.
+  assert.equal(o.shadow().querySelector('[data-mark]'), null);
+
+  o.shadow().querySelector('[data-pill="batch"]').dispatchEvent(
+    new o.window.MouseEvent('pointerenter', { bubbles: false }));
+  await delay(20);
+
+  // What the reviewer is told, and where they are sent.
+  const note = [...o.shadow().querySelectorAll('.grp')].map((n) => n.textContent).join(' ');
+  assert.match(note, /Hidden/);
+  assert.doesNotMatch(note, /orphan/i, 'the reviewer is not told the mark is broken, because it is not');
+
+  const row = o.shadow().querySelector('.li.dim');
+  assert.ok(row, 'it is dimmed, since there is no badge on the page to match');
+  assert.equal(row.getAttribute('data-act'), 'edit', 'and it still opens');
+
+  o.act('.li.dim[data-act="edit"]');
+  const c = o.shadow().querySelector('.composer');
+  assert.ok(c, 'a composer with no element to sit on opens anyway');
+  o.compose('Actually, say Export as CSV');
+  assert.equal(o.payload().marks.find((x) => x.ref === '01').comment, 'Actually, say Export as CSV');
+});
+
+/* Nested in the kind, the flags overflowed a fixed-width box "Comment" already
+   fills and painted over the address. jsdom cannot see that, so what is
+   asserted is the structure that prevents it. */
+test('a mark asking for versions does not wear the label of the one beside it', needsDom, async (t) => {
+  const o = await mountOverlay();
+  t.after(() => o.destroy());
+
+  await o.comment('#cta');
+  o.compose('Try this three ways', { versions: 3, slider: true });
+
+  o.shadow().querySelector('[data-pill="batch"]').dispatchEvent(
+    new o.window.MouseEvent('pointerenter', { bubbles: false }));
+  await delay(20);
+
+  const row = o.shadow().querySelector('.li');
+  assert.equal(row.querySelector('.li-k').textContent, 'Comment', 'the kind, and only the kind');
+  assert.deepEqual([...row.querySelectorAll('.li-f > .li-v')].map((n) => n.textContent),
+    ['3×', 'slider'], 'the flags are a column of their own');
+  assert.equal(row.querySelector('.li-k .li-v'), null, 'and never inside the kind');
+});
+
+/* Learning to mark happens once, not once per dev server, so the walkthrough
+   lives with the reviewer's settings rather than in each origin's storage. */
+test('the walkthrough shows until the first mark and then never again', needsDom, async (t) => {
+  const o = await mountOverlay({ tutorial: true });
+  t.after(() => o.destroy());
+
+  // It opens itself, but not before the settings have had a moment to say it
+  // should not.
+  await delay(450);
+  assert.ok(o.shadow().querySelector('[data-act="gotit"]'), 'on screen, unasked');
+
+  await o.comment('#cta');
+  o.compose('This should say Download');
+
+  assert.equal(o.taught.length, 1, 'the first mark is what turns it off');
+  assert.equal(o.shadow().querySelector('[data-act="gotit"]'), null, 'and it goes at once');
+
+  // The server has the fact now; this origin keeps a copy so the next load need
+  // not wait to be told.
+  await o.reload();
+  await delay(450);
+  assert.equal(o.shadow().querySelector('[data-act="gotit"]'), null, 'nor on the next load');
+
+  // And it is a setting, so the reviewer can ask for it back.
+  o.tailr.config({ tutorial: true });
+  await delay(20);
+  assert.ok(o.shadow().querySelector('[data-act="gotit"]'), 'tutorial:true brings it back whole');
+});
+
+/* The staged list is where a hidden mark is edited, so a panel that goes on
+   showing the note underneath the composer that just replaced it is worse than
+   one that is closed. */
+test('changing a mark updates the row that is showing it', needsDom, async (t) => {
+  const o = await mountOverlay();
+  t.after(() => o.destroy());
+
+  await o.comment('#cta');
+  o.compose('Say Download');
+
+  o.shadow().querySelector('[data-pill="batch"]').dispatchEvent(
+    new o.window.MouseEvent('pointerenter', { bubbles: false }));
+  await delay(20);
+  assert.match(o.shadow().querySelector('.li').textContent, /Say Download/);
+
+  // Reopened from its badge on the page, which leaves the panel open behind it.
+  o.shadow().querySelector('[data-mark]').dispatchEvent(
+    new o.window.MouseEvent('click', { bubbles: true, cancelable: true, view: o.window }));
+  await delay(20);
+  o.compose('Say Export as CSV', { versions: 2 });
+
+  const row = o.shadow().querySelector('.li');
+  assert.match(row.textContent, /Say Export as CSV/, 'the row says what the mark now says');
+  assert.match(row.textContent, /2×/, 'including that it has started asking for versions');
 });
 
 test('a comment nobody wrote is not a mark', needsDom, async (t) => {
@@ -191,9 +314,7 @@ test('keeping none of the versions is a choice too', needsDom, async (t) => {
   await o.reload();
 
   // Keeping none of them is offered on the set's row in the island, not on the
-  // pill: it is a decision about the set, not a preview of a version. Getting
-  // to that row means past the welcome and onto the staged list.
-  o.act('[data-act="gotit"]');
+  // pill: it is a decision about the set, not a preview of a version.
   o.shadow().querySelector('[data-pill="batch"]').dispatchEvent(
     new o.window.MouseEvent('pointerenter', { bubbles: false }));
   await delay(20);

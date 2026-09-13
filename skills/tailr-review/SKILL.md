@@ -46,7 +46,7 @@ The loop is `wait` → `pull` → `progress` per mark → `done` or `fail`.
 | `npx tailr progress <ref>` | `tailr_progress` | report one mark as applied |
 | `npx tailr done` | `tailr_done` | the run finished |
 | `npx tailr fail "reason"` | `tailr_fail` | it returned incomplete |
-| `npx tailr config [name:value…]` | `tailr_config` | their settings — `sfx`, `modifier`. Only when they ask |
+| `npx tailr config [name:value…]` | `tailr_config` | their settings — `sfx`, `modifier`, `tutorial`. Only when they ask |
 
 Each mark carries a `ref` ("01"), a `type`, the `route` it was made on, a
 best-effort source `address`, a CSS `selector`, the element's text, and the
@@ -157,8 +157,6 @@ For a slider it carries `sliderOf` and `value`:
   after its choice has landed, and never write one for anything the reviewer
   didn't ask to see versions or a slider of.
 - When the source address and the selector disagree, trust the source address.
-- A mark with `"orphaned": true` lost its element before it was sent. Don't
-  guess at what was meant — raise it with the reviewer.
 - If a mark is ambiguous, ask rather than picking an interpretation.
 - Run these commands from the project directory; that's how Tailr finds the
   session.

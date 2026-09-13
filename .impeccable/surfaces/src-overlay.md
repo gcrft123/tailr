@@ -44,7 +44,7 @@ Pinned by the user against a Wispr Flow reference recording, which beats the rol
 
 **Host pages to survive.** Light, dark, dense dashboard, image-heavy, sticky headers, scroll containers, CSS transforms, canvas.
 
-**States.** Inert (Alt released) · armed · latched · location-picking (Alt+Shift) · hover · selected · composing a comment · staged · off-screen · on another route · staged list open · sending · in flight · served per mark · all served · reload offered · agent failure · orphaned mark · bridge disconnected · site data blocked. There is no multi-selection: each mark addresses one element or one point.
+**States.** Inert (Alt released) · armed · latched · location-picking (Alt+Shift) · hover · selected · composing a comment · staged · off-screen · on another route · staged list open · sending · in flight · served per mark · all served · reload offered · agent failure · hidden mark · bridge disconnected · site data blocked. There is no multi-selection: each mark addresses one element or one point.
 
 ## Interaction and layout
 

@@ -32,7 +32,7 @@ function withoutHome(t) {
 test('with nothing written, the settings are the shipped defaults', (t) => {
   withoutHome(t);
   home();
-  assert.deepEqual(readConfig(), { sfx: true, modifier: 'alt' });
+  assert.deepEqual(readConfig(), { sfx: true, modifier: 'alt', tutorial: true });
   assert.equal(defaults().sfx, true, 'sound is on out of the box');
 });
 
@@ -41,13 +41,13 @@ test('what is written comes back, and only that', (t) => {
   const dir = home();
 
   const written = writeConfig({ modifier: 'meta' });
-  assert.deepEqual(written, { sfx: true, modifier: 'meta' });
+  assert.deepEqual(written, { sfx: true, modifier: 'meta', tutorial: true });
   assert.equal(existsSync(join(dir, 'config.json')), true);
-  assert.deepEqual(readConfig(), { sfx: true, modifier: 'meta' });
+  assert.deepEqual(readConfig(), { sfx: true, modifier: 'meta', tutorial: true });
 
   // A second setting merges rather than replacing the file.
   writeConfig({ sfx: false });
-  assert.deepEqual(readConfig(), { sfx: false, modifier: 'meta' });
+  assert.deepEqual(readConfig(), { sfx: false, modifier: 'meta', tutorial: true });
 });
 
 test('a stored value this version does not understand falls back to the default', (t) => {
@@ -125,7 +125,7 @@ test('the settings ride the same state the run does', async (t) => {
   t.after(() => s.close());
 
   const { body } = await s.api('state', null, 'GET');
-  assert.deepEqual(body.config, { sfx: false, modifier: 'meta' });
+  assert.deepEqual(body.config, { sfx: false, modifier: 'meta', tutorial: true });
 });
 
 test('a session with no settings given serves the defaults', async (t) => {
@@ -147,12 +147,44 @@ test('changing them mid-session lands on the open page', async (t) => {
 
   const posted = await s.api('config', { config: { modifier: 'meta', sfx: false } });
   assert.equal(posted.status, 200);
-  assert.deepEqual(posted.body.config, { sfx: false, modifier: 'meta' });
+  assert.deepEqual(posted.body.config, { sfx: false, modifier: 'meta', tutorial: true });
 
   const frame = new TextDecoder().decode((await reader.read()).value);
   assert.deepEqual(JSON.parse(frame.replace(/^data: /, '')).config,
-    { sfx: false, modifier: 'meta' }, 'pushed, not waited for');
+    { sfx: false, modifier: 'meta', tutorial: true }, 'pushed, not waited for');
   await reader.cancel();
+});
+
+test('the first mark turns the walkthrough off for good, and everywhere', async (t) => {
+  withoutHome(t);
+  const dir = home();
+  const s = await startTailr();
+  t.after(() => s.close());
+
+  assert.equal(readConfig().tutorial, true, 'it is on until someone has marked');
+
+  // The page is the only thing that knows the reviewer just made their first
+  // mark, so it is the page that reports it.
+  const posted = await s.api('tutorial-done');
+  assert.equal(posted.status, 200);
+  assert.equal(posted.body.config.tutorial, false, 'the open page is told at once');
+
+  // And it lands in their settings rather than this origin's browser storage,
+  // which is what makes it true of the next project as well as this one.
+  assert.equal(readConfig().tutorial, false);
+  assert.equal(JSON.parse(readFileSync(join(dir, 'config.json'), 'utf8')).tutorial, false);
+
+  // Nothing else moved with it.
+  assert.equal(readConfig().sfx, true);
+  assert.equal(readConfig().modifier, 'alt');
+});
+
+test('asking for the walkthrough back is an ordinary setting', (t) => {
+  withoutHome(t);
+  home();
+  writeConfig({ tutorial: false });
+  assert.deepEqual(parseSettings(['tutorial:true']).patch, { tutorial: true });
+  assert.match(parseSettings(['tutorial:sometimes']).errors[0], /true or false/);
 });
 
 test('a value the overlay could not use is refused at the door', async (t) => {

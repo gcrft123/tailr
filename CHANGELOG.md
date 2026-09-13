@@ -11,6 +11,33 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Changed
+
+- A mark whose element is no longer on screen is **hidden**, not orphaned, and
+  the batch no longer mentions it. The agent works in the source, where an
+  element that stopped rendering and one that never moved are the same mark, and
+  the address still resolves — so the flag only ever stopped the agent to ask
+  about work it could have done. The reviewer is still told, because the missing
+  badge is theirs to explain.
+- A hidden mark stays editable, from its row in the staged list. Its composer
+  opens in the middle of the viewport rather than pinned to an element that is
+  not there. Inline text edits are the exception: the reviewer types into the
+  element, so there has to be one.
+- The walkthrough is a setting, `tutorial`, alongside the reviewer's others in
+  `~/.tailr/config.json`. It shows until their first mark and then never again,
+  on every project at once rather than once per dev server. `tailr config
+  tutorial:true` asks for it back.
+
+### Fixed
+
+- The versions and slider chips on a staged row sat in a fixed-width box the
+  kind label already filled, so they spilled over the source address beside
+  them. They have a column of their own now.
+- Reopening a mark left the staged list showing the note it replaced: the panel
+  only redrew when a mark was added, removed or served.
+- The comment box drew the host browser's scrollbar. It has its own now: a
+  thumb, no track, and only while there is somewhere to scroll.
+
 ## [1.3.3] — 2026-09-07
 
 ### Added

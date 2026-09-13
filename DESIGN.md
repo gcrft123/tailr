@@ -16,6 +16,7 @@ colors:
   fill-2: "rgba(255, 255, 255, 0.12)"
   fill-3: "rgba(255, 255, 255, 0.18)"
   hairline: "rgba(255, 255, 255, 0.10)"
+  indicator: "rgba(255, 255, 255, 0.28)"
   shadow: "rgba(0, 0, 0, 0.30)"
   shadow-near: "rgba(0, 0, 0, 0.34)"
   served: "rgba(11, 11, 12, 0.30)"
@@ -200,6 +201,12 @@ components:
     typography: "{typography.badge}"
     rounded: "{rounded.badge}"
     size: "17px"
+  badge-hidden:
+    backgroundColor: "transparent"
+    textColor: "rgba(255, 255, 255, 0.72)"
+    typography: "{typography.badge}"
+    rounded: "{rounded.badge}"
+    size: "19px"
   version-pill:
     backgroundColor: "{colors.ink}"
     textColor: "{colors.text-muted}"
@@ -301,7 +308,8 @@ The reference number is a **small badge in the corner of the element's selection
 
 - **Island** — dormant (a short capsule), armed, staged (count + Send), expanded (staged list), working, notifying.
 - **Selection** — halo-paired outline, small corner badge, `redline` variant for removal. The badge is a control: clicking it reopens that mark to edit or delete. It is hidden while its own composer is open, where the number is already in the header.
-- **Composer** — a text field anchored on the element being commented, 268px, opening from the point of click.
+- **Hidden** — what a mark becomes when its element stops being rendered: a drawer closed, a tab switched, a row filtered away. It costs the mark its badge and nothing else. In the list it sorts last, under a line of prose rather than a route path; its number goes hollow instead of filled, and it is dimmed rather than coloured — **nothing in this state is red, because nothing in it has gone wrong**. The row still opens, and with no element to sit on the composer opens in the middle of the viewport. An inline text edit is the one thing genuinely blocked, because the reviewer types into the element and there has to be one. **The reviewer is told and the agent is not:** the missing badge is the reviewer's to explain, and the batch has nothing to say about it.
+- **Composer** — a text field anchored on the element being commented, 268px, opening from the point of click. Anchored to nothing, for a hidden mark, it centres.
 - **Inline edit** — the host's own text made editable in place with a faint underlay; no chrome around it.
 - **Spot** — Alt+Shift pins a dot to the cursor that can be dropped **anywhere on screen**. It persists as a dot with its number beside it. One mark covers both asking for something new and noting a place; splitting them into two gestures only made the reviewer memorise a difference the comment already carries.
 - **Multiplier** — a third state on the composer's footer, between the ghost and the `paper` action: how many versions of this change to ask for. It cycles `1× → 4×` on click and fills in once it leaves 1×. A menu over someone else's page, for a number with four possible values, would be more chrome than the number is worth.
@@ -309,10 +317,10 @@ The reference number is a **small badge in the corner of the element's selection
 - **Slider pill** — the continuous counterpart to the version pill, sitting clear above the element the same way and by the same reasoning. Track and thumb are drawn here rather than left to the platform, and the number beside them carries no spinner arrows: this is a value to scrub, not a form to fill in. Keep is neutral until it is the value being kept and then goes `paper`, exactly as the chosen version tab does. **Keep minimizes the pill to that value, carrying the reference number as an inline chip** — the overhanging corner badge names an element, and this names a decision — and the minimized pill reopens on click. Reset returns the parameter to the default the agent reported. Turning the slider down altogether is the `×` on its row and nothing on the page, the same split versions use. One pill, two faces, one width that morphs between them: never two objects swapped, because the swap is the thing that would have to be animated. It is the one on-page control that stays in the tab order, because a continuous value is the one decision a row cannot offer.
 - **Version pill** — one tab per version the agent built, sitting clear above the element rather than half over it: unlike a reference badge it is a control, and it is wide enough to hide what it is offering versions of. The number is always there and the name arrives on reach, the tab widening the pill rather than opening anything over the page. Hovering shows that version on the running page; clicking keeps it, in `paper`, because keeping one is a commitment. **The width must follow the pointer alone** — expanding on a class the pointer has just caused feeds the geometry back into the hover that produced it, and the page flickers between versions while the pointer sits still.
 - **Action** — `paper` for the committed move, ghost for everything else.
-- **Review row** — a way into its mark, not only a way to drop it: it opens that mark for editing, scrolling the element into view first. The on-page badge stays deliberately small so it never covers what it labels, which leaves it under the minimum target size; the row is its equivalent, and the only route to editing without a pointer.
+- **Review row** — a way into its mark, not only a way to drop it: it opens that mark for editing, scrolling the element into view first. The on-page badge stays deliberately small so it never covers what it labels, which leaves it under the minimum target size; the row is its equivalent, and the only route to editing without a pointer. It reads number, kind, flags, address, comment — **the flags are a column of their own, never a chip inside the kind**, which is a fixed 52px that `Comment` already fills, so anything nested there paints over the address beside it. **A row must follow its mark.** Reopening one changes neither the length of the list nor any status in it, so a panel that redraws on those alone goes on showing the note the composer over it has already replaced.
 - **Exit** — a ghost action on a hairline under the panel, never on the pill. Leaving is not what a reviewer is reaching for, and a control that ends the session has no business one pixel from the one that sends a batch. It asks before it acts, in the panel and never in a modal over an application Tailr does not own; the confirm card lists each consequence on its own line, the destructive one carrying a `redline` dot. **Being asked is not the same as having answered** — the pill's row only changes once the session is actually going. Focus lands on Cancel, because the control that opened the card has just been replaced by it.
 - **Ended** — the last thing on screen, and the only place the reviewer can be told where their application went now that the review URL is dead. It stays until dismissed, and dismissing takes the overlay off the page entirely.
-- **Gesture key** — the four markup gestures as a two-column list. Shown once on a reviewer's first visit with a line of orientation, again whenever Alt is held before they have marked anything, and on demand forever after by hovering the empty pill. It retires itself the moment the first mark lands.
+- **Gesture key** — the four markup gestures as a two-column list. Shown with a line of orientation before the reviewer has marked anything, again whenever Alt is held until then, and on demand forever after by hovering the empty pill. **It retires on the first mark, and it retires everywhere.** Learning to mark happens once rather than once per dev server, so the fact belongs with the reviewer's own settings and not in each origin's slice of browser storage — which also means it can be asked for back. Because the settings arrive a moment after the page does, it opens on their answer rather than on load; a walkthrough that flashes and withdraws is worse than one that arrives late. Its dismiss is the one `paper` action seated in the pill's row instead of the panel, and the row grows to 46px to carry it: a button set into a 19px corner has to clear the arc, and line up with the text margin of the card above it.
 
 Every interactive part ships default, hover, focus, active, disabled. Focus is a 2px `live` ring at 2px offset.
 
@@ -336,7 +344,7 @@ Every interactive part ships default, hover, focus, active, disabled. Focus is a
 - Make idle nearly invisible, then let hover do the work.
 - Animate the container and its content as one gesture.
 - Keep exactly one `paper` element on screen.
-- Let the list scroll without a scrollbar; the chrome is small enough that a system scrollbar reads as a seam.
+- Suppress the platform's scrollbar on every engine, not just the one in front of you — a strip of the host browser's chrome is a seam across an object Tailr drew every other pixel of. Where scrolling then needs to be legible, draw the bar: the staged list scrolls bare, and the comment box carries a 4px `indicator` thumb on a transparent track, present only while there is somewhere to scroll.
 - Draw every on-page mark as a halo pair; test on white, on black, and on a photograph.
 
 **Don't**
