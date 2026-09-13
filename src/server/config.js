@@ -23,18 +23,24 @@ export function configFile() {
   return join(configDir(), 'config.json');
 }
 
+/* Every on/off setting reads the same words, so learning the spelling of one
+   is learning all of them. */
+function bool(name) {
+  return (raw) => {
+    const v = String(raw).trim().toLowerCase();
+    if (['true', 'on', 'yes', '1'].includes(v)) return { value: true };
+    if (['false', 'off', 'no', '0'].includes(v)) return { value: false };
+    return { error: `${name} is true or false, not "${raw}".` };
+  };
+}
+
 /** One entry per setting. Adding a setting is adding an entry here. */
 export const SETTINGS = {
   sfx: {
     default: true,
     values: 'true | false',
     summary: 'A short sound on every action — a mark made or dropped, a batch sent, a run closing.',
-    parse(raw) {
-      const v = String(raw).trim().toLowerCase();
-      if (['true', 'on', 'yes', '1'].includes(v)) return { value: true };
-      if (['false', 'off', 'no', '0'].includes(v)) return { value: false };
-      return { error: `sfx is true or false, not "${raw}".` };
-    }
+    parse: bool('sfx')
   },
   modifier: {
     default: 'alt',
@@ -54,6 +60,16 @@ export const SETTINGS = {
     },
     /* Stored as the browser names it, read back as the reviewer typed it. */
     show(value) { return value === 'meta' ? 'cmd' : value; }
+  },
+  /* The one setting Tailr turns off by itself. Learning to mark happens once,
+     not once per dev server, so the answer belongs beside the reviewer's other
+     preferences rather than in each origin's slice of browser storage — and it
+     is here, in a file they can edit, so they can also ask for it back. */
+  tutorial: {
+    default: true,
+    values: 'true | false',
+    summary: 'The walkthrough shown until your first mark. Turns itself off once you make one.',
+    parse: bool('tutorial')
   }
 };
 

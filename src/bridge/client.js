@@ -28,6 +28,13 @@
       setTimeout(done, 4000);
     },
 
+    /* The walkthrough turning itself off, on the reviewer's first mark. A
+       preference rather than a message: if it never lands, they see a card one
+       more time, so nothing here reports failure. */
+    tutorialDone: function () {
+      fetch(API + 'tutorial-done', { method: 'POST' }).catch(function () {});
+    },
+
     send: function (payload) {
       fetch(API + 'batch', {
         method: 'POST',

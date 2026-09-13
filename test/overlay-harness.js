@@ -48,7 +48,8 @@ const PAGE = `<!doctype html><html><head><title>Northwind</title></head><body>
  * through: the same public object the CLI talks to, and a transport that
  * records batches instead of sending them.
  */
-export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/' } = {}) {
+export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/',
+                                    tutorial = false } = {}) {
   const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
   const { window } = dom;
   const doc = window.document;
@@ -90,6 +91,7 @@ export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/'
   });
   const sent = [];
   const exits = [];
+  const taught = [];
   /* Everything the overlay builds is built inside the jsdom realm, so its
      arrays and objects fail a strict deep-equal against Node's own. Round-trip
      them through JSON, which is what the bridge does to them anyway — so a
@@ -102,8 +104,14 @@ export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/'
     tailr = window.__tailr;
     tailr.transport = {
       send: (batch) => { sent.push(plain(batch)); },
-      exit: () => { exits.push(Date.now()); }
+      exit: () => { exits.push(Date.now()); },
+      tutorialDone: () => { taught.push(Date.now()); }
     };
+    /* Whether the walkthrough shows is one of the reviewer's settings, and a
+       real session always has a server publishing them. Tests get a reviewer
+       who has marked before, because that is who nearly every test is about;
+       the ones about the walkthrough itself ask for the other. */
+    if (!tutorial) tailr.config({ tutorial: false });
   }
   boot();
 
@@ -128,7 +136,7 @@ export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/'
   }
 
   return {
-    window, document: doc, sent, exits, at, shadow, mouse,
+    window, document: doc, sent, exits, taught, at, shadow, mouse,
     get tailr() { return tailr; },
     get state() { return tailr.state; },
 

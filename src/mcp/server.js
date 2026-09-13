@@ -90,8 +90,6 @@ const TOOLS = [
       'address, a CSS selector, the element\'s text, and the reviewer\'s comment. A "text" mark carries ' +
       'before/after. A "point" mark carries page x/y instead of an element and means the reviewer marked a '  +
       'place rather than a thing — asking for something new there, or noting the spot; the comment says which. ' +
-      'A mark with orphaned:true ' +
-      'lost its element before the batch was sent — raise it with the reviewer rather than guessing. ' +
       'A mark with variations:n asks for n versions of that one change, built behind the switch ' +
       'described by tailr_variants. A mark with slider:true asks for a continuous numerical ' +
       'parameter (glow, depth, scale…) wired behind the switch described by tailr_slider. ' +
