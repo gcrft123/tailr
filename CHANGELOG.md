@@ -11,6 +11,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-09-13
+
 ### Changed
 
 - Closing a run now says what to do next. `done` and `fail` were the only steps
