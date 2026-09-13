@@ -124,6 +124,51 @@ test('a batch arriving ends the wait at once, with the run in the answer', async
   assert.equal(body.run.total, 1);
 });
 
+/* Every other step in the loop says what follows it; closing used to say
+   nothing, which left the one step that looks like an ending as the only one
+   with no way on. An agent that stops there cannot be reached again, because
+   under MCP nothing wakes it. */
+test('closing a run tells the agent to arm wait again', async (t) => {
+  const s = await startTailr();
+  const mcp = startMcp(projectWithSession(s.port));
+  t.after(() => { mcp.close(); return s.close(); });
+
+  await s.api('batch', { marks: [{ ref: '01', type: 'comment', comment: 'x' }] });
+  await s.api('pull');
+
+  const id = mcp.send('tools/call', { name: 'tailr_done', arguments: {} });
+  const closed = await mcp.until((m) => m.id === id, 5000);
+  assert.match(closed.result.content[0].text, /next: Run tailr_wait again now/);
+});
+
+test('a failed run points back at wait too — the reviewer can still send', async (t) => {
+  const s = await startTailr();
+  const mcp = startMcp(projectWithSession(s.port));
+  t.after(() => { mcp.close(); return s.close(); });
+
+  await s.api('batch', { marks: [{ ref: '01', type: 'comment', comment: 'x' }] });
+  await s.api('pull');
+
+  const id = mcp.send('tools/call', { name: 'tailr_fail', arguments: { reason: 'no' } });
+  const closed = await mcp.until((m) => m.id === id, 5000);
+  assert.match(closed.result.content[0].text, /next: Run tailr_wait again now/);
+});
+
+test('an agent Tailr wakes is not sent back to wait after closing', async (t) => {
+  const s = await startTailr(undefined, {
+    notify: { agent: 'codex', thread: '01a07c3e-5155-7cb0-b29c-be73b6c3d857', command: null, label: 'codex' }
+  });
+  const mcp = startMcp(projectWithSession(s.port));
+  t.after(() => { mcp.close(); return s.close(); });
+
+  await s.api('batch', { marks: [{ ref: '01', type: 'comment', comment: 'x' }] });
+  await s.api('pull');
+
+  const id = mcp.send('tools/call', { name: 'tailr_done', arguments: {} });
+  const closed = await mcp.until((m) => m.id === id, 5000);
+  assert.match(closed.result.content[0].text, /next: Tailr wakes you on Send/);
+});
+
 /* An MCP server is not told which conversation it belongs to: Codex starts one
    per session and passes it no thread id. So it cannot keep a wake aimed at the
    agent when the conversation is cleared, and the one thing that can — a shell

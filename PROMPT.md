@@ -191,13 +191,18 @@ For a slider it carries `sliderOf` and `value`:
 
 - Run `wait` as a long-running background process and treat its exit as the
   notification. Never ask the reviewer to tell you a batch has arrived, and
-  never poll for one. Start it again after each run you close.
-- Unless Tailr is waking you. Some agents cannot be told that a background
-  process exited, so on those Tailr sends the batch to you as a message the
-  moment Send is pressed. `status` says which you are: `wakesAgent` (`wakesYou`
-  on the MCP tool) is true when it will. When it is, skip `wait` entirely —
-  finish your turn and let the next batch arrive on its own. Running `wait`
-  anyway just blocks for nothing.
+  never poll for one.
+- Closing a run is not the end of your turn. `done` is what frees the reviewer
+  to send again, so arm `wait` again before you stop — after every run, for as
+  long as the session is up. A closed run with nothing listening is how a
+  session dies quietly: they press Send and it reaches nobody, and the only
+  person who can tell is you.
+- The exception is an agent Tailr can wake by itself, and you do not get to
+  assume you are one. Check it: `status` reports `wakesAgent` (`wakesYou` on
+  the MCP tool), and only while that is true does Send reach you without
+  `wait` — then end your turn and let the next batch arrive on its own. It is
+  false unless Tailr found a thread to wake, so if you have not looked, you
+  still owe it a `wait`.
 - The reviewer can end the session from the page, which stops the server. `wait`
   then exits 2. That is them finishing, not a crash: don't restart the session,
   and don't ask them to reopen the review URL. A last batch of `choice` marks

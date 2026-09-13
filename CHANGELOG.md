@@ -11,6 +11,22 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+### Changed
+
+- Closing a run now says what to do next. `done` and `fail` were the only steps
+  in the loop that pointed nowhere — every other one names what follows — and
+  they are the steps that look most like an ending, so they were where agents
+  stopped. They now report whether anything will wake the agent and, where
+  nothing will, say to arm `wait` before the turn ends. Observed for real: an
+  agent closed a run, said it was watching for the next batch, and ended its
+  turn without arming anything, leaving the reviewer's next Send to reach
+  nobody.
+- The operating rules make re-arming `wait` a rule of its own rather than a
+  trailing clause, and state the agents Tailr wakes itself as a condition to
+  check rather than standing permission to stop. The old wording ended on
+  "finish your turn", which was the last thing an agent read before deciding
+  whether to — and it applies to no agent that has not looked at `wakesAgent`.
+
 ## [1.4.0] — 2026-09-13
 
 ### Changed

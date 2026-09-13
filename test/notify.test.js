@@ -10,7 +10,7 @@ import { mkdtempSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startTailr } from './helpers.js';
-import { detect, drift, fire, message, rebind, resolve, stale, supersededBy } from '../src/server/notify.js';
+import { afterClosing, detect, drift, fire, message, rebind, resolve, stale, supersededBy } from '../src/server/notify.js';
 
 const THREAD = '01a07c3e-5155-7cb0-b29c-be73b6c3d857';
 
@@ -190,6 +190,35 @@ test('a session started with nothing to wake can be given someone', async (t) =>
   assert.equal((await tailr.api('state', null, 'GET')).body.wakesAgent, false);
   const bound = await tailr.api('notify', { agent: 'codex', thread: THREAD });
   assert.equal(bound.body.wakesAgent, true, 'the agent turning up is enough');
+});
+
+/* ── what closing a run says to do next ──────────────────── */
+
+/* Closing is the step that looks like an ending, so it is the step an agent
+   stops on. Where nothing wakes it, an agent that stopped is unreachable: the
+   reviewer presses Send into a session with nobody listening. Observed for
+   real — an agent closed a run, said it was watching for the next batch, and
+   ended the turn without arming `wait`. */
+
+test('closing a run points back at wait when nothing will wake the agent', () => {
+  const next = afterClosing({ wakesAgent: false, ending: false });
+  assert.match(next, /tailr wait/, 'it names the command');
+  assert.match(next, /before your turn ends/, 'and says when');
+});
+
+test('the wait it names is the caller\'s own spelling', () => {
+  assert.match(afterClosing({}, 'tailr_wait'), /Run tailr_wait again/);
+});
+
+test('an agent Tailr wakes is told to end its turn instead', () => {
+  const next = afterClosing({ wakesAgent: true, ending: false });
+  assert.match(next, /end your turn/);
+  assert.doesNotMatch(next, /Run tailr wait/, 'waiting would block for nothing');
+});
+
+test('a session the reviewer is ending asks for no wait at all', () => {
+  const next = afterClosing({ wakesAgent: false, ending: true });
+  assert.match(next, /don't run tailr wait/, 'the server is going; waiting would only exit 2');
 });
 
 /* ── never wake a conversation that was cleared ───────────── */
