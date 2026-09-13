@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { readSession, isAlive, writeSession } from '../server/session.js';
 import { startDetached, stopSession } from '../server/lifecycle.js';
 import { waitForBatch } from '../server/watch.js';
-import { drift } from '../server/notify.js';
+import { afterClosing, drift } from '../server/notify.js';
 import { applyConfig, configFile, describeConfig, KEYS, readConfig, SETTINGS } from '../server/config.js';
 import { normalizeTarget } from '../server/target.js';
 
@@ -457,16 +457,21 @@ async function runTool(name, args = {}, notify = null) {
     return { text: JSON.stringify(last.data, null, 2) };
   }
 
+  /* Both closing tools say what follows, ahead of the state they return. Every
+     other step in the loop points at the next one; these are the two that look
+     like an ending, so they are the two that most need to. */
   if (name === 'tailr_done') {
     const r = await call('done');
     if (!r.ok) return { text: r.data.error || 'Could not close the run.', isError: true };
-    return { text: 'Run closed. The reviewer has been prompted to reload.\n' + JSON.stringify(r.data, null, 2) };
+    return { text: 'Run closed. The reviewer has been prompted to reload.\n' +
+      `next: ${afterClosing(r.data, 'tailr_wait')}\n` + JSON.stringify(r.data, null, 2) };
   }
 
   if (name === 'tailr_fail') {
     const r = await call('fail', { error: String(args.reason || '').slice(0, 300) });
     if (!r.ok) return { text: r.data.error || 'Could not close the run.', isError: true };
-    return { text: 'Run marked incomplete and the send lock released.\n' + JSON.stringify(r.data, null, 2) };
+    return { text: 'Run marked incomplete and the send lock released.\n' +
+      `next: ${afterClosing(r.data, 'tailr_wait')}\n` + JSON.stringify(r.data, null, 2) };
   }
 
   return { text: `Unknown tool: ${name}`, isError: true };

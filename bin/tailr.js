@@ -30,7 +30,7 @@ import { startDetached, stopSession } from '../src/server/lifecycle.js';
 import { waitForBatch } from '../src/server/watch.js';
 import { applyConfig, configFile, describeConfig, modifierLabel, parseSettings, readConfig } from '../src/server/config.js';
 import { normalizeTarget } from '../src/server/target.js';
-import { drift, resolve as resolveNotify } from '../src/server/notify.js';
+import { afterClosing, drift, resolve as resolveNotify } from '../src/server/notify.js';
 
 const argv = process.argv.slice(2);
 const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'slider', 'progress', 'done', 'fail', 'reset']);
@@ -373,13 +373,17 @@ async function agent(cmd, rest) {
     return finish(r);
   }
 
-  if (cmd === 'done') return finish(await call('done'));
-  if (cmd === 'fail') return finish(await call('fail', { error: rest.join(' ') }));
+  if (cmd === 'done') return finish(await call('done'), true);
+  if (cmd === 'fail') return finish(await call('fail', { error: rest.join(' ') }), true);
   if (cmd === 'reset') return finish(await call('reset'));
 
-  function finish(r) {
+  /* `closing` marks the two commands that end a run. `pull` already says what
+     to do next and so does `wait`; these used to say nothing, which left the
+     step that looks most like an ending as the only one with no way on. */
+  function finish(r, closing = false) {
     if (!r.ok) { process.stderr.write(`\n  ${r.data.error || 'Request failed.'}\n\n`); process.exit(1); }
     process.stdout.write(JSON.stringify(r.data, null, 2) + '\n');
+    if (closing) process.stderr.write(`\n  ${afterClosing(r.data)}\n\n`);
   }
 }
 
