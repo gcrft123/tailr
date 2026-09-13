@@ -18,7 +18,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { brotliDecompressSync, gunzipSync, inflateRawSync, inflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { defaults, KEYS, SETTINGS } from './config.js';
+import { defaults, KEYS, SETTINGS, writeConfig } from './config.js';
 import { fire as wake, rebind, stale } from './notify.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -154,6 +154,20 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
         next[key] = parsed.value;
       }
       settings = { ...settings, ...next };
+      publish();
+      return json(res, 200, publicState());
+    }
+
+    /* The reviewer has made their first mark, so the walkthrough has done its
+       job. The page is the only thing that knows this happened, and the fact is
+       about the person rather than this project, so it is written through to
+       their own settings from here. It is the one preference the overlay may
+       change on its own, and only ever in this direction. */
+    if (path === 'tutorial-done' && req.method === 'POST') {
+      settings = { ...settings, tutorial: false };
+      // A home directory that cannot be written to costs a card shown again
+      // next time. It is not worth failing a reviewer's first mark over.
+      try { writeConfig({ tutorial: false }); } catch {}
       publish();
       return json(res, 200, publicState());
     }
