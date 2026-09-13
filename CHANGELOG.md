@@ -11,6 +11,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-09-13
+
 ### Changed
 
 - A mark whose element is no longer on screen is **hidden**, not orphaned, and
