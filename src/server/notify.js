@@ -33,6 +33,29 @@ export function message(count) {
     `they are watching the marks clear on the page.`;
 }
 
+/** What the agent has to do next, once it has closed a run.
+ *
+ *  Closing is the only step in the loop that looks like an ending: the work has
+ *  landed, nothing is pending, and every other step says what follows. So this
+ *  is the step an agent stops on — and an agent that has stopped is only
+ *  reachable if something wakes it. Where nothing does, the reviewer presses
+ *  Send into a session nobody is listening to, which is the one failure Tailr
+ *  promises they will never have to notice.
+ *
+ *  @param state  the session state `done` and `fail` return
+ *  @param wait   what the caller calls `wait`; the CLI and MCP spell it apart
+ */
+export function afterClosing(state = {}, wait = 'tailr wait') {
+  if (state.ending) {
+    return `The reviewer is ending the session. Nothing more is coming — don't run ${wait}.`;
+  }
+  if (state.wakesAgent) {
+    return 'Tailr wakes you on Send, so end your turn — the next batch arrives on its own.';
+  }
+  return `Run ${wait} again now, before your turn ends. Nothing wakes you: if you ` +
+    `stop here, the reviewer's next Send reaches nobody.`;
+}
+
 /** The agent Tailr can see it was started from, if it is one we can wake.
  *  Codex exports its thread id into every command the agent runs, which is the
  *  same id `codex queue --thread` takes — so a session the agent started knows
