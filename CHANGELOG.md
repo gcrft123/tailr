@@ -1,8 +1,9 @@
 # Changelog
 
-Everything notable that has changed in Tailr, newest first. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versions follow
-[semantic versioning](https://semver.org/spec/v2.0.0.html).
+Everything notable that has changed in Tailr, newest first. Versions follow
+[semantic versioning](https://semver.org/spec/v2.0.0.html). Each release opens
+with a short summary, then lists its changes grouped as New, Changed and Fixed —
+one change per line, each naming the commit that carries it.
 
 Every release is a `vX.Y.Z` git tag. Pushing that tag is what publishes to npm
 and cuts the matching [GitHub Release](https://github.com/gcrft123/tailr/releases),
@@ -13,492 +14,470 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [1.4.1] — 2026-09-13
 
-### Changed
+Agents were stopping after they closed a run. `done` and `fail` returned state
+and named nothing to do next, and an agent that ends its turn under MCP cannot
+be reached again unless something wakes it.
 
-- Closing a run now says what to do next. `done` and `fail` were the only steps
-  in the loop that pointed nowhere — every other one names what follows — and
-  they are the steps that look most like an ending, so they were where agents
-  stopped. They now report whether anything will wake the agent and, where
-  nothing will, say to arm `wait` before the turn ends. Observed for real: an
-  agent closed a run, said it was watching for the next batch, and ended its
-  turn without arming anything, leaving the reviewer's next Send to reach
-  nobody.
-- The operating rules make re-arming `wait` a rule of its own rather than a
-  trailing clause, and state the agents Tailr wakes itself as a condition to
-  check rather than standing permission to stop. The old wording ended on
-  "finish your turn", which was the last thing an agent read before deciding
-  whether to — and it applies to no agent that has not looked at `wakesAgent`.
-
-## [1.4.0] — 2026-09-13
+Both steps now say what follows, and the operating rules make re-arming `wait` a
+rule of its own instead of a trailing clause.
 
 ### Changed
 
-- A mark whose element is no longer on screen is **hidden**, not orphaned, and
-  the batch no longer mentions it. The agent works in the source, where an
-  element that stopped rendering and one that never moved are the same mark, and
-  the address still resolves — so the flag only ever stopped the agent to ask
-  about work it could have done. The reviewer is still told, because the missing
-  badge is theirs to explain.
-- A hidden mark stays editable, from its row in the staged list. Its composer
-  opens in the middle of the viewport rather than pinned to an element that is
-  not there. Inline text edits are the exception: the reviewer types into the
-  element, so there has to be one.
-- The walkthrough is a setting, `tutorial`, alongside the reviewer's others in
-  `~/.tailr/config.json`. It shows until their first mark and then never again,
-  on every project at once rather than once per dev server. `tailr config
-  tutorial:true` asks for it back.
+[90ad8a4] — `done` and `fail` name the next step instead of returning state alone.
+
+[90ad8a4] — The MCP tools print that step as a `next:` line; the CLI writes it to stderr.
+
+[90ad8a4] — The rules make re-arming `wait` a rule of its own.
+
+[90ad8a4] — The rules treat "Tailr wakes this agent" as a condition to check, not permission to stop.
+
+## [1.4.0] — 2026-09-12
+
+A mark whose element left the page was flagged to the agent as `orphaned`, and
+the rules told the agent to stop and ask the reviewer about it. The flag was
+wrong: the agent works in the source, where an element that stopped rendering
+and one that never moved are the same mark, and the address still resolves.
+
+The flag is gone from the batch. The reviewer still sees the state, now called
+hidden. The walkthrough became a setting that belongs to the person rather than
+the project, and three overlay defects found while testing are fixed.
+
+### Changed
+
+[559ea73] — A mark whose element is off screen reads as hidden rather than orphaned.
+
+[559ea73] — The batch sent to the agent no longer mentions it.
+
+[559ea73] — The reviewer is still told, on the mark's row, because the missing badge is theirs to explain.
+
+[559ea73] — A hidden mark stays editable from that row.
+
+[559ea73] — Its composer opens in the middle of the viewport, having no element to sit on.
+
+[559ea73] — Inline text edits are the exception: the reviewer types into the element.
+
+[559ea73] — The walkthrough is a `tutorial` setting in `~/.tailr/config.json`.
+
+[559ea73] — It shows until the first mark, then never again, on every project rather than once per dev server.
+
+[559ea73] — `tailr config tutorial:true` asks for it back.
 
 ### Fixed
 
-- The versions and slider chips on a staged row sat in a fixed-width box the
-  kind label already filled, so they spilled over the source address beside
-  them. They have a column of their own now.
-- Reopening a mark left the staged list showing the note it replaced: the panel
-  only redrew when a mark was added, removed or served.
-- The comment box drew the host browser's scrollbar. It has its own now: a
-  thumb, no track, and only while there is somewhere to scroll.
+[559ea73] — Versions and slider chips no longer spill over the source address beside them.
+
+[559ea73] — Reopening a mark updates its row in the staged list.
+
+[559ea73] — The comment box draws its own scrollbar, on every engine, instead of the host browser's.
 
 ## [1.3.3] — 2026-09-07
 
-### Added
+Tailr can now wake the agent when Send is pressed, so the handoff works on
+clients that cannot tell the model a background process exited — Codex among
+them, where `tailr wait` exits into nothing and the MCP `tailr_wait` gives up
+after a minute.
 
-- Tailr can wake the agent when Send is pressed, so the handoff works on agents
-  whose clients cannot tell the model that a background process exited. On those
-  — Codex among them — `tailr wait` exits into nothing and the MCP `tailr_wait`
-  gives up after a minute and ends the turn, which left the reviewer telling
-  their agent they had pressed Send: the one thing Tailr exists to stop. The
-  direction now inverts. `--notify <command>` runs a command on each batch, with
-  `%n` the number of marks, `%t` the agent's thread and `%u` the review URL;
-  `TAILR_NOTIFY` sets the same thing from the environment, and `--no-notify`
-  turns it off. A session started from inside Codex needs none of that: Codex
-  exports `CODEX_THREAD_ID` into every command the agent runs, and that is the
-  id `codex queue --thread` takes, so Tailr picks it up and says at startup that
-  Send will wake it. The preset builds its argv itself and thread ids are shape-
-  checked before they reach a command line, so nothing the environment holds can
-  be read as shell syntax. `status` grew `wakesAgent` (`wakesYou` on the MCP
-  tool), and the operating rules tell the agent to skip `wait` when it is true.
-- A wake survives the reviewer clearing their conversation. A thread id lasts
-  only until then: Codex starts a new thread for a cleared session, records it
-  nowhere until something is sent to it, and still accepts messages queued to
-  the dead one — so the captured id cannot be repaired by looking anywhere, and
-  a wake sent to it would report success and arrive nowhere. Every agent-side
-  command now carries the thread it is running on and re-registers it, so the
-  next thing the reviewer asks their agent repairs the handoff whatever it is;
-  the rules have it run `status` when a session is already up, which is enough
-  on its own. The same path gives a session started in the reviewer's own
-  terminal someone to wake as soon as the agent turns up, and `--no-notify` is
-  the one thing it will not undo. A batch still unclaimed 45 seconds after a
-  wake says so, rather than leaving a terminal claiming the agent was told.
-- `tailr_status` asks the agent to run `npx tailr status` once when it cannot
-  see a thread id of its own. An MCP server is not told which conversation it
-  belongs to — Codex starts one per session and passes it no thread — so it is
-  the one place that cannot re-register itself, and an agent working only
-  through the MCP tools would otherwise stop being woken the moment the
-  conversation was cleared, with nothing saying so.
-- `tailr start` / `tailr stop`, and matching `tailr_start` / `tailr_stop` MCP
-  tools. Agents were told to background a foreground `tailr` themselves; host
-  runners (OpenCode among them) then SIGTERM'd the process group after
-  "Tailr is up", and recovered by deleting `.tailr/session.json`. `start`
-  detaches inside Node and returns once the review URL is ready; `stop` is the
-  teardown. Serve also ignores SIGHUP so a hung-up agent shell cannot take the
-  session with it.
+The rest of the release makes that wake survive a cleared conversation, adds
+detached `start` / `stop` so a host runner cannot kill the session along with
+the agent's shell, and pins the Claude Code plugin to the release tag.
 
-### Fixed
+### New
 
-- The release workflow installs dependencies before running the suite. Overlay
-  tests need `jsdom` from `devDependencies`; without `npm ci` the tag check
-  failed after the version bump had already landed.
-- Tailr will not wake a conversation that has been cleared. Clearing a Codex
-  conversation starts a new thread but does not stop the old one: it stays alive
-  on the local app-server daemon and still runs whatever is queued to it. So the
-  thread Tailr held was not merely dead, it was an agent applying batches to the
-  reviewer's repository where they could not see it happen — observed for real,
-  two rounds of edits to a file after the conversation on screen had moved on.
-  Before waking, Tailr now checks Codex's own thread store for a thread created
-  later in the same directory, which is what a clear leaves behind; finding one,
-  it refuses and says why. `created_at` is the field compared, because
-  `updated_at` is bumped by the very queueing whose safety is in question, so a
-  dead thread looks fresher every time it is wrong. A machine that cannot read
-  the store cannot answer the question, and one that cannot answer does not
-  guess. The batch waits either way — refusing to wake never costs a mark.
+[743898e] — `--notify <command>` runs a command on each batch.
 
-- The page shown when the dev server goes away no longer reads as Tailr having
-  died. The reviewer has a browser and nothing else, and that page replaces the
-  application overlay and all — so a screen that only talked about the dev
-  server left the obvious conclusion that the session went with it, and the
-  reviewer restarting a Tailr that had never stopped. It now says whose fault it
-  is, that the session is still up, and that the marks in the browser are safe.
-  It also watches for the dev server and reloads itself when it answers, so
-  coming back costs no knowledge and no reload.
+[743898e] — `%n` is the mark count, `%t` the agent's thread, `%u` the review URL.
+
+[743898e] — `TAILR_NOTIFY` sets the same command from the environment.
+
+[743898e] — `--no-notify` turns waking off.
+
+[743898e] — A session started inside Codex wakes the agent with no configuration, off `CODEX_THREAD_ID`.
+
+[743898e] — Thread ids are shape-checked and the argv is built directly, so nothing in the environment reaches a shell.
+
+[743898e] — `status` reports `wakesAgent`, `wakesYou` on the MCP tool.
+
+[743898e] — The operating rules tell the agent to skip `wait` when it is true.
+
+[4ec6571] — Every agent-side command registers the thread it is running on, so a cleared conversation repairs the wake.
+
+[4ec6571] — A batch still unclaimed 45 seconds after a wake says so.
+
+[a02d5fd] — `tailr_status` asks for one `npx tailr status` when the MCP process can see no thread id of its own.
+
+[6b54c97] — `tailr start` detaches inside Node and returns once the review URL is ready.
+
+[6b54c97] — `tailr stop` is the teardown.
+
+[6b54c97] — `tailr_start` and `tailr_stop` do the same over MCP.
+
+[6b54c97] — Serve ignores SIGHUP, so a hung-up agent shell cannot take the session with it.
 
 ### Changed
 
-- Agent rules, start skills, `init`'s handoff, the landing-page assure line,
-  and PRODUCT/DESIGN no longer mention `.tailr/session.json` or ask agents to
-  shell-background the server. Session liveness goes through `status` /
-  `start` / `stop` only; human docs say a locator under `.tailr/`.
-- The README documents sliders. They shipped in 1.2.0 and never reached the one
-  file most people read: the composer's slider button and the pill's Keep for the
-  reviewer, `tailr slider` and the `data-tailr-slide-<ref>` switch for the agent.
-  Its MCP table now also lists `tailr_variants`, `tailr_slider` and
-  `tailr_config`, which have been implemented all along and were never named.
-  Four things it said that were not true are corrected, among them the note on
-  command names — which explained that routes without a marketplace are why
-  nothing collides with an agent's own `/start`, while Cursor's own marketplace
-  install ships `/start` and `/config` bare. The file is shorter than it was:
-  `init`'s behaviour had been described three times, and a whole section existed
-  to restate the rest of the document.
+[6b54c97] — Agent-facing docs no longer name `.tailr/session.json`.
 
-- The Claude Code marketplace installs the plugin from the release tag instead
-  of from `main`. The catalog entry was a path into the marketplace clone, and
-  Claude Code keeps that clone on the default branch — so a push touching
-  `plugin/` reached everyone who had installed the plugin at their next update,
-  and could hand them skills describing a flag the published package did not
-  have yet. The entry is now a `git-subdir` source pinned to `v<version>`,
-  written by `scripts/plugin.js --sync` during the version bump, and the tests
-  fail if it ever names a branch. What Tailr actually runs was already
-  release-only: the MCP server is `npx -y @gcrft123/tailr`, which resolves the
-  latest npm release, and npm is published from a tag and nothing else. Cursor,
-  Codex, Copilot, and the Gemini and Antigravity clones still read `plugin/`
-  from the default branch — those catalogs are other schemas, and pinning them
-  is its own change.
+[6b54c97] — They no longer ask the agent to background the server from a shell.
+
+[5374b1e] — The Claude Code marketplace installs the plugin from the release tag rather than `main`.
+
+[5374b1e] — The catalog entry is a `git-subdir` source, pinned during the version bump.
+
+[5374b1e] — The tests fail if that entry ever names a branch.
+
+[5374b1e] — Cursor, Codex, Copilot, Gemini and Antigravity still read `plugin/` from the default branch.
+
+[9985fca] — The README documents sliders, which shipped in 1.2.0 and were never mentioned there.
+
+[9985fca] — Its MCP table lists `tailr_variants`, `tailr_slider` and `tailr_config`.
+
+[9985fca] — Four incorrect statements are corrected and three repeated explanations removed.
 
 ### Fixed
 
-- `npx -y @gcrft123/tailr <command>` works inside a Tailr checkout. npm sees that
-  the package being asked for is the project you are standing in, decides there is
-  nothing to fetch, and runs `tailr` off the path — but a package's own bin is
-  never linked into its own `node_modules/.bin`, so the shell answered
-  `sh: tailr: command not found`. Every command the README hands out failed that
-  way here, `demo` and `pull` among them, and so did the MCP server, which `init`
-  registers as `npx -y @gcrft123/tailr mcp`. A self-referencing devDependency
-  links the bin, which also means a checkout runs its own working tree rather
-  than the last release. Installing Tailr is unaffected: devDependencies do not
-  reach the people who install it.
+[7a96d2e] — The release workflow installs dependencies before running the suite, which needs `jsdom`.
 
-- Ending a session says what the cleanup batch actually covers. It takes sliders
-  nobody kept a value on as well as versions nobody chose between, and always
-  did, but all three cards said "versions" — so a reviewer who had only ever
-  asked for a slider was told about a session they did not have.
+[4c33cce] — Tailr refuses to wake a Codex conversation that has been cleared.
+
+[4c33cce] — It checks Codex's thread store for a thread created later in the same directory.
+
+[4c33cce] — `created_at` is compared, because `updated_at` is bumped by the queueing in question.
+
+[4c33cce] — A machine that cannot read the store refuses rather than guessing, and the batch waits.
+
+[89bf8a9] — The dev-server-down page says the session is still up and the marks are safe.
+
+[89bf8a9] — It watches for the dev server and reloads when it answers.
+
+[1ff6567] — `npx -y @gcrft123/tailr <command>` works inside a Tailr checkout.
+
+[11a488e] — The end-of-session cards name the sliders in the cleanup, not only the versions.
 
 ## [1.3.2] — 2026-09-06
 
-### Added
+Most of this came from the first outside install report. One part was a defect:
+a dev server that compresses its HTML regardless of what was asked of it had its
+pages passed through unrewritten, so the reviewer got a page where holding the
+key did nothing.
 
-- `tailr demo` starts a small sample application, proxies it, and prints a
-  review URL: the whole round trip against something that is not your own work,
-  with nothing installed into a project and no agent involved. The sample app
-  ships with the package now, so `npx -y @gcrft123/tailr demo` needs nothing
-  cloned first.
+The rest was Tailr addressing the wrong person — handing the reviewer the
+agent's commands, naming a modifier key they had changed — plus `tailr demo`,
+which runs the whole loop against a sample app with nothing installed.
+
+### New
+
+[4ab2a67] — `tailr demo` starts a sample application, proxies it and prints a review URL.
+
+[4ab2a67] — The sample app ships with the package, so nothing has to be cloned first.
 
 ### Changed
 
-- The line printed when a session starts names the key the reviewer will
-  actually be holding, instead of always saying Alt at someone who has changed
-  it. It also stops handing the reviewer's instructions and the agent's next
-  command to the same reader, since only one of those two people has a terminal.
-- `tailr init` closes by telling whoever ran it what to do next, rather than
-  what the agent should do next. It used to end on `tailr wait` and `tailr
-  pull`, the two commands that are not a person's to run, which is a fair way
-  to leave someone thinking they had misread who does what. It now says where
-  the rules landed, that the agent re-reads them from there, and leaves the one
-  command a person might actually want, which is starting the session.
-- The README lists everything `init` edits where `init` is first mentioned —
-  four things, where it used to name three — and PROMPT.md has the agent say so
-  before running it. Requirements now covers what Tailr asks of a dev server
-  rather than only which Node it needs, including that a mark's source address
-  is `null` on a project whose tooling emits none, and that this is a fallback
-  rather than a failure.
-- The skills installed without a marketplace are now `tailr-start`,
-  `tailr-review` and `tailr-config`, so the commands are `/tailr-start` and
-  `/tailr-config`. That covers `npx skills add gcrft123/tailr -g` and the
-  Antigravity and Gemini extension installs alike: all of them read the skills
-  straight out of the repository and add no namespace of their own, so the old
-  names arrived bare and `/start` and `/config` landed on top of commands the
-  agent already had — Antigravity's own `/config` among them. A marketplace
-  install is unaffected and still reads `/tailr:start`, because that path adds
-  the prefix itself. Anyone on one of the unprefixed paths should install again;
-  the old names are gone rather than aliased.
+[4ab2a67] — The line printed at session start names the key the reviewer actually holds.
+
+[4ab2a67] — It stops handing the reviewer's instructions and the agent's next command to one reader.
+
+[4ab2a67] — `tailr init` closes with what the person who ran it should do next.
+
+[4ab2a67] — The README lists all four files `init` edits, where `init` is first mentioned.
+
+[4ab2a67] — Requirements covers what Tailr asks of a dev server, not only which Node it needs.
+
+[4ab2a67] — It says a `null` source address is a fallback rather than a failure.
+
+[4ab2a67] — Skills installed without a marketplace are now `tailr-start`, `tailr-review` and `tailr-config`.
+
+[4ab2a67] — Their commands are `/tailr-start` and `/tailr-config`; the old bare names are gone rather than aliased.
+
+[4ab2a67] — A marketplace install is unaffected and still reads `/tailr:start`.
+
+[67fc956] — The README says what Antigravity actually calls these commands, checked by installing it.
+
+[5032491] — A release note claiming extension installs were unaffected by the rename is corrected before shipping.
 
 ### Fixed
 
-- A dev server that compresses its HTML regardless of what was asked of it now
-  gets the overlay. Tailr requests uncompressed HTML; the servers that send gzip,
-  deflate or brotli anyway had their pages passed through unrewritten, which put
-  the reviewer on a page where holding the key did nothing and said so nowhere.
-  An encoding Tailr still cannot undo passes through intact, as it did before.
+[4ab2a67] — A dev server that compresses its HTML regardless now gets the overlay, gzip, deflate or brotli.
 
-## [1.3.1] — 2026-09-06
+[4ab2a67] — An encoding Tailr cannot undo still passes through intact.
+
+## [1.3.1] — 2026-09-05
+
+Found by installing 1.3.0 every documented way — through the Claude, Codex,
+Copilot, Cursor and Antigravity CLIs — and driving a review loop through each.
+Four defects in argument handling, session ownership and error reporting, and
+three documentation corrections.
+
+### Changed
+
+[a1bc285] — PROMPT.md tells the agent to re-run `init` with `--file` when the project had no instruction file of its own.
+
+[a1bc285] — The landing page's agent fan carries Antigravity in place of Gemini CLI.
+
+[a1bc285] — The README's Gemini CLI section is now an Antigravity CLI one.
+
+[a1bc285] — The `npx skills add` paragraph says where that installer puts things, and without which prefix.
 
 ### Fixed
 
-- `--target localhost:5173`, `--target 5173` and `--target 127.0.0.1:3000` now
-  mean what they say. A scheme-less address used to start a session that could
-  only answer 502, and a bare port crashed with a stack trace; what still cannot
-  be a dev server URL is refused in a sentence.
-- A second `tailr` started in a project that already has a live session — on
-  another port, say — is turned away with that session's URL, instead of
-  overwriting `.tailr/session.json` and then deleting it on its way out, which
-  left the first session running but unfindable by `status`, `wait` and the
-  MCP tools.
-- `tailr progress` with a ref that is not in the batch is a 400 that names the
-  refs that are, rather than a silent success that counted a mark nobody made
-  as landed.
-- `tailr init` registers the MCP server as `npx -y @gcrft123/tailr mcp`, the
-  same as the plugin, so a client launching it in a `--no-install` project
-  never stalls on npx asking permission to fetch.
+[a1bc285] — `--target localhost:5173` and `--target 127.0.0.1:3000` proxy instead of answering 502.
+
+[a1bc285] — `--target 5173` reads as a port instead of crashing with a stack trace.
+
+[a1bc285] — What cannot be a dev server URL is refused in a sentence.
+
+[a1bc285] — A second `tailr` in a project with a live session is turned away with that session's URL.
+
+[a1bc285] — `tailr progress` with an unknown ref returns 400 and names the refs that are in the batch.
+
+[a1bc285] — `tailr init` registers the MCP server with `-y`, the same as the plugin, so npx never stalls.
+
+## [1.3.0] — 2026-09-05
+
+Tailr answers every action with a sound now — nine cues, each with its own
+shape, synthesized live so no audio file ships.
+
+Sound is not something to give someone with no way out, and the key held to mark
+was never going to suit every app or OS, so both are settings. They belong to
+the person rather than the project, which is why they live in
+`~/.tailr/config.json` and nothing new appears in anyone's repository.
+
+### New
+
+[c40b683] — Nine interaction sounds, one shape per action, on by default.
+
+[c40b683] — They are synthesized through the Web Audio API, so nothing is fetched and no audio file ships.
+
+[c40b683] — A key going down stays quiet, bar the Enter that commits a comment.
+
+[c40b683] — `sfx:false` turns the lot off.
+
+[c40b683] — `/tailr:config`, `tailr config` and the `tailr_config` MCP tool read or change settings.
+
+[c40b683] — Settings live in `~/.tailr/config.json` and hold across every project.
+
+[c40b683] — A change made while a session is up is pushed to the open review page.
+
+[c40b683] — `modifier` sets the key held to mark: `alt` by default, or `ctrl` or `cmd`.
+
+[c40b683] — Every hint on screen names whichever key is set.
+
+[c40b683] — `tailr_status` reports it, so the agent never has to guess.
 
 ### Changed
 
-- PROMPT.md tells the agent to run `init` again with `--file` when its own
-  instruction file is not one the project already had: on a fresh project
-  `init` writes `AGENTS.md`, which Claude Code does not read on its own, and the
-  rules were landing somewhere the agent would never look again.
-- The landing page's agent fan carries Antigravity in place of Gemini CLI —
-  its own mark, and `agy plugin install` as the command it hands over.
-- The README's Gemini CLI section is now an Antigravity CLI one
-  (`agy plugin install https://github.com/gcrft123/tailr`), since Google turns
-  individual accounts away from Gemini CLI, and the `npx skills add` paragraph
-  says where that installer actually puts things now and that the skills land
-  there without the `tailr:` prefix.
+[c40b683] — The sounds are [Cuelume](https://github.com/Danilaa1/cuelume), copied in under its MIT licence rather than installed.
 
-## [1.3.0] — 2026-09-06
+## [1.2.0] — 2026-09-04
 
-### Added
+A comment could ask for up to four versions since 1.1.0; it can now ask for a
+continuous parameter instead. The agent wires one value behind an attribute,
+reports its range, and the reviewer scrubs it on the page before keeping a
+number.
 
-- Sound, on every action. A mark made, kept, reopened, dropped or discarded;
-  versions or a slider asked for; a batch sent; a version picked, a value kept
-  or reset; the batch taken back, re-sent or reloaded into; the session ended;
-  the island landing in a new corner. Nine cues, each with its own shape rather
-  than the same click at different volumes, and synthesized live through the Web
-  Audio API — nothing is fetched and no audio file ships. Two things stay quiet:
-  a key going down — bar the Enter that commits a comment, which hands the agent
-  something to do — and a single mark coming back applied, which you watch empty
-  out on screen; the run closing is what you hear. On by default; `sfx:false`
-  turns the lot off.
-- `/tailr:config` (`/config` in Cursor), `tailr config`, and the `tailr_config`
-  MCP tool: read or change your settings, e.g.
-  `/tailr:config sfx:false modifier:cmd`. Settings belong to the person rather
-  than the project, so they are kept in `~/.tailr/config.json` and hold across
-  every project — nothing new appears in your repository. A change made while a
-  session is up is pushed to the open review page, so it takes effect without a
-  reload.
-- `modifier`, so the key held to arm marking can be `alt` (the default), `ctrl`
-  or `cmd` when an app or an OS wants Alt back. Every hint on screen names
-  whichever key is yours, and `tailr_status` reports it so the agent never has
-  to guess which one to tell you about.
+Tailr also became installable on Cursor, Codex, Copilot and Gemini, and a
+handful of overlay defects around pills and latched markup are fixed.
+
+### New
+
+[76dfe2b] — A comment can ask for a continuous parameter instead of versions.
+
+[76dfe2b] — The agent wires it behind `data-tailr-slide-<ref>`.
+
+[76dfe2b] — `tailr slider` and `tailr_slider` report its range.
+
+[76dfe2b] — The reviewer scrubs the pill on the page before keeping a value.
+
+[76dfe2b] — Keep minimizes the pill to that value with its reference number, which reopens it.
+
+[76dfe2b] — Reset puts the parameter back to the agent's default.
+
+[76dfe2b] — Keeping the value already kept takes the keep back.
+
+[2ffc783] — `/tailr:start` is a slash-command skill, which the model will not fire on its own.
+
+[2ffc783] — Plugin catalogs for Cursor, Codex, GitHub Copilot CLI and Gemini CLI.
+
+[2ffc783] — Agents with no marketplace take the skills through `npx skills add gcrft123/tailr -g`.
+
+[eb9d89e] — On Cursor, `/start` is a command file rather than a plugin skill, which Cursor will not load.
 
 ### Changed
 
-- The interaction sounds are [Cuelume](https://github.com/Danilaa1/cuelume),
-  copied into `src/overlay/cuelume.js` under its MIT licence rather than
-  installed — its whole seventeen-recipe palette, so a version bump stays a copy
-  rather than a merge. Tailr still has no dependencies.
+[76dfe2b] — Mark reference numbers reset with each session, starting at 01.
 
-## [1.2.0] — 2026-09-05
+[76dfe2b] — Clicking a text mark's badge reopens the inline editor, with a Delete / Done bar.
 
-### Added
+[76dfe2b] — Marking something that already has a mark reopens it instead of stacking a second.
 
-- A slider companion to the 1×–4× variations toggle on the comment composer.
-  Turn it on to ask the agent for a continuous parameter (glow, depth, scale…).
-  The agent wires it behind `data-tailr-slide-<ref>`, reports the range with
-  `tailr slider` / `tailr_slider`, and the reviewer scrubs it on the page before
-  keeping a value — the same round trip versions use. The pill's track and thumb
-  are drawn rather than left to the platform, and the number beside them has no
-  spinner arrows: this is a value to scrub, not a form to fill in. **Keep**
-  minimizes the pill to that value with its reference number, which reopens it,
-  and **Reset** puts the parameter back to the default the agent reported.
-  Keeping the value already kept takes the keep back, the way clicking the
-  version already chosen does.
-- `/tailr:start` is a slash-command skill. Typing it starts a session against
-  the dev server and begins watching for the first batch; the model will not
-  fire it on its own. The review loop stays a background skill, loaded when a
-  batch is in play rather than offered as a second command. On Cursor it is a
-  rule rather than a skill, because plugin skills all become slash commands
-  there and `/review` is already a built-in. `/start` is a Cursor command file:
-  pointing `skills` at the start folder finds nothing (Cursor wants a parent of
-  skill folders), and `disable-model-invocation` hides plugin skills from the
-  slash menu.
-- Plugin catalogs for Cursor, Codex, GitHub Copilot CLI, and Gemini CLI, so the
-  same bundle that Claude Code installs is what those agents install too. Agents
-  without a marketplace of their own take the skills globally through
-  `npx skills add gcrft123/tailr -g`.
-
-### Changed
-
-- Mark reference numbers reset with each Tailr session. The server names the
-  process; the overlay drops leftover marks from a previous process and starts
-  the count at 01 again.
-- Clicking the badge on a text mark reopens the inline editor, with a Delete /
-  Done bar so the staged change can be revised or reverted. Double-clicking
-  text that already has a mark, and commenting an element that already has a
-  comment, reopen the existing mark instead of stacking a new one.
-- A slider's row in the staged list carries what its pill carries — Keep, lit
-  when that value is the one being kept, and Reset — plus the `×` that turns the
-  slider down altogether, which stays in the list for the same reason a version
-  set's does.
+[76dfe2b] — A slider's row in the staged list carries Keep, Reset and the `×` that removes it.
 
 ### Fixed
 
-- Version and slider pills on an element in the corner of the viewport no longer
-  render offscreen. Both flip below the element, or slide along its edge, the way
-  the comment composer already did. A slider pill also follows its element while
-  the page scrolls, which it never did.
-- The slider pill is no longer rebuilt when the reviewer keeps a value, so the
-  button under the pointer survives being clicked and keyboard focus stays where
-  it was. Both faces of the pill are now built once and swapped by class, which
-  is what lets the change of shape animate at all — and it is the rule the
-  version pill above it has always followed.
-- A sent batch now disables a slider pill's controls rather than only greying
-  them, and Keep reads as kept: its lit state used to be the same paper as its
-  resting state, so it could not be told apart.
-- The Claude Code app would not add Tailr from this repository. It looks for a
-  plugin at the repo root (`.claude-plugin/plugin.json`, `.mcp.json`, skills)
-  and the `owner/repo` marketplace shorthand clones over SSH, which the app
-  cannot complete. The root now carries a plugin manifest that points into
-  `plugin/`, the MCP server lives at `.mcp.json` where the app discovers it,
-  and the README's add command is the HTTPS git URL.
-- Latched markup read what someone was typing as commands. With the mode on, a
-  caret in the application's own text box — or in the one Tailr opens to edit
-  text in place — lost `c`, `r` and `e` to the comment, remove and edit verbs
-  and the arrow keys to structural walking, and the characters never reached the
-  field. A keystroke on its way into an input, a textarea, a select or a
-  contenteditable is now typing rather than a shortcut. Escape still reaches
-  Tailr from a field of the application's, where it is not swallowed and the
-  field answers it too; the exception is Tailr's own inline editor, which
-  answers Escape by putting the text back without also dropping the mode the
-  reviewer was editing from.
+[76dfe2b] — Pills near the edge of the viewport flip or slide instead of rendering offscreen.
+
+[76dfe2b] — A slider pill follows its element while the page scrolls.
+
+[76dfe2b] — Keeping a value no longer rebuilds the pill, so the button under the pointer survives the click.
+
+[76dfe2b] — A sent batch disables a slider's controls rather than only greying them.
+
+[76dfe2b] — Keep reads as kept: its lit state used to be the same paper as its resting state.
+
+[2ffc783] — The Claude Code app can add Tailr from this repository.
+
+[ca29138] — Typing into a field no longer loses characters to markup shortcuts.
+
+[ca29138] — Escape still reaches Tailr from the application's own fields.
+
+[ca29138] — Tailr's inline editor answers Escape without also dropping the mode it was edited from.
 
 ## [1.1.0] — 2026-09-02
 
-### Added
+A comment could only ever be answered once. It can now ask for up to four
+versions of the same change, built at once and switched between live on the
+page, so the comparison is between the real things rather than two descriptions
+of them.
 
-- Versions. A comment on an element or a spot can ask for up to four answers
-  instead of one: the composer carries a `1×` button beside Add that cycles to
-  `4×`. The agent builds every version at once, each guarded on an attribute
-  Tailr sets on `<html>`, and names it in a word or three. After the reload a
-  pill sits on the element with a tab per version — hover one and it widens to
-  the name while the page switches to that version live, so the comparison is
-  between the real things rather than between two descriptions of them.
-- Keeping a version is a mark like any other. It joins the batch, and sending it
-  is what makes that version permanent and takes the losing ones — and the
-  guards — out of the source. Turning the whole set down is the `×` on its row.
-  An unresolved set keeps the island awake, because the alternative is versions
-  sitting in someone's repository with nothing on screen that would remove them.
-- `tailr variants <ref> <names…>`, and the matching `tailr_variants` MCP tool,
-  for reporting what was built. The operating rules carry the whole contract:
-  where the switch lives, that version 1 must also be what renders without it,
-  and that a guard never outlives the choice that settles it.
-- A way out. **End session** sits under the island's panel, and it asks before
-  it acts: the card names what is being agreed to, one consequence per line —
-  the marks that go unsent, the versions that get cleaned up, the address the
-  application goes back to once Tailr stops proxying, and that the browser is
-  cleared. Until now the only way to end a session was a terminal the reviewer
-  does not have.
-- A cleanup pass on the way out, because ending is the last moment anything can
-  be done about what Tailr left behind. Versions nobody chose between go to the
-  agent as one final batch that takes them, and the switches guarding them, out
-  of the source; the switches come off the document; what Tailr kept in the
-  browser is cleared; the server stops and the overlay takes itself off the
-  page. If the agent never answers, **End anyway** leaves regardless and says
-  the cleanup did not finish rather than implying it did.
+Versions leave guards in the source, so this release also adds the way out: End
+session sits under the island's panel and runs a cleanup pass that takes the
+undecided versions, and their switches, back out.
+
+### New
+
+[2574bbb] — A comment can ask for up to four versions of the same change.
+
+[2574bbb] — The composer carries a `1×` button beside Add that cycles to `4×`.
+
+[2574bbb] — The agent builds every version at once, each guarded on an attribute Tailr sets on `<html>`.
+
+[2574bbb] — A pill on the element switches between them live, widening to each version's name on hover.
+
+[2574bbb] — Keeping a version is a mark like any other, and joins the batch.
+
+[2574bbb] — Sending it makes that version permanent and takes the losing ones, and the guards, out of the source.
+
+[2574bbb] — The `×` on its row turns the whole set down.
+
+[2574bbb] — An unresolved set keeps the island awake.
+
+[2574bbb] — `tailr variants <ref> <names…>` and `tailr_variants` report what was built.
+
+[8a21b28] — End session sits under the island's panel.
+
+[8a21b28] — It asks first, with a card naming each consequence on its own line.
+
+[8a21b28] — Confirming hands the agent a cleanup batch that removes undecided versions from the source.
+
+[8a21b28] — The switches come off the document and what Tailr kept in the browser is cleared.
+
+[8a21b28] — End anyway leaves without the agent and says the cleanup did not finish.
 
 ### Fixed
 
-- A session was good for exactly one batch. The server keeps the last run
-  indefinitely, so a reviewer who reloaded was handed a finished run again and
-  the overlay re-entered its "Needs refresh" state — against changes they were
-  already looking at — with Send locked and no way back. A closed run now only
-  prompts the page that watched it close.
+[2574bbb] — A session survives more than one batch.
+
+[2574bbb] — A closed run only prompts the page that watched it close, rather than every reload.
 
 ## [1.0.0] — 2026-09-02
 
-### Added
+The first release with a release flow behind it: a pushed tag runs the tests,
+publishes to npm as a trusted publisher and cuts the GitHub Release from this
+file. Tailr also became installable as a Claude Code plugin, which is the same
+durability `tailr init` gives without editing anything in the project.
 
-- A Claude Code plugin, with this repository as its marketplace:
-  `/plugin marketplace add gcrft123/tailr`, then `/plugin install tailr@tailr`.
-  It carries the MCP server, the operating rules as a skill, and a `/tailr:start`
-  command — the same setup `tailr init` performs, without editing anything in the
-  project, and updatable from `/plugin` rather than by re-running a script. The
-  rules in it are generated from the same source `init` writes from, and the
-  version it advertises is stamped when a release is cut; `npm test` fails if
-  either drifts, so an installed plugin cannot quietly fall behind the protocol
-  Tailr actually speaks.
-- A release flow keyed to the tags: pushing `vX.Y.Z` verifies the tag against
-  the manifest, runs the tests, publishes to npm with provenance, and cuts a
-  GitHub Release from this file. Publishing authenticates as a trusted publisher
-  over OIDC, so no npm token is stored anywhere. `npm version` is the whole
-  interface to it.
-- A test suite — `npm test`, no dependencies — covering the bridge state machine
-  and its refusals, the proxy's injection and passthrough, the three outcomes of
-  `tailr wait`, and the idempotence of `tailr init`. CI runs it on Node 18, 20
-  and 22, and fails if Tailr ever takes on a runtime dependency.
-- Source resolution reads more of what dev tooling already emits:
-  `data-v-inspector` (Vue), `data-inspector-relative-path` (react-dev-inspector),
-  `data-astro-source-file` (Astro), Svelte's `__svelte_meta`, and a generic
-  `data-source`, alongside the React fibers and `data-tailr-source` it already
-  read. Windows paths and trailing column numbers are handled.
-- `npm run demo` starts the demo app itself instead of expecting one on a port
-  nothing had started.
+Underneath, source resolution stopped depending on a React internal that was
+removed in React 19, four bridge and proxy defects are fixed, and there is now a
+test suite that caught one of them.
 
-### Fixed
+### New
 
-- An `https://` target crashed the session process on the first page request.
-  https dev servers are now proxied, hot-reload upgrade included, and a
-  self-signed certificate is accepted — a local dev server's always is.
-- Rewritten HTML carried both the upstream's `transfer-encoding: chunked` and a
-  freshly computed `content-length`. Strict clients refuse that combination
-  outright, and every dev server streams its HTML. HTML arriving compressed is
-  now passed through whole rather than decoded as utf-8 and injected into.
-- `tailr status` exited `0` while the agent's own run was still in flight,
-  reporting leased work back to it as a waiting batch. It now reports what the
-  server calls pending.
-- Closing a run that was already closed returned `500 Server error.` rather than
-  `409 No open run.` — an agent retrying `tailr done` after a dropped connection
-  could not tell that apart from a real failure.
-- A synchronous failure inside the proxy took the whole session down with it. It
-  now costs one page, and the review URL stays up.
+[5c3cbb5] — Tailr installs as a Claude Code plugin, with this repository as its marketplace.
+
+[5c3cbb5] — The plugin carries the MCP server, the operating rules as a skill, and `/tailr:start`.
+
+[5c3cbb5] — `npm test` fails if the plugin's rules or advertised version drift from the source.
+
+[a68c067] — Pushing a `vX.Y.Z` tag runs the tests, publishes to npm and cuts a GitHub Release.
+
+[a68c067] — `npm version` is the whole local interface to it.
+
+[b6fe152] — Publishing authenticates as a trusted publisher over OIDC, so no npm token is stored.
+
+[875087b] — A test suite, `npm test`, with no dependencies, covering the bridge, proxy, `wait` and `init`.
+
+[875087b] — CI runs it on Node 18, 20 and 22, and fails if Tailr takes on a runtime dependency.
+
+[f919b5c] — Source resolution reads the markers Vue, react-dev-inspector, Astro and Svelte emit.
+
+[f919b5c] — Windows paths and trailing column numbers are handled.
+
+[369c6ab] — `npm run demo` starts the app it proxies.
 
 ### Changed
 
-- `PRODUCT.md` no longer describes the project as having no implementation, and
-  states exactly how far source resolution reaches. The overlay surface doc
-  describes the Island that shipped rather than the withdrawn Callout direction.
+[65c98bb] — PRODUCT.md no longer describes the project as having no implementation.
+
+[65c98bb] — The overlay surface doc describes the Island that shipped, not the withdrawn Callout direction.
+
+### Fixed
+
+[875087b] — An `https://` target no longer crashes the session process on the first page request.
+
+[875087b] — Rewritten HTML no longer carries both chunked encoding and a computed `content-length`.
+
+[875087b] — `tailr status` no longer reports the agent's own leased run back as a waiting batch.
+
+[875087b] — Closing a closed run returns `409 No open run.` instead of `500 Server error.`
+
+[875087b] — A synchronous failure inside the proxy costs one page rather than the session.
 
 ## [0.3.0] — 2026-08-31
 
-### Added
+A pasted setup prompt is read once and then falls out of context, which is fine
+for installing Tailr and wrong for the protocol the agent has to hold all
+session. Setup now ends by writing those rules into the project.
 
-- `tailr init`: installs Tailr, registers its MCP server in `.mcp.json` (and
-  Cursor's copy where a project uses it), and writes the agent's operating rules
-  into `AGENTS.md` / `CLAUDE.md` between markers, so re-running rewrites its own
-  block and leaves everything around it alone. A setup prompt is read once and
-  then falls out of context; these rules have to hold for the whole session.
-- `PROMPT.md`, an agent-facing setup document, replacing `SETUP-PROMPT.md`.
-- `tailr wait` and the `tailr_wait` MCP tool: hang on the session's event stream
-  and return within a moment of Send being pressed, so an agent learns a batch
-  has arrived without polling and without asking the reviewer to announce it.
-  Exit `0` a batch is waiting · `3` timed out · `2` the session ended.
-- `tailr pull --wait`, and `wait: true` on the `tailr_pull` MCP tool.
+This release also gives the agent a way to learn a batch has arrived without
+polling and without the reviewer announcing it.
 
-### Fixed
+### New
 
-- Double-click to edit did nothing on elements with no children.
+[46d3520] — `tailr init` installs Tailr and registers its MCP server in `.mcp.json`.
+
+[46d3520] — It writes the operating rules into `AGENTS.md` / `CLAUDE.md` between markers.
+
+[46d3520] — Re-running it rewrites its own block and leaves everything around it alone.
+
+[46d3520] — `PROMPT.md`, addressed to the agent, replaces `SETUP-PROMPT.md`.
+
+[dafd6ba] — `tailr wait` and `tailr_wait` return within a moment of Send being pressed.
+
+[dafd6ba] — They exit `0` a batch is waiting, `3` timed out, `2` the session ended.
+
+[dafd6ba] — `tailr pull --wait`, and `wait: true` on the `tailr_pull` MCP tool.
 
 ### Changed
 
-- The MCP server reports its version from the package manifest instead of a
-  string kept in step by hand.
-
-## [0.2.0] — 2026-08-30
+[ec0000c] — The MCP server reports its version from the package manifest.
 
 ### Fixed
 
-- Two Tailr sessions in one project fought over `.tailr/session.json`: a second
-  `tailr` that failed to bind the port would deregister the session that was
-  actually serving. A session file is now only ever cleared by the process that
-  wrote it.
+[dafd6ba] — Double-click to edit did nothing on elements with no children.
+
+## [0.2.0] — 2026-08-30
+
+Two Tailr sessions in one project fought over `.tailr/session.json`.
+
+### Fixed
+
+[a997b4e] — A second `tailr` that failed to bind the port no longer deregisters the session that is serving.
+
+[a997b4e] — A session file is only ever cleared by the process that wrote it.
 
 ## [0.1.0] — 2026-08-30
 
 First published release.
+
+### New
+
+[eb6ab76] — Tailr's first published version: the proxy, the overlay, the bridge and the CLI.
