@@ -154,8 +154,10 @@ export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/'
     /** Everything staged, in the shape the agent is handed. */
     payload: () => plain(tailr.payload()),
 
-    /** Right-click with the key down: a removal, with no composer to answer. */
-    remove: (sel) => mouse('contextmenu', sel),
+    /** Right-click with the key down: a removal, with no composer to answer.
+        button 2 is the secondary click. A contextmenu with the default button
+        is what an Alt-click becomes, and that one is a comment. */
+    remove: (sel) => mouse('contextmenu', sel, { button: 2 }),
 
     /** Shift-click with the key down: a mark on a place rather than a thing. */
     point: (opts = {}) => mouse('click', doc.body, { shiftKey: true, ...opts }),
