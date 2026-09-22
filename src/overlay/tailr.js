@@ -2545,8 +2545,9 @@
   }
 
   /* mouseup and click both report one press. The second one, a millisecond
-     later, must not start a second note. */
-  var notedAt = 0;
+     later and at the same point, must not start a second note. A click
+     somewhere else is a new gesture even when it lands inside that window. */
+  var notedAt = 0, notedX = 0, notedY = 0;
   function onClick(e) {
     if (e.button !== 0) return;
     if (!guard(e)) return;
@@ -2554,8 +2555,10 @@
   }
   function note(e) {
     var now = Date.now();
-    if (now - notedAt < 40) return;
+    if (now - notedAt < 40 && e.clientX === notedX && e.clientY === notedY) return;
     notedAt = now;
+    notedX = e.clientX;
+    notedY = e.clientY;
     if (composer) {
       var ta = composer.el.querySelector('textarea');
       var typed = !!(ta && ta.value.trim());
