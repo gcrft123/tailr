@@ -12,6 +12,22 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+Holding Alt lit whatever was under the cursor and then left the outline there.
+On macOS the pointer keeps moving, but that move often shows up without the Alt
+flag, or only as a pointer event, so the outline either dropped or never
+retargeted. Mashing keys forced a fresh mouse event, which is why it eventually
+followed. A click in that state was easy to lose as well: the chord sometimes
+arrives as mouseup or a context menu instead of click, and the next press
+committed the empty note and threw the mark away.
+
+### Fixed
+
+The outline follows the pointer for as long as Alt is held.
+
+The first Alt-click places a comment from mouseup, and an empty composer does not swallow the next one.
+
+Over a modal, the overlay moves into the dialog and up into the top layer so the composer can take the caret.
+
 ## [1.4.1] — 2026-09-13
 
 Agents were stopping after they closed a run. `done` and `fail` returned state

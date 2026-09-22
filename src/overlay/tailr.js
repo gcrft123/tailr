@@ -422,7 +422,12 @@
   /* ── shadow root + styles ──────────────────────────────── */
   var host = document.createElement('div');
   host.setAttribute('data-tailr', '');
-  host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647';
+  /* These undo the UA stylesheet for a popover. The attribute itself is added
+     only while a modal is open — a popover that is not showing is display:none,
+     and one that is showing on an ordinary page sits in the top layer, where
+     Chromium can swallow the click that would have made the first mark. */
+  host.style.cssText = 'position:fixed;inset:0;margin:0;padding:0;border:none;width:auto;height:auto;' +
+    'background:transparent;overflow:visible;pointer-events:none;z-index:2147483647';
   var root = host.attachShadow({ mode: 'open' });
   root.innerHTML = '<style>' + CSS_TEXT() + '</style><div class="layer"></div><div class="island" part="island"></div>';
   var layer, island;
@@ -498,6 +503,7 @@
     renderMarks();
     watchRoute();
     reconcileTimer = setInterval(reconcile, 700);
+    park();
     wake();
   }
 
@@ -1118,6 +1124,7 @@
       var sn = snodes[S.slides[k].id];
       if (sn) { position(sn, S.slides[k]); live = true; }
     }
+    if (S.armed && seenPointer && (PX !== aimedX || PY !== aimedY)) aim(PX, PY);
     if (S.armed && S.hover) { drawHover(S.hover); live = true; }
     if (composer) live = true;
     if (!live) { raf = null; return; }
@@ -1152,9 +1159,138 @@
   var ghostEl = document.createElement('div');
   ghostEl.className = 'pindot';
 
+  /* ── above modals ──────────────────────────────────────── */
+  /* A modal dialog is in the top layer, and the rest of the document is inert.
+     The host has to be in that layer or the reviewer never sees the hover, and
+     it has to be inside the dialog or the caret cannot leave the dialog — a
+     focus trap asks `contains`, and a node in the top layer that is not a
+     descendant is still inert. `showPopover` is what escapes a transformed
+     dialog: fixed positioning alone would be trapped in its box. */
+  var openedModals = [], parking = false, parkFrame = 0, modalObs = null;
+  function shown(el) {
+    if (!el || !el.isConnected || el.hidden) return false;
+    if (el.getAttribute && el.getAttribute('aria-hidden') === 'true') return false;
+    return !!el.getClientRects().length;
+  }
+  function focusShell(el) {
+    if (!el || el.tagName !== 'DIALOG') return el;
+    var nodes = el.querySelectorAll('[aria-modal="true"], [role="dialog"], [role="alertdialog"]');
+    var best = el;
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i] === host || host.contains(nodes[i]) || !shown(nodes[i])) continue;
+      best = nodes[i];
+    }
+    return best;
+  }
+  function modalFrom(el) {
+    var n = el;
+    while (n && n !== host) {
+      if (n.nodeType === 1) {
+        if (n.tagName === 'DIALOG' && n.open) {
+          var modal = false;
+          try { modal = n.matches(':modal'); } catch (e) { modal = true; }
+          if (modal) return focusShell(n);
+        }
+        if (n.getAttribute && n.getAttribute('aria-modal') === 'true' && shown(n)) return n;
+      }
+      var root = n.getRootNode && n.getRootNode();
+      n = n.parentElement || (root && root.host) || null;
+    }
+    return null;
+  }
+  function modalShell() {
+    for (var i = openedModals.length - 1; i >= 0; i--) {
+      var d = openedModals[i];
+      if (d && d.isConnected && d.open && d.tagName === 'DIALOG') return focusShell(d);
+    }
+    var dialogs = document.querySelectorAll('dialog[open]');
+    for (var j = dialogs.length - 1; j >= 0; j--) {
+      var dlg = dialogs[j];
+      if (dlg === host || host.contains(dlg)) continue;
+      var isModal = false;
+      try { isModal = dlg.matches(':modal'); } catch (e) { isModal = true; }
+      if (isModal) return focusShell(dlg);
+    }
+    var nodes = document.querySelectorAll('[aria-modal="true"]');
+    for (var k = nodes.length - 1; k >= 0; k--) {
+      var n = nodes[k];
+      if (n === host || host.contains(n) || !shown(n)) continue;
+      return n;
+    }
+    return null;
+  }
+  function currentModal() {
+    return modalFrom(document.activeElement) || (S.hover && modalFrom(S.hover)) || modalShell();
+  }
+  function raised() {
+    try { return typeof host.showPopover === 'function' && host.matches(':popover-open'); }
+    catch (e) { return false; }
+  }
+  function raise() {
+    if (typeof host.showPopover !== 'function') { host.removeAttribute('popover'); return; }
+    var ta = composer && composer.el && composer.el.querySelector('textarea');
+    if (!host.hasAttribute('popover')) host.setAttribute('popover', 'manual');
+    try {
+      if (host.matches(':popover-open')) host.hidePopover();
+      host.showPopover();
+    } catch (e) {
+      try { host.removeAttribute('popover'); } catch (e2) {}
+      return;
+    }
+    if (ta) setTimeout(function () { try { ta.focus({ preventScroll: true }); } catch (err) {} }, 0);
+  }
+  /* Back to a normal fixed box. A closed popover is display:none, so the
+     attribute has to come off, not merely hide. */
+  function sink() {
+    try { if (host.matches(':popover-open')) host.hidePopover(); } catch (e) {}
+    host.removeAttribute('popover');
+  }
+  function park() {
+    if (parking) return;
+    parking = true;
+    try {
+      var shell = currentModal();
+      var parent = shell || document.documentElement;
+      if (parent === host || host.contains(parent)) parent = document.documentElement;
+      var moved = !host.isConnected || host.parentNode !== parent;
+      if (moved) parent.appendChild(host);
+      if (shell) { if (moved || !raised()) raise(); }
+      else if (host.hasAttribute('popover')) sink();
+    } finally {
+      parking = false;
+    }
+  }
+  function parkSoon() {
+    if (parkFrame) return;
+    parkFrame = requestAnimationFrame(function () { parkFrame = 0; park(); });
+  }
+  function rememberModal(d) {
+    openedModals = openedModals.filter(function (x) { return x !== d && x.isConnected; });
+    openedModals.push(d);
+  }
+  function onBeforeToggle(e) {
+    if (!e.target || e.target === host || e.newState !== 'closed') return;
+    if (e.target.contains && e.target.contains(host)) {
+      parking = true;
+      document.documentElement.appendChild(host);
+      parking = false;
+    }
+  }
+  function onToggle(e) {
+    if (!e.target || e.target === host) return;
+    if (e.target.tagName === 'DIALOG') {
+      if (e.newState === 'open') rememberModal(e.target);
+      else openedModals = openedModals.filter(function (d) { return d !== e.target; });
+    }
+    park();
+  }
+
   /* ── arming ────────────────────────────────────────────── */
   function arm(on) {
     if (S.ending) on = false;         // a session on its way out marks nothing
+    /* Climb above a modal before the hover is drawn. Doing it only after the
+       click is too late: the first frame is the one the reviewer is waiting on. */
+    if (on) park();
     if (S.armed === on) return;
     S.armed = on;
     // reinforcement at the point of use, and only until they have marked once
@@ -1221,7 +1357,7 @@
     var ta = c.querySelector('textarea');
     ta.value = m.comment || '';
     bindScrollbar(ta, c.querySelector('.c-sb'), c.querySelector('.c-sb-t'));
-    setTimeout(function () { ta.focus(); }, 20);
+    setTimeout(function () { ta.focus({ preventScroll: true }); }, 20);
     if (!reduced) c.animate([{ opacity: 0, transform: 'translateY(4px) scale(.98)' },
       { opacity: 1, transform: 'translateY(0) scale(1)' }], { duration: 200, easing: EASE });
 
@@ -1562,7 +1698,11 @@
      pointer events that caused the render, which is what made it flicker. */
   function staged() { return S.marks.filter(function (m) { return m.status !== 'served'; }); }
 
-  var IS = null, leaveT = null, PX = 0, PY = 0;
+  var IS = null, leaveT = null, PX = 0, PY = 0, seenPointer = false;
+  /* keydown/keyup, not the flag on the mouse event. macOS often delivers the
+     move while Alt is held with altKey false, or not as mousemove at all, and
+     trusting the flag disarmed the outline or left it on the first element. */
+  var keyHeld = false, aimedX = NaN, aimedY = NaN;
   var CORNER_KEY = 'tailr:corner:' + location.origin;
   var drag = null, clickSuppressed = false;
   try { S.corner = localStorage.getItem(CORNER_KEY) || 'br'; } catch (e) { S.corner = 'br'; }
@@ -1635,7 +1775,29 @@
        { transform: 'translate(0,0)' }],
       { duration: 460, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
   }
-  addEventListener('pointermove', function (e) { PX = e.clientX; PY = e.clientY; }, true);
+  function notePointer(e) {
+    if (!e || typeof e.clientX !== 'number') return;
+    PX = e.clientX; PY = e.clientY; seenPointer = true;
+  }
+  /* elementFromPoint retargets a shadow hit to the host. Walk past anything
+     Tailr painted so the outline tracks the page under the cursor. */
+  function underPointer(x, y) {
+    var list;
+    try { list = document.elementsFromPoint(x, y); }
+    catch (err) { list = null; }
+    if (!list || !list.length) {
+      var one = document.elementFromPoint(x, y);
+      list = one ? [one] : [];
+    }
+    for (var i = 0; i < list.length; i++) if (!isOurs(list[i])) return list[i];
+    return null;
+  }
+  function aim(x, y) {
+    if (!S.armed || S.ending) return;
+    aimedX = x; aimedY = y;
+    var el = underPointer(x, y);
+    if (el) S.hover = el;
+  }
 
   var IS_live = null, lastAnnounce = '';
   function announce(msg) {
@@ -2246,7 +2408,9 @@
       // Windows and Linux, and the Windows key opens the Start menu. This is the
       // bare modifier's own keydown, so combinations through it still work.
       e.preventDefault();
+      keyHeld = true;
       if (!S.latched) arm(true);
+      if (seenPointer) aim(PX, PY);
       var now = Date.now();
       if (now - (onKeyDown._t || 0) < 320) { S.latched = true; arm(true); }
       onKeyDown._t = now;
@@ -2290,27 +2454,34 @@
     }
   }
   function onKeyUp(e) {
-    if (isModKey(e)) { e.preventDefault(); if (!S.latched) arm(false); }
+    if (isModKey(e)) {
+      e.preventDefault();
+      keyHeld = false;
+      // Released before mouseup: that press is not a mark.
+      if (press) press.armed = false;
+      if (!S.latched) arm(false);
+    }
     if (e.key === 'Shift') hideGhost();
   }
   function onMove(e) {
-    if (modDown(e) && !S.armed) arm(true);
-    else if (!modDown(e) && S.armed && !S.latched) arm(false);
+    notePointer(e);
+    var down = modDown(e) || keyHeld || S.latched;
+    if (down && !S.armed) arm(true);
+    else if (!down && S.armed && !S.latched) arm(false);
     if (!S.armed) return;
-    if (modDown(e) && e.shiftKey) { updateGhost(e.clientX, e.clientY); hoverEl.style.opacity = '0'; return; }
+    if ((modDown(e) || keyHeld) && e.shiftKey) { updateGhost(e.clientX, e.clientY); hoverEl.style.opacity = '0'; return; }
     hoverEl.style.opacity = '1';
     hideGhost();
-    var el = document.elementFromPoint(e.clientX, e.clientY);
-    if (el && !isOurs(el)) S.hover = el;
+    aim(e.clientX, e.clientY);
   }
   /* Arming derives from the event's own modifier state, not only from a keydown we
      happened to see. A focus change, a swallowed keydown, or a synthetic click
      must never leave a gesture unrecognised. */
   function guard(e) {
-    // Gate on the event's own modifier state, never on the sticky armed flag.
-    // A missed keyup — window blur, a release outside the frame — would
-    // otherwise leave Tailr swallowing ordinary clicks on the host app.
-    var live = (modDown(e) || S.latched) && !S.ending;
+    // The mouse event often arrives without the modifier flag while the key is
+    // still down. keyHeld is cleared on keyup and on blur, so a click after
+    // the key is released is the host app's again.
+    var live = (modDown(e) || keyHeld || S.latched) && !S.ending;
     if (S.armed !== live) arm(live);
     if (!live || isOurs(e.target)) return false;
     e.preventDefault(); e.stopPropagation(); return true;
@@ -2320,9 +2491,34 @@
     if (el && !isOurs(el)) return el;
     return (S.hover && S.hover.isConnected) ? S.hover : e.target;
   }
-  function onDown(e) { if (guard(e)) {} }            // kills modifier-click defaults + middle autoscroll
+  /* The press that armed, so mouseup can still mark when the click event
+     never arrives. Chromium on macOS does that for Alt-click: mousedown and
+     mouseup fire, click often does not, and the same chord is sometimes
+     delivered as contextmenu. Until one of those landed, nothing stuck. */
+  var press = null;
+  function onDown(e) {
+    if (!guard(e)) { press = null; return; }
+    press = { x: e.clientX, y: e.clientY, button: e.button, armed: true };
+  }
+  function onUp(e) {
+    var p = press;
+    press = null;
+    if (!p || e.button !== 0 || p.button !== 0) return;
+    if (Math.abs(e.clientX - p.x) > 5 || Math.abs(e.clientY - p.y) > 5) return;
+    if (S.ending || isOurs(e.target)) return;
+    // mouseup can omit altKey even when the mousedown had it. The press is
+    // the record of the chord; keyup clears it if they let go first.
+    if (!p.armed && !modDown(e) && !S.latched) return;
+    e.preventDefault();
+    e.stopPropagation();
+    note(e);
+  }
   function onCtx(e) {
     if (!guard(e)) return;
+    /* A primary Alt-click can arrive here instead of as click. That is still
+       a comment — mouseup places it. Only a real secondary click deletes. */
+    var secondary = e.button === 2 || (e.button === 0 && e.ctrlKey && mod().prop !== 'ctrlKey');
+    if (!secondary) return;
     var rel = targetAt(e);
     var existing = S.marks.find(function (m) {
       return m.type === 'remove' && m.el === rel && m.status !== 'served';
@@ -2348,9 +2544,33 @@
     openComposer(m, { left: e.clientX, top: e.clientY, bottom: e.clientY, right: e.clientX });
   }
 
+  /* mouseup and click both report one press. The second one, a millisecond
+     later, must not start a second note. */
+  var notedAt = 0;
   function onClick(e) {
+    if (e.button !== 0) return;
     if (!guard(e)) return;
-    if (composer) { composer.commit(); return; }
+    note(e);
+  }
+  function note(e) {
+    var now = Date.now();
+    if (now - notedAt < 40) return;
+    notedAt = now;
+    if (composer) {
+      var ta = composer.el.querySelector('textarea');
+      var typed = !!(ta && ta.value.trim());
+      /* An empty composer is not a note they finished. Committing it here
+         deleted the mark and swallowed the click, which is why the first
+         one never seemed to stick. A note they actually wrote still commits
+         and stays; this click is then done. */
+      if (composer.editing || typed) {
+        composer.commit();
+        return;
+      }
+      var lost = composer.mark.id;
+      closeComposer();
+      removeMark(lost, true);
+    }
     if (textEdit) { closeTextEdit(true); return; }
     if (e.shiftKey) {
       placePoint(e);
@@ -2440,12 +2660,49 @@
   document.addEventListener('keydown', onKeyDown, true);
   document.addEventListener('keyup', onKeyUp, true);
   document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('pointermove', onMove, true);
+  document.addEventListener('pointerrawupdate', notePointer, true);
+  document.addEventListener('beforetoggle', onBeforeToggle, true);
+  document.addEventListener('toggle', onToggle, true);
+  if (typeof MutationObserver === 'function') {
+    modalObs = new MutationObserver(function (records) {
+      if (!host.isConnected) { parkSoon(); return; }
+      for (var i = 0; i < records.length; i++) {
+        var rec = records[i];
+        if (rec.type === 'attributes') {
+          var t = rec.target;
+          if (t && t !== host && (t.tagName === 'DIALOG' || t === host.parentNode ||
+              (t.getAttribute && t.getAttribute('aria-modal') === 'true'))) {
+            parkSoon(); return;
+          }
+          continue;
+        }
+        var lists = [rec.addedNodes, rec.removedNodes];
+        for (var a = 0; a < lists.length; a++) {
+          var nodes = lists[a];
+          for (var j = 0; j < nodes.length; j++) {
+            var n = nodes[j];
+            if (!n || n.nodeType !== 1 || n === host) continue;
+            if (n.tagName === 'DIALOG' || (n.getAttribute && n.getAttribute('aria-modal') === 'true') ||
+                (n.querySelector && n.querySelector('dialog[open], [aria-modal="true"]'))) {
+              parkSoon(); return;
+            }
+          }
+        }
+      }
+    });
+    modalObs.observe(document.documentElement, {
+      subtree: true, childList: true, attributes: true,
+      attributeFilter: ['open', 'aria-modal', 'aria-hidden', 'hidden']
+    });
+  }
   document.addEventListener('mousedown', onDown, true);
+  document.addEventListener('mouseup', onUp, true);
   document.addEventListener('contextmenu', onCtx, true);
   document.addEventListener('auxclick', onAux, true);
   document.addEventListener('click', onClick, true);
   document.addEventListener('dblclick', onDbl, true);
-  addEventListener('blur', function () { if (!S.latched) arm(false); });
+  addEventListener('blur', function () { keyHeld = false; if (!S.latched) arm(false); });
 
   /* ── public ────────────────────────────────────────────── */
   window.__tailr = {
@@ -2559,7 +2816,15 @@
       document.removeEventListener('keydown', onKeyDown, true);
       document.removeEventListener('keyup', onKeyUp, true);
       document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerrawupdate', notePointer, true);
+      document.removeEventListener('beforetoggle', onBeforeToggle, true);
+      document.removeEventListener('toggle', onToggle, true);
+      if (modalObs) { modalObs.disconnect(); modalObs = null; }
+      if (parkFrame) { cancelAnimationFrame(parkFrame); parkFrame = 0; }
+      try { if (host.matches(':popover-open')) host.hidePopover(); } catch (err) {}
       document.removeEventListener('mousedown', onDown, true);
+      document.removeEventListener('mouseup', onUp, true);
       document.removeEventListener('contextmenu', onCtx, true);
       document.removeEventListener('auxclick', onAux, true);
       document.removeEventListener('click', onClick, true);
