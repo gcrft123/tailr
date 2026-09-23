@@ -28,17 +28,17 @@ outline it drew.
 
 ### Fixed
 
-The outline follows the pointer for as long as Alt is held.
+[4dfec4f] — The outline follows the pointer for as long as Alt is held.
 
-The first Alt-click places a comment from mouseup, and an empty composer does not swallow the next one.
+[4dfec4f] — The first Alt-click places a comment from mouseup, and an empty composer does not swallow the next one.
 
-Over a modal, the overlay moves into the dialog and up into the top layer so the composer can take the caret.
+[4dfec4f] — Over a modal, the overlay moves into the dialog and up into the top layer so the composer can take the caret.
 
-A spot stays on the element it was placed on when the page is zoomed or reflows.
+[7aa5888] — A spot stays on the element it was placed on when the page is zoomed or reflows.
 
-On a page with CSS `zoom` on `<html>`, the hover outline, marks and composer line up with the page again.
+[7aa5888] — On a page with CSS `zoom` on `<html>`, the hover outline, marks and composer line up with the page again.
 
-An open composer moves with its element when the page is zoomed.
+[7aa5888] — An open composer moves with its element when the page is zoomed.
 
 ## [1.4.1] — 2026-09-13
 
