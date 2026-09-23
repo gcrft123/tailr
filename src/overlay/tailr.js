@@ -133,7 +133,7 @@
           return {
             id: m.id, n: m.n, type: m.type, route: m.route, selector: m.selector,
             address: m.address, comment: m.comment, before: m.before, after: m.after,
-            x: m.x, y: m.y, snippet: m.snippet, tag: m.tag, status: m.status,
+            x: m.x, y: m.y, spot: m.spot, snippet: m.snippet, tag: m.tag, status: m.status,
             variations: m.variations, slider: m.slider, setId: m.setId, variantOf: m.variantOf,
             variant: m.variant, sliderOf: m.sliderOf, value: m.value, label: m.label
           };
@@ -144,7 +144,7 @@
         sets: S.sets.map(function (s) {
           return {
             id: s.id, ref: s.ref, route: s.route, selector: s.selector, address: s.address,
-            snippet: s.snippet, tag: s.tag, x: s.x, y: s.y, point: s.point,
+            snippet: s.snippet, tag: s.tag, x: s.x, y: s.y, spot: s.spot, point: s.point,
             labels: s.labels, choice: s.choice
           };
         }),
@@ -153,7 +153,7 @@
         slides: S.slides.map(function (s) {
           return {
             id: s.id, ref: s.ref, route: s.route, selector: s.selector, address: s.address,
-            snippet: s.snippet, tag: s.tag, x: s.x, y: s.y, point: s.point,
+            snippet: s.snippet, tag: s.tag, x: s.x, y: s.y, spot: s.spot, point: s.point,
             min: s.min, max: s.max, step: s.step, value: s.value, label: s.label,
             unit: s.unit, kept: s.kept, open: s.open
           };
@@ -195,6 +195,7 @@
             if (m.status === 'hidden') m.status = 'staged';
           }
         }
+        findAnchor(m);
         return m;
       });
       /* A set is anchored by selector alone. The agent has just rewritten the
@@ -203,10 +204,12 @@
          the moment the variations landed. */
       S.sets = (d.sets || []).map(function (s) {
         s.el = (s.selector && s.route === routeKey()) ? safeQuery(s.selector) : null;
+        findAnchor(s);
         return s;
       });
       S.slides = (d.slides || []).map(function (s) {
         s.el = (s.selector && s.route === routeKey()) ? safeQuery(s.selector) : null;
+        findAnchor(s);
         return s;
       });
     } catch (e) {}
@@ -250,9 +253,13 @@
      other, because in the source — where the agent works — it is one. What it
      has lost is somewhere on screen to pin a badge to. */
   function reconcile() {
+    // With nothing moving no frame runs, and the island is still on screen
+    // when the page changes its own zoom.
+    unzoom();
     var changed = false;
     var settling = document.readyState === 'loading' || Date.now() - enteredAt < SETTLE_MS;
     S.marks.forEach(function (m) {
+      findAnchor(m);
       if (!m.selector || m.status === 'served') return;
       // Not the page this mark was made on — nothing here says anything about it.
       if (m.route !== routeKey()) return;
@@ -275,11 +282,13 @@
        only thing standing between the reviewer and scaffolding left in their
        source forever. */
     S.sets.forEach(function (s) {
+      findAnchor(s);
       if (s.point || s.route !== routeKey()) return;
       if (s.el && s.el.isConnected) return;
       s.el = s.selector ? safeQuery(s.selector) : null;
     });
     S.slides.forEach(function (s) {
+      findAnchor(s);
       if (s.point || s.route !== routeKey()) return;
       if (s.el && s.el.isConnected) return;
       s.el = s.selector ? safeQuery(s.selector) : null;
@@ -432,8 +441,26 @@
   root.innerHTML = '<style>' + CSS_TEXT() + '</style><div class="layer"></div><div class="island" part="island"></div>';
   var layer, island;
 
+  /* A page that zooms itself with CSS `zoom` on <html> (or on the dialog the
+     host is parked in) zooms the host too, by inheritance. The page's rects
+     already come back zoomed, so every position written from them would be
+     scaled a second time. Cancelling what the host inherits puts it back in
+     the pixels the page is measured in. Browser zoom is not CSS zoom: it
+     scales both sides alike and reads as 1 here. `currentCSSZoom` is missing
+     where zoom is not standardized, and then this leaves the host alone. */
+  var inherited = 1;
+  function unzoom() {
+    var p = host.parentElement;
+    var z = p && p.currentCSSZoom;
+    if (typeof z !== 'number' || !(z > 0)) z = 1;
+    if (z === inherited) return;
+    inherited = z;
+    host.style.zoom = z === 1 ? '' : String(1 / z);
+  }
+
   function mount() {
     document.documentElement.appendChild(host);
+    unzoom();
     layer = root.querySelector('.layer');
     island = root.querySelector('.island');
     // hovering a version shows it on the page, so the comparison is between the
@@ -490,10 +517,7 @@
         if (m.el && m.el.isConnected) editText(m.el, m);
         return;
       }
-      var r = isPoint(m)
-        ? { left: m.x - scrollX, top: m.y - scrollY, bottom: m.y - scrollY, right: m.x - scrollX }
-        : m.el.getBoundingClientRect();
-      openComposer(m, r, true);
+      openComposer(m, markRect(m), true);
     }, true);
     // Usually the settings have already landed and opened it, and this does
     // nothing. The wait is for the run where they are slow, and for the demo,
@@ -603,6 +627,7 @@
       id: 'v' + Date.now() + Math.random().toString(36).slice(2, 6),
       ref: ref, route: m.route, selector: selector || m.selector, address: m.address,
       snippet: m.snippet, tag: m.tag, x: m.x, y: m.y, point: isPoint(m),
+      spot: m.spot, anchor: m.anchor,
       labels: labels, choice: null, el: selector ? null : (m.el || null)
     };
     S.sets.push(s);
@@ -707,6 +732,7 @@
       id: 's' + Date.now() + Math.random().toString(36).slice(2, 6),
       ref: ref, route: m.route, selector: selector || m.selector, address: m.address,
       snippet: m.snippet, tag: m.tag, x: m.x, y: m.y, point: isPoint(m),
+      spot: m.spot, anchor: m.anchor,
       min: min, max: max, step: step, value: value, label: label, unit: unit,
       el: selector ? null : (m.el || null)
     };
@@ -1054,10 +1080,51 @@
   // Marks carry it as a type; a variation set carries it as a flag copied from
   // the mark that asked for it.
   function isPoint(m) { return m.point === true || m.type === 'point' || m.type === 'insert'; }
+
+  /* A spot is held by the element under it, as a fraction of that element's
+     box. Page coordinates stop naming the same place as soon as the page
+     reflows, and a zoom (Cmd +) reflows the whole page; the element moves with
+     what the reviewer pointed at. Where no element holds it, the spot stays
+     where it was put. `x`/`y` are kept either way: they are what the batch
+     carries. */
+  function spotAt(cx, cy) {
+    var spot = { x: cx + scrollX, y: cy + scrollY };
+    var el = underPointer(cx, cy);
+    var r = el && el.getBoundingClientRect();
+    if (r && r.width && r.height) {
+      spot.anchor = el;
+      spot.spot = { sel: selectorFor(el), tag: el.tagName,
+                    fx: (cx - r.left) / r.width, fy: (cy - r.top) / r.height };
+    }
+    return spot;
+  }
+  function spotRect(m) {
+    var x = m.x - scrollX, y = m.y - scrollY;
+    var a = m.spot && m.anchor && m.anchor.isConnected ? m.anchor : null;
+    var r = a && a.getBoundingClientRect();
+    if (r && (r.width || r.height)) { x = r.left + m.spot.fx * r.width; y = r.top + m.spot.fy * r.height; }
+    return { left: x, top: y, bottom: y, right: x };
+  }
+  /* Frameworks replace nodes, so a spot's element is looked up again the same
+     way a mark's is. A different tag at that address is a different thing. */
+  function findAnchor(o) {
+    if (!o.spot || o.route !== routeKey()) return;
+    if (o.anchor && o.anchor.isConnected) return;
+    var hit = safeQuery(o.spot.sel);
+    o.anchor = (hit && hit.tagName === o.spot.tag) ? hit : null;
+  }
+  /* Where a mark's composer opens: on its spot, on its element, or, with the
+     element gone, in the middle of the viewport. */
+  function markRect(m) {
+    if (isPoint(m)) return spotRect(m);
+    return (m.el && m.el.isConnected) ? m.el.getBoundingClientRect() : centerRect();
+  }
+
   function position(n, m) {
     var hl, ht, hw = 0, hh = 0;
     if (isPoint(m)) {
-      hl = m.x - scrollX; ht = m.y - scrollY;
+      var p = spotRect(m);
+      hl = p.left; ht = p.top;
       n.style.width = n.style.height = '0px';
     } else {
       if (!m.el || !m.el.isConnected) return;
@@ -1111,6 +1178,7 @@
      open when there is nothing to draw. */
   var raf = null;
   function tick() {
+    unzoom();
     var live = false;
     for (var i = 0; i < S.marks.length; i++) {
       var n = nodes[S.marks[i].id];
@@ -1140,7 +1208,16 @@
     Object.keys(snodes).forEach(function (id) { unfit(snodes[id]); });
     wake();
   }
+  /* A zoom arrives as a resize, and the page reflows under an open composer
+     that was placed against where its element used to be. */
+  function follow() {
+    if (composer) place(composer.el, markRect(composer.mark));
+    if (textEdit && textEdit.bar && textEdit.el.isConnected) {
+      placeTextBar(textEdit.bar, textEdit.el.getBoundingClientRect());
+    }
+  }
   addEventListener('resize', unfitAll);
+  addEventListener('resize', follow);
   addEventListener('load', unfitAll);
   try { if (document.fonts) document.fonts.ready.then(unfitAll); } catch (e) {}
 
@@ -1253,7 +1330,7 @@
       var parent = shell || document.documentElement;
       if (parent === host || host.contains(parent)) parent = document.documentElement;
       var moved = !host.isConnected || host.parentNode !== parent;
-      if (moved) parent.appendChild(host);
+      if (moved) { parent.appendChild(host); unzoom(); }
       if (shell) { if (moved || !raised()) raise(); }
       else if (host.hasAttribute('popover')) sink();
     } finally {
@@ -2540,8 +2617,8 @@
      write, not by which gesture they used. */
   function placePoint(e) {
     hideGhost();
-    var m = addMark('point', null, { x: e.clientX + scrollX, y: e.clientY + scrollY });
-    openComposer(m, { left: e.clientX, top: e.clientY, bottom: e.clientY, right: e.clientX });
+    var m = addMark('point', null, spotAt(e.clientX, e.clientY));
+    openComposer(m, spotRect(m));
   }
 
   /* mouseup and click both report one press. The second one, a millisecond
@@ -2611,13 +2688,7 @@
       }
       return;
     }
-    var open = function () {
-      var r = isPoint(m)
-        ? { left: m.x - scrollX, top: m.y - scrollY, bottom: m.y - scrollY, right: m.x - scrollX }
-        : (m.el && m.el.isConnected) ? m.el.getBoundingClientRect()
-        : centerRect();
-      openComposer(m, r, true);
-    };
+    var open = function () { openComposer(m, markRect(m), true); };
     if (!isPoint(m) && m.el && m.el.isConnected) {
       m.el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
       setTimeout(open, reduced ? 0 : 320);
