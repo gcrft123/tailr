@@ -12,6 +12,8 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+## [1.4.2] — 2026-09-23
+
 Holding Alt lit whatever was under the cursor and then left the outline there.
 On macOS the pointer keeps moving, but that move often shows up without the Alt
 flag, or only as a pointer event, so the outline either dropped or never
