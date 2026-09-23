@@ -20,6 +20,12 @@ followed. A click in that state was easy to lose as well: the chord sometimes
 arrives as mouseup or a context menu instead of click, and the next press
 committed the empty note and threw the mark away.
 
+Zooming the page pulled marks off what they marked. A spot was stored as page
+coordinates, and a zoom reflows the page, so the spot stayed where it was while
+the content under it moved. A page that zooms itself with CSS `zoom` was worse
+off: the overlay inherited that zoom and applied it a second time to every
+outline it drew.
+
 ### Fixed
 
 The outline follows the pointer for as long as Alt is held.
@@ -27,6 +33,12 @@ The outline follows the pointer for as long as Alt is held.
 The first Alt-click places a comment from mouseup, and an empty composer does not swallow the next one.
 
 Over a modal, the overlay moves into the dialog and up into the top layer so the composer can take the caret.
+
+A spot stays on the element it was placed on when the page is zoomed or reflows.
+
+On a page with CSS `zoom` on `<html>`, the hover outline, marks and composer line up with the page again.
+
+An open composer moves with its element when the page is zoomed.
 
 ## [1.4.1] — 2026-09-13
 
