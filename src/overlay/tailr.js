@@ -1195,6 +1195,12 @@
     if (S.armed && seenPointer && (PX !== aimedX || PY !== aimedY)) aim(PX, PY);
     if (S.armed && S.hover) { drawHover(S.hover); live = true; }
     if (composer) live = true;
+    // The element under a reopened text edit grows as the reviewer types, and
+    // a bar placed once under its first line ends up on top of the new ones.
+    if (textEdit && textEdit.bar && textEdit.el.isConnected) {
+      placeTextBar(textEdit.bar, textEdit.el.getBoundingClientRect());
+      live = true;
+    }
     if (!live) { raf = null; return; }
     raf = requestAnimationFrame(tick);
   }
@@ -1212,9 +1218,6 @@
      that was placed against where its element used to be. */
   function follow() {
     if (composer) place(composer.el, markRect(composer.mark));
-    if (textEdit && textEdit.bar && textEdit.el.isConnected) {
-      placeTextBar(textEdit.bar, textEdit.el.getBoundingClientRect());
-    }
   }
   addEventListener('resize', unfitAll);
   addEventListener('resize', follow);
@@ -1718,8 +1721,9 @@
     var left = Math.min(Math.max(8, r.left), innerWidth - w - 8);
     var top = r.bottom + gap;
     if (top + 44 > innerHeight) top = Math.max(8, r.top - 44 - gap);
-    bar.style.left = left + 'px';
-    bar.style.top = top + 'px';
+    // Called every frame while the bar is open; most frames nothing moved.
+    if (bar.__l !== left) { bar.__l = left; bar.style.left = left + 'px'; }
+    if (bar.__t !== top) { bar.__t = top; bar.style.top = top + 'px'; }
   }
 
   /** Finish an inline text edit. `keep` false abandons the session without
