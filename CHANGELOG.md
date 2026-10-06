@@ -23,6 +23,10 @@ Closing a run now asks for a reply as the last thing in the turn, after the
 listener is armed, and points MCP agents at a backgrounded `wait` so the turn can
 actually end on it.
 
+CI also failed now and then with "Unable to deserialize cloned data". It was
+never a flake: the server's terminal lines reached the test runner's stdout,
+which node:test can misread as a result.
+
 ### Changed
 
 [83acabe] — `done` and `fail` ask the agent to end its turn on a written reply saying what changed for each mark.
@@ -32,6 +36,10 @@ actually end on it.
 [83acabe] — The operating rules make ending on a reply a rule of its own.
 
 [83acabe] — The wake message Codex receives asks for the same reply.
+
+### Fixed
+
+[4e1ac21] — Tests run the server with its terminal lines silenced, so node:test can no longer misread one as a result and fail the file.
 
 ## [1.4.2] — 2026-09-23
 
