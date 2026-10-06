@@ -460,6 +460,14 @@ cannot send another batch — and if you never answer, they can take that batch 
 and send it again. If you cannot finish, `tailr fail` with what happened; Tailr
 does not guess at causes, it points the reviewer back to you.
 
+**End on a reply.** Once the run is closed and `wait` is running again, the turn
+ends on a written answer: what changed for each mark, and anything that could not
+be done. Many clients fold the agent's reasoning, and anything it writes between
+tool calls, into a collapsed log and show only the message a turn ends on, so a
+summary left anywhere else is one the reviewer never sees. That is also why the
+background `tailr wait` beats the MCP `tailr_wait` after a run: the MCP call holds
+the turn open, so nothing written before it can be the last message.
+
 The whole contract, including the events to listen for when a version or a slider
 has to re-render rather than restyle, is in the rules `tailr init` writes into
 your agent instruction file.
