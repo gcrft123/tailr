@@ -23,6 +23,10 @@ Closing a run now asks for a reply as the last thing in the turn, after the
 listener is armed, and points MCP agents at a backgrounded `wait` so the turn can
 actually end on it.
 
+Reopening a text mark puts a Delete and Done bar under the element, and that bar
+was placed once when the edit opened. As the reviewer typed and the text wrapped,
+the bar stayed under the first line and covered the new ones.
+
 CI also failed now and then with "Unable to deserialize cloned data". It was
 never a flake: the server's terminal lines reached the test runner's stdout,
 which node:test can misread as a result.
@@ -38,6 +42,8 @@ which node:test can misread as a result.
 [83acabe] — The wake message Codex receives asks for the same reply.
 
 ### Fixed
+
+[db6f8a4] — The Delete and Done bar on a reopened text edit stays below the text as it grows, and follows it through a scroll.
 
 [4e1ac21] — Tests run the server with its terminal lines silenced, so node:test can no longer misread one as a result and fail the file.
 

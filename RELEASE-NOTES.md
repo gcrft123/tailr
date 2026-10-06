@@ -13,6 +13,10 @@ The agent now starts listening for your next batch first, then ends its turn on 
 * After each batch, your agent ends its turn with a reply saying what it changed for each mark. A Codex agent woken by Send gets the same instruction.
 * Agents that use Tailr's MCP server wait for the next batch in the background, so that reply stays the last message you see.
 
+### Fixed
+
+* When you reopen a text edit, the Delete and Done buttons stay below the text as you type instead of covering it.
+
 ## v1.4.2: Steadier Alt-hover, typing inside dialogs, and marks that hold when you zoom
 
 On macOS, the Alt-hover outline stuck to the first thing it lit up instead of following the pointer, and Alt-clicks in that state were easy to lose. Zooming the page pulled marks away from what they marked, because a spot remembered a place on the page rather than the element under it.
