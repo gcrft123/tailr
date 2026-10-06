@@ -7,8 +7,9 @@ one change per line, each naming the commit that carries it.
 
 Every release is a `vX.Y.Z` git tag. Pushing that tag is what publishes to npm
 and cuts the matching [GitHub Release](https://github.com/gcrft123/tailr/releases),
-and the notes it carries are the section below that bears its version — so a
-release with nothing written here does not go out. See [RELEASING.md](RELEASING.md).
+whose notes come from [RELEASE-NOTES.md](RELEASE-NOTES.md) — the shorter account,
+written for the people using Tailr. A release with nothing written here does not
+go out either. See [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
@@ -22,6 +23,10 @@ Closing a run now asks for a reply as the last thing in the turn, after the
 listener is armed, and points MCP agents at a backgrounded `wait` so the turn can
 actually end on it.
 
+CI also failed now and then with "Unable to deserialize cloned data". It was
+never a flake: the server's terminal lines reached the test runner's stdout,
+which node:test can misread as a result.
+
 ### Changed
 
 [83acabe] — `done` and `fail` ask the agent to end its turn on a written reply saying what changed for each mark.
@@ -31,6 +36,10 @@ actually end on it.
 [83acabe] — The operating rules make ending on a reply a rule of its own.
 
 [83acabe] — The wake message Codex receives asks for the same reply.
+
+### Fixed
+
+[4e1ac21] — Tests run the server with its terminal lines silenced, so node:test can no longer misread one as a result and fail the file.
 
 ## [1.4.2] — 2026-09-23
 
@@ -276,6 +285,10 @@ three documentation corrections.
 [a1bc285] — What cannot be a dev server URL is refused in a sentence.
 
 [a1bc285] — A second `tailr` in a project with a live session is turned away with that session's URL.
+
+[a1bc285] — `tailr_wait` gives up after 55 seconds by default instead of 300, inside the per-call limit Cursor's MCP client allows.
+
+[a1bc285] — The MCP server sends progress notifications while a wait lasts, for clients that reset their timeout on them.
 
 [a1bc285] — `tailr progress` with an unknown ref returns 400 and names the refs that are in the batch.
 

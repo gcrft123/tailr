@@ -28,7 +28,13 @@ const BRIDGE = join(HERE, '..', 'bridge', 'client.js');
 
 const API = '/__tailr/';
 
-export function createServer({ target, onReady, onExit, spawned = false, config = defaults(), notify = null, notifyDisabled = false }) {
+/* `say` is where the terminal narration goes. The CLI leaves it on stdout; the
+   test suite turns it off, because a test file's stdout is also the channel
+   node:test reports results on, and text written between two results can be
+   misread as one of them. */
+const toTerminal = (text) => process.stdout.write(text);
+
+export function createServer({ target, onReady, onExit, spawned = false, config = defaults(), notify = null, notifyDisabled = false, say = toTerminal }) {
   /* Who to wake, as it stands. The agent's own calls move it: a thread id only
      lasts until the conversation is cleared, and nothing but the agent knows
      what replaced it. */
@@ -202,7 +208,7 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       state.batch = { id, sentAt: body.sentAt || new Date().toISOString(), origin: body.origin, marks };
       state.run = { id, phase: 'working', served: [], total: marks.length, leasedAt: null, variants: {}, sliders: {} };
       publish();
-      process.stdout.write(`\n  ⌁ batch ${id} — ${marks.length} mark${marks.length === 1 ? '' : 's'} waiting. Run: tailr pull\n`);
+      say(`\n  ⌁ batch ${id} — ${marks.length} mark${marks.length === 1 ? '' : 's'} waiting. Run: tailr pull\n`);
       /* On an agent that cannot be told a background `wait` exited, this is the
          only thing that gets the batch looked at without the reviewer asking.
          It is fired after the batch is recorded and the response is not held
@@ -212,14 +218,14 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
          editing the reviewer's repository where they cannot see it happen. */
       const gone = stale(waking, process.cwd());
       if (gone) {
-        process.stdout.write(
+        say(
           `  ⌁ not waking ${waking.label} — that conversation was cleared, and ${gone.slice(0, 8)}…\n` +
           `    replaced it. Waking it would apply this batch where you cannot see it.\n` +
           `    Ask your agent for anything; its next Tailr command re-registers it.\n`);
       }
       const woken = gone ? null
         : wake(waking, { count: marks.length, url: `http://localhost:${server.address()?.port ?? ''}` },
-          (line) => process.stdout.write(`  ⌁ ${line}\n`));
+          (line) => say(`  ⌁ ${line}\n`));
       /* A wake that goes to a thread nobody is on still reports success — Codex
          queues it against the dead id and says so. The only evidence that it
          landed is the agent turning up, so if it hasn't, say that rather than
@@ -228,7 +234,7 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
         const waited = id;
         setTimeout(() => {
           if (state.run && state.run.id === waited && state.run.phase === 'working' && !state.run.leasedAt) {
-            process.stdout.write(
+            say(
               `  ⌁ ${waited} not picked up. If the agent's conversation was cleared it is on a new
 ` +
               `    thread now — ask it for anything and it will re-register itself.
@@ -249,7 +255,7 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
         { disabled: notifyDisabled });
       const after = waking && waking.thread;
       if (after && after !== before) {
-        process.stdout.write(`  ⌁ waking ${waking.label} from now on\n`);
+        say(`  ⌁ waking ${waking.label} from now on\n`);
         publish();
       }
       return json(res, 200, { wakesAgent: !!waking, thread: after || null });
@@ -337,7 +343,7 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       } else if (path === 'fail' && body.error) state.run.error = String(body.error).slice(0, 300);
       state.batch = null;
       publish();
-      process.stdout.write(`  ⌁ run ${state.run.id} ${state.run.phase}\n`);
+      say(`  ⌁ run ${state.run.id} ${state.run.phase}\n`);
       return json(res, 200, publicState());
     }
 
