@@ -11,7 +11,14 @@ export async function startTailr(target = DEAD, { spawned = false, config, notif
   // asked to, and to still have a server to make assertions against.
   const exits = [];
   const { server, state } = createServer({
-    target, spawned, config, notify, onReady() {}, onExit() { exits.push(Date.now()); }
+    target, spawned, config, notify, onReady() {}, onExit() { exits.push(Date.now()); },
+    // Silent, not cosmetic. node:test reads results off this file's stdout,
+    // and Node 18's runner takes bytes 2-5 of text that follows a result in
+    // the same read as a message length. "  ⌁ …" puts 0xE2 at byte 2, the
+    // length goes negative, and the whole file fails with "Unable to
+    // deserialize cloned data". Whether it lands that way depends on how the
+    // pipe happened to split, which is why it only failed sometimes.
+    say() { return true; }
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
