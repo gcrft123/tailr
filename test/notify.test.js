@@ -72,6 +72,10 @@ test('the message names the count, and counts one mark as one', () => {
   assert.doesNotMatch(message(1), /1 marks/);
 });
 
+test('the wake asks for a reply at the end of the run', () => {
+  assert.match(message(2), /end your turn on a reply saying what changed/);
+});
+
 /* ── firing it ───────────────────────────────────────────── */
 
 test('the placeholders are filled with the batch, the thread and the URL', async () => {
@@ -202,23 +206,47 @@ test('a session started with nothing to wake can be given someone', async (t) =>
 
 test('closing a run points back at wait when nothing will wake the agent', () => {
   const next = afterClosing({ wakesAgent: false, ending: false });
-  assert.match(next, /tailr wait/, 'it names the command');
+  assert.match(next, /Run tailr wait again now, in the background/, 'it names the command');
   assert.match(next, /before your turn ends/, 'and says when');
 });
 
-test('the wait it names is the caller\'s own spelling', () => {
-  assert.match(afterClosing({}, 'tailr_wait'), /Run tailr_wait again/);
+test('an MCP caller is pointed at the shell wait, with tailr_wait as the fallback', () => {
+  const next = afterClosing({}, 'mcp');
+  assert.match(next, /npx -y @gcrft123\/tailr wait/, 'a backgrounded wait lets the turn end on the reply');
+  assert.match(next, /call tailr_wait again/, 'and a client that cannot background one still listens');
 });
 
 test('an agent Tailr wakes is told to end its turn instead', () => {
   const next = afterClosing({ wakesAgent: true, ending: false });
-  assert.match(next, /end your turn/);
+  assert.match(next, /End your turn/);
   assert.doesNotMatch(next, /Run tailr wait/, 'waiting would block for nothing');
 });
 
 test('a session the reviewer is ending asks for no wait at all', () => {
   const next = afterClosing({ wakesAgent: false, ending: true });
   assert.match(next, /don't run tailr wait/, 'the server is going; waiting would only exit 2');
+});
+
+/* Observed for real in T3 Code: an agent closed a run, went straight back into
+   tailr_wait, and the only text the reviewer saw was "Still waiting for your
+   next batch". The account of what changed was in its thinking, which the
+   client folds away with everything written between tool calls. Every way a
+   run can close has to ask for the reply, and for it to come last. */
+test('every way of closing a run asks for a reply the reviewer can see', () => {
+  const states = [{}, { wakesAgent: true }, { ending: true }];
+  for (const via of ['cli', 'mcp']) {
+    for (const state of states) {
+      const next = afterClosing(state, via);
+      assert.match(next, /what changed for each mark/, `${via} ${JSON.stringify(state)}`);
+      assert.match(next, /after your last tool call and not in your reasoning/, `${via} ${JSON.stringify(state)}`);
+    }
+  }
+});
+
+test('the reply comes after the listener, not before it', () => {
+  const next = afterClosing({});
+  assert.ok(next.indexOf('Run tailr wait') < next.indexOf('reply'),
+    'a reply followed by a tool call is not the message the turn ends on');
 });
 
 /* ── never wake a conversation that was cleared ───────────── */

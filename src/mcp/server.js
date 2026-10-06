@@ -69,7 +69,10 @@ const TOOLS = [
       'when they are done, and instead of polling tailr_status: it returns within a moment of Send being ' +
       'pressed, and returns immediately if a batch is already waiting. Follow it with tailr_pull. If it ' +
       'reports that nothing arrived in time, the session is still up — call it again. Keep timeoutSeconds ' +
-      'under your client\'s own per-call limit; the default does.',
+      'under your client\'s own per-call limit; the default does. It holds your turn open while it waits, ' +
+      'so if your client can run a shell command in the background and tell you when it exits, ' +
+      '`npx -y @gcrft123/tailr wait` run that way is better after a run: your turn can end on your reply ' +
+      'to the reviewer, and its exit brings you back.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -188,7 +191,8 @@ const TOOLS = [
     name: 'tailr_done',
     description:
       'Close the run as finished. The reviewer is prompted to reload, and anything they staged while you ' +
-      'were working is kept. Any mark you did not explicitly report is counted as applied.',
+      'were working is kept. Any mark you did not explicitly report is counted as applied. Your turn then ' +
+      'ends on a written reply saying what changed; the result says how to keep listening first.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false }
   },
   {
@@ -464,14 +468,14 @@ async function runTool(name, args = {}, notify = null) {
     const r = await call('done');
     if (!r.ok) return { text: r.data.error || 'Could not close the run.', isError: true };
     return { text: 'Run closed. The reviewer has been prompted to reload.\n' +
-      `next: ${afterClosing(r.data, 'tailr_wait')}\n` + JSON.stringify(r.data, null, 2) };
+      `next: ${afterClosing(r.data, 'mcp')}\n` + JSON.stringify(r.data, null, 2) };
   }
 
   if (name === 'tailr_fail') {
     const r = await call('fail', { error: String(args.reason || '').slice(0, 300) });
     if (!r.ok) return { text: r.data.error || 'Could not close the run.', isError: true };
     return { text: 'Run marked incomplete and the send lock released.\n' +
-      `next: ${afterClosing(r.data, 'tailr_wait')}\n` + JSON.stringify(r.data, null, 2) };
+      `next: ${afterClosing(r.data, 'mcp')}\n` + JSON.stringify(r.data, null, 2) };
   }
 
   return { text: `Unknown tool: ${name}`, isError: true };
@@ -510,7 +514,8 @@ export function startMcp() {
             'needs tailr_variants before its progress; a mark asking for a slider needs tailr_slider. ' +
             'The reviewer cannot send another ' +
             'batch until you close the run, and should never have to tell you a batch has arrived — ' +
-            'tailr_wait is how you find out.'
+            'tailr_wait is how you find out. Every run ends on a reply saying what changed for each mark, ' +
+            'written as your answer rather than in your reasoning.'
         });
       }
       if (method === 'ping') return reply(id, {});

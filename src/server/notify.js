@@ -29,9 +29,21 @@ export function message(count) {
   const marks = `${count} mark${count === 1 ? '' : 's'}`;
   return `Tailr: the reviewer pressed Send and a batch of ${marks} is waiting. ` +
     `Run the review loop now — pull the batch, apply each mark, report each one with ` +
-    `progress as it lands, then close the run with done. Don't ask whether to start; ` +
-    `they are watching the marks clear on the page.`;
+    `progress as it lands, then close the run with done and end your turn on a reply ` +
+    `saying what changed. Don't ask whether to start; they are watching the marks ` +
+    `clear on the page.`;
 }
+
+/* The reply a run ends on.
+ *
+ * Whatever the agent writes after closing a run is the only account of it the
+ * reviewer gets, and many clients (T3 Code among them) fold reasoning, and
+ * anything written between tool calls, into a collapsed log. They show only the
+ * message the turn ends on. An agent that sums the batch up in its thinking, or
+ * in a line before its next tool call, has told nobody. */
+const REPLY = 'your reply to the reviewer: what changed for each mark, and anything you ' +
+  'could not do. Write it as your answer, after your last tool call and not in your ' +
+  'reasoning. Many clients fold both away and show only the message a turn ends on.';
 
 /** What the agent has to do next, once it has closed a run.
  *
@@ -42,18 +54,33 @@ export function message(count) {
  *  Send into a session nobody is listening to, which is the one failure Tailr
  *  promises they will never have to notice.
  *
+ *  It is also the step where the agent owes the reviewer a reply, and the order
+ *  matters: a reply followed by another tool call is not the message the turn
+ *  ends on. So the listener goes first and the reply last. The MCP `tailr_wait`
+ *  cannot go first — it holds the turn open — so MCP callers are pointed at the
+ *  shell `wait` in the background where their client can run one.
+ *
  *  @param state  the session state `done` and `fail` return
- *  @param wait   what the caller calls `wait`; the CLI and MCP spell it apart
+ *  @param via    'mcp' when the caller is the MCP server, 'cli' otherwise
  */
-export function afterClosing(state = {}, wait = 'tailr wait') {
+export function afterClosing(state = {}, via = 'cli') {
+  const wait = via === 'mcp' ? 'tailr_wait' : 'tailr wait';
   if (state.ending) {
-    return `The reviewer is ending the session. Nothing more is coming — don't run ${wait}.`;
+    return `The reviewer is ending the session. Nothing more is coming — don't run ${wait}. ` +
+      `End your turn on ${REPLY}`;
   }
   if (state.wakesAgent) {
-    return 'Tailr wakes you on Send, so end your turn — the next batch arrives on its own.';
+    return `Tailr wakes you on Send, so nothing has to wait for the next batch. End your turn on ${REPLY}`;
   }
-  return `Run ${wait} again now, before your turn ends. Nothing wakes you: if you ` +
-    `stop here, the reviewer's next Send reaches nobody.`;
+  if (via === 'mcp') {
+    return 'Keep listening before your turn ends. Nothing wakes you: if you stop without a ' +
+      'listener, the reviewer\'s next Send reaches nobody. If your client can run a shell ' +
+      'command in the background and tell you when it exits, start `npx -y @gcrft123/tailr wait` ' +
+      `that way, then end your turn on ${REPLY} If your client cannot, write that reply now, ` +
+      'then call tailr_wait again.';
+  }
+  return `Run ${wait} again now, in the background, before your turn ends. Nothing wakes you: ` +
+    `if you stop without it, the reviewer's next Send reaches nobody. Then end your turn on ${REPLY}`;
 }
 
 /** The agent Tailr can see it was started from, if it is one we can wake.
