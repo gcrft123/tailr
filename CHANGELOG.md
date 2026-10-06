@@ -12,6 +12,26 @@ release with nothing written here does not go out. See [RELEASING.md](RELEASING.
 
 ## [Unreleased]
 
+Agents closed a run and went quiet. Under MCP, `done` sent them straight back
+into `tailr_wait`, which holds the turn open, so the account of what changed
+stayed in the agent's thinking or in a line written between tool calls. Clients
+like T3 Code fold both away and show only the message a turn ends on, so the
+reviewer saw "Still waiting for your next batch" and nothing about the batch.
+
+Closing a run now asks for a reply as the last thing in the turn, after the
+listener is armed, and points MCP agents at a backgrounded `wait` so the turn can
+actually end on it.
+
+### Changed
+
+[83acabe] — `done` and `fail` ask the agent to end its turn on a written reply saying what changed for each mark.
+
+[83acabe] — Under MCP, closing a run points at `npx -y @gcrft123/tailr wait` in the background, with `tailr_wait` as the fallback for clients that cannot run one.
+
+[83acabe] — The operating rules make ending on a reply a rule of its own.
+
+[83acabe] — The wake message Codex receives asks for the same reply.
+
 ## [1.4.2] — 2026-09-23
 
 Holding Alt lit whatever was under the cursor and then left the outline there.
