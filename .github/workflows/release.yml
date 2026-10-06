@@ -55,8 +55,12 @@ jobs:
             exit 1
           fi
 
-      - name: the release must have notes
-        run: node scripts/changelog.js --notes "${{ steps.tag.outputs.version }}"
+      - name: the release must have notes and a title
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          node scripts/changelog.js --notes "$VERSION" > /dev/null
+          node scripts/changelog.js --title "$VERSION"
 
       # Overlay tests need jsdom from devDependencies. Without this install the
       # suite fails loudly in CI rather than skipping — see test/overlay-harness.js.
@@ -111,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: take the notes out of the changelog
+      - name: take the notes out of RELEASE-NOTES.md
         env:
           VERSION: ${{ needs.verify.outputs.version }}
         run: node scripts/changelog.js --notes "$VERSION" > "$RUNNER_TEMP/notes.md"
@@ -119,14 +123,16 @@ jobs:
       - name: create it, or update it if the tag is being re-run
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
           PRERELEASE: ${{ needs.verify.outputs.prerelease }}
         run: |
+          title="$(node scripts/changelog.js --title "$VERSION")"
           flags=""
           if [ "$PRERELEASE" = "true" ]; then flags="--prerelease"; fi
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release edit "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" $flags
+              --title "$title" --notes-file "$RUNNER_TEMP/notes.md" $flags
           else
             gh release create "$GITHUB_REF_NAME" --verify-tag \
-              --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" $flags
+              --title "$title" --notes-file "$RUNNER_TEMP/notes.md" $flags
           fi

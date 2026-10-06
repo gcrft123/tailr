@@ -2,22 +2,37 @@
 
 **A tag is a release.** Pushing `vX.Y.Z` is the only thing that publishes: it
 runs the tests at that commit, publishes to npm with provenance, and cuts the
-GitHub Release from the matching section of [CHANGELOG.md](CHANGELOG.md).
-Nothing else does, and nothing publishes off `main` on its own.
+GitHub Release from the matching section of
+[RELEASE-NOTES.md](RELEASE-NOTES.md). Nothing else does, and nothing publishes
+off `main` on its own.
 
 ## Cutting one
 
-Write what changed under `## [Unreleased]` in `CHANGELOG.md` as you go — those
-lines become the release notes verbatim, so write them for whoever reads the
-release, not for yourself. Then:
+Every release gets two write-ups, both by hand. Neither is generated from
+commit subjects.
+
+[CHANGELOG.md](CHANGELOG.md) records every change. Write each one under
+`## [Unreleased]` as you make it, in the shape the top of that file describes.
+
+[RELEASE-NOTES.md](RELEASE-NOTES.md) is for the people using Tailr, and it is
+what the GitHub Release shows. Write it from the changelog before cutting: what
+someone using Tailr will notice, with CI, tests and internals left out. Its
+heading is the release title, so it says what the release does in plain words:
+
+```markdown
+## Unreleased: Your agent tells you what it changed after every batch
+```
+
+Then:
 
 ```bash
 npm version minor
 ```
 
-That runs the tests, refuses if `Unreleased` is empty, stamps it with the new
-version and today's date, and commits the bump and the changelog together under
-an annotated tag. Nothing has left the machine yet. When it looks right:
+That runs the tests, refuses if either `Unreleased` is empty or the notes have
+no title, stamps both with the new version, and commits the bump and both files
+together under an annotated tag. Nothing has left the machine yet. When it looks
+right:
 
 ```bash
 git push --follow-tags
@@ -68,8 +83,9 @@ publishes anything:
   a hand-made tag is where it goes wrong.
 - **The tag is on `main`.** A release you cannot reach from the default branch
   is a release nobody can get back to.
-- **The changelog has notes for it.** A release with an empty body is one
-  nobody can read.
+- **Both write-ups cover it.** `CHANGELOG.md` has a section for the version,
+  and `RELEASE-NOTES.md` has notes and a title for it. A release with an empty
+  body is one nobody can read.
 - **The tests pass at the tagged commit** — not on main, at the tag.
 
 Re-running a tag's workflow is safe. npm publishing is skipped if that version
@@ -111,6 +127,12 @@ A tag-triggered workflow runs **the version of the workflow file that exists at
 that tag**. Changes to `.github/workflows/release.yml` therefore have to be on
 `main` *before* the tag is cut — editing it afterwards has no effect on a tag
 that already exists.
+
+That includes the notes. `v1.0.0` through `v1.4.2` were cut when the GitHub
+Release was the changelog section verbatim, and their releases were rewritten by
+hand from `RELEASE-NOTES.md` afterwards. Re-running one of those tags' workflows
+would put the changelog section back; if one ever has to be re-run, restore its
+notes with `gh release edit` from `RELEASE-NOTES.md` once it finishes.
 
 ## The state of the existing tags
 
