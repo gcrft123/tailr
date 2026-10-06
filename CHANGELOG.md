@@ -22,6 +22,10 @@ Closing a run now asks for a reply as the last thing in the turn, after the
 listener is armed, and points MCP agents at a backgrounded `wait` so the turn can
 actually end on it.
 
+Reopening a text mark puts a Delete and Done bar under the element, and that bar
+was placed once when the edit opened. As the reviewer typed and the text wrapped,
+the bar stayed under the first line and covered the new ones.
+
 ### Changed
 
 [83acabe] — `done` and `fail` ask the agent to end its turn on a written reply saying what changed for each mark.
@@ -31,6 +35,10 @@ actually end on it.
 [83acabe] — The operating rules make ending on a reply a rule of its own.
 
 [83acabe] — The wake message Codex receives asks for the same reply.
+
+### Fixed
+
+[db6f8a4] — The Delete and Done bar on a reopened text edit stays below the text as it grows, and follows it through a scroll.
 
 ## [1.4.2] — 2026-09-23
 
