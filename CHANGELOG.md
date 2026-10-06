@@ -7,8 +7,9 @@ one change per line, each naming the commit that carries it.
 
 Every release is a `vX.Y.Z` git tag. Pushing that tag is what publishes to npm
 and cuts the matching [GitHub Release](https://github.com/gcrft123/tailr/releases),
-and the notes it carries are the section below that bears its version — so a
-release with nothing written here does not go out. See [RELEASING.md](RELEASING.md).
+whose notes come from [RELEASE-NOTES.md](RELEASE-NOTES.md) — the shorter account,
+written for the people using Tailr. A release with nothing written here does not
+go out either. See [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
@@ -276,6 +277,10 @@ three documentation corrections.
 [a1bc285] — What cannot be a dev server URL is refused in a sentence.
 
 [a1bc285] — A second `tailr` in a project with a live session is turned away with that session's URL.
+
+[a1bc285] — `tailr_wait` gives up after 55 seconds by default instead of 300, inside the per-call limit Cursor's MCP client allows.
+
+[a1bc285] — The MCP server sends progress notifications while a wait lasts, for clients that reset their timeout on them.
 
 [a1bc285] — `tailr progress` with an unknown ref returns 400 and names the refs that are in the batch.
 
