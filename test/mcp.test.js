@@ -138,7 +138,9 @@ test('closing a run tells the agent to arm wait again', async (t) => {
 
   const id = mcp.send('tools/call', { name: 'tailr_done', arguments: {} });
   const closed = await mcp.until((m) => m.id === id, 5000);
-  assert.match(closed.result.content[0].text, /next: Run tailr_wait again now/);
+  assert.match(closed.result.content[0].text, /next: Keep listening before your turn ends/);
+  assert.match(closed.result.content[0].text, /end your turn on your reply to the reviewer/,
+    'and to end the turn on a reply, which tailr_wait in the foreground would leave mid-turn');
 });
 
 test('a failed run points back at wait too — the reviewer can still send', async (t) => {
@@ -151,7 +153,7 @@ test('a failed run points back at wait too — the reviewer can still send', asy
 
   const id = mcp.send('tools/call', { name: 'tailr_fail', arguments: { reason: 'no' } });
   const closed = await mcp.until((m) => m.id === id, 5000);
-  assert.match(closed.result.content[0].text, /next: Run tailr_wait again now/);
+  assert.match(closed.result.content[0].text, /next: Keep listening before your turn ends/);
 });
 
 test('an agent Tailr wakes is not sent back to wait after closing', async (t) => {

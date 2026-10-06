@@ -203,6 +203,15 @@ For a slider it carries `sliderOf` and `value`:
   `wait` — then end your turn and let the next batch arrive on its own. It is
   false unless Tailr found a thread to wake, so if you have not looked, you
   still owe it a `wait`.
+- Every run ends on a reply the reviewer can read: what changed for each mark,
+  and anything you could not do. Arm `wait` first and reply last, as your
+  answer after the final tool call, not in your reasoning. Many clients fold
+  reasoning and anything written between tool calls into a collapsed log and
+  show only the message a turn ends on, so a summary left anywhere else never
+  reaches them.
+  `tailr_wait` holds your turn open, so it cannot come before a last message.
+  Where your client can run the shell `wait` in the background and tell you
+  when it exits, use that after a run instead; where it cannot, reply first.
 - The reviewer can end the session from the page, which stops the server. `wait`
   then exits 2. That is them finishing, not a crash: don't restart the session,
   and don't ask them to reopen the review URL. A last batch of `choice` marks
