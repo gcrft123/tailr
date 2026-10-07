@@ -31,6 +31,23 @@ CI also failed now and then with "Unable to deserialize cloned data". It was
 never a flake: the server's terminal lines reached the test runner's stdout,
 which node:test can misread as a result.
 
+The overlay also cost the page it sat on more than it had to. With marks on
+the page it re-placed every one of them on every frame, whether or not anything
+had moved, and interleaved reads with writes so each frame forced a style pass
+per mark. Holding the key re-resolved the source address and redrew the outline
+on every pointer event, and the outline's resizing repainted the host page's
+whole paint list each time. Marks were placed by script over a fixed layer, so
+they trailed their elements whenever the page scrolled under a busy main thread.
+Every Alt-click waited 260ms to rule out a double-click, even where a
+double-click meant nothing, and the proxy held a streamed page back until its
+last byte.
+
+Marks now live in a layer that scrolls with the document, the tracking loop
+sleeps once nothing moves, and the hover outline is drawn from pieces that only
+move. On a 6,000-element test page with 40 marks, the overlay's idle cost fell
+from about 4% of the main thread to about 0.1%, and holding the key costs about
+a third of what it did.
+
 ### Changed
 
 [83acabe] — `done` and `fail` ask the agent to end its turn on a written reply saying what changed for each mark.
@@ -41,11 +58,45 @@ which node:test can misread as a result.
 
 [83acabe] — The wake message Codex receives asks for the same reply.
 
+[2c5f173] — Marks, version pills and slider pills on the page scroll with the document instead of being re-placed by script, so they no longer trail their elements while the page scrolls.
+
+[2c5f173] — Marks on something fixed or sticky are still drawn over the viewport, and right-to-left pages keep every mark there.
+
+[2c5f173] — The overlay stops tracking marks on frames where nothing moved, and wakes on scrolling, resizing, transitions, animations, loaded resources and DOM changes.
+
+[2c5f173] — Each tracking frame reads every position before writing any, and writes only what changed.
+
+[2c5f173] — Holding the key hit-tests once per frame instead of on every mouse event, and resolves each element's source address once.
+
+[2c5f173] — The hover outline glides between elements and is drawn from pieces that only move, so following the pointer no longer repaints the page.
+
+[2c5f173] — The hover outline's source address appears once the pointer rests on an element.
+
+[2c5f173] — A press thickens the hover outline before anything opens.
+
+[2c5f173] — Alt-clicking something with no text opens its comment at once; only text still waits to see whether the click starts a double-click.
+
+[2c5f173] — Opening a mark from the staged list acts at once when its element is already on screen, and otherwise when the scroll to it finishes.
+
+[2c5f173] — Scrubbing a slider updates the page once per frame.
+
+[05df45c] — The proxy streams HTML the dev server streams, injecting the overlay as the page passes through.
+
+[05df45c] — The overlay script is served with an ETag and revalidated, so a reload reuses the browser's copy instead of downloading and compiling it again.
+
+[2c5f173] — A comment left empty, or a text edit that never changed the text, gives its number back, so the next mark takes it, unless a batch has gone out from the page.
+
 ### Fixed
 
 [db6f8a4] — The Delete and Done bar on a reopened text edit stays below the text as it grows, and follows it through a scroll.
 
 [4e1ac21] — Tests run the server with its terminal lines silenced, so node:test can no longer misread one as a result and fail the file.
+
+[2c5f173] — A new mark, version pill or slider pill no longer flashes in the top-left corner of the page while it lands.
+
+[2c5f173] — Holding the modifier on Windows or Linux no longer latches marking on once the key starts repeating.
+
+[05df45c] — A HEAD request or a 304 for an HTML page is no longer handed a script tag as its body.
 
 ## [1.4.2] — 2026-09-23
 
