@@ -133,33 +133,80 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 .film .play:active{scale:.96}
 .film.paused .play{display:grid}
 
-/* the page's own primary: ink on white, paper inside the island only */
-.pill{display:inline-flex;align-items:center;gap:10px;height:44px;padding:0 20px 0 18px;border:0;border-radius:999px;
-  background:var(--ink);color:var(--white);font:650 14.5px/1 var(--ui);letter-spacing:-.005em;cursor:pointer;
-  text-decoration:none;box-shadow:0 8px 30px rgba(0,0,0,.18),0 0 0 1px rgba(255,255,255,.1);
-  transition-property:translate,scale,box-shadow;transition-duration:150ms;transition-timing-function:ease-out}
-.pill:hover{translate:0 -1px;box-shadow:0 12px 34px rgba(0,0,0,.22),0 0 0 1px rgba(255,255,255,.14)}
-.pill:active{scale:.96}
-.pill .ic{position:relative;width:16px;height:16px;flex:0 0 auto}
-.pill .ic svg{position:absolute;inset:0;width:16px;height:16px}
-/* copy → check: one glyph unwinds as the other draws itself on, both normalised
-   to pathLength 1 so the stroke travels at a single rate */
-.pill .ic .copy-g{opacity:.8}
-.pill .ic .copy-g *,.pill .ic .check-g path{stroke-dasharray:1;
-  transition:stroke-dashoffset 280ms cubic-bezier(0.2,0,0,1)}
-.pill .ic .copy-g *{stroke-dashoffset:0}
-.pill .ic .check-g path{stroke-dashoffset:1;transition-delay:120ms}
-.pill[data-state="copied"] .ic .copy-g *{stroke-dashoffset:1;transition-delay:0s}
-.pill[data-state="copied"] .ic .check-g path{stroke-dashoffset:0;stroke:var(--live)}
+/* The page's own primary: ink on white, paper inside the island only.
+   It is one line at every width. Where the discs would push it past the column
+   they leave rather than let the label wrap, and the label clips before it
+   would ever overflow the page. */
+.act{container-type:inline-size}
+/* the border is transparent over the fill, and it is what forced colours keep
+   once they strip the fill and the shadows, so the button still has an edge */
+.pill{--bg:var(--ink);display:inline-flex;align-items:center;max-width:100%;height:44px;padding:0 10px 0 15px;
+  border:1px solid transparent;border-radius:999px;background:var(--bg);color:var(--white);font:650 14.5px/1 var(--ui);letter-spacing:-.005em;
+  white-space:nowrap;cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  /* a top edge that catches the light, a contact shadow, and the lift */
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 1px 2px rgba(11,11,12,.16),0 10px 28px -8px rgba(11,11,12,.42);
+  transition-property:scale,background-color,box-shadow;transition-duration:180ms;transition-timing-function:var(--ease-out)}
+/* hover only where there is a pointer to rest, or a tap leaves it stuck on */
+@media (hover:hover){
+  .pill:hover{--bg:#1A1B1E;box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 1px 2px rgba(11,11,12,.16),0 14px 34px -8px rgba(11,11,12,.5)}
+}
+/* the press lands fast and lets go slower */
+.pill:active{scale:.97;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 1px 2px rgba(11,11,12,.2),0 6px 18px -8px rgba(11,11,12,.42);
+  transition-duration:80ms}
+.pill .ic{position:relative;width:16px;height:16px;flex:0 0 auto;margin-right:10px}
+.pill .ic svg{position:absolute;inset:0;width:16px;height:16px;overflow:visible}
+.pill .ic .check-g{color:var(--live)}
+/* Copy → check (or → down, to the prompt, when the copy is blocked): the glyph
+   unwinds as the next draws itself on, all normalised to pathLength 1 so the
+   stroke travels at one rate. A fully unwound stroke still leaves its round cap
+   behind as a dot, so each glyph is also switched off once it is gone. */
+.pill .ic svg *{stroke-dasharray:1;stroke-dashoffset:1;opacity:0;
+  transition:stroke-dashoffset 240ms cubic-bezier(0.2,0,0,1),opacity 0s 240ms}
+.pill:not([data-state]) .ic .copy-g *,.pill[data-state="copied"] .ic .check-g *,.pill[data-state="failed"] .ic .down-g *{
+  stroke-dashoffset:0;opacity:1;transition:stroke-dashoffset 300ms cubic-bezier(0.2,0,0,1) 110ms,opacity 0s 110ms}
 
-/* the agents the prompt is written for, stacked at the closing edge */
-.pill .agents{display:inline-flex;align-items:center;margin-left:6px}
-.pill .agents i{display:grid;place-items:center;width:20px;height:20px;margin-left:-6px;border-radius:50%;
-  background:var(--white);color:var(--c);box-shadow:0 0 0 1.5px var(--ink);
-  transition:scale 220ms var(--ease) calc(var(--i) * 24ms)}
+/* The three labels share one cell, so the button is as wide as the longest and
+   never changes size under the pointer. They are left-set, so a shorter result
+   keeps the glyph's gap and gives its slack to the far side. The one in play
+   rolls in from below as the last rolls out above, and the last is gone in a
+   breath, so the two never sit on top of each other at full strength. Only the
+   resting label is read: the result is announced in the live region, because a
+   label swap is not. */
+.pill .label{display:grid;min-width:0;text-align:left}
+.pill .label span{grid-area:1/1;min-width:0;line-height:20px;overflow:hidden;text-overflow:ellipsis;
+  opacity:0;translate:0 .45em;filter:blur(2px);
+  transition:opacity 90ms linear,translate 220ms var(--ease),filter 110ms linear,visibility 0s 220ms}
+.pill[data-state] .label .rest{translate:0 -.45em}
+/* An idle result is out of the page, so find-in-page never lands on it. The
+   resting label never is: it is the button's name in every state. */
+.pill .label span:not(.rest){visibility:hidden}
+.pill:not([data-state]) .label .rest,.pill[data-state="copied"] .label .copied,.pill[data-state="failed"] .label .failed{
+  opacity:1;translate:none;filter:none;visibility:visible;
+  transition:opacity 200ms var(--ease-out) 80ms,translate 320ms var(--ease) 40ms,filter 240ms var(--ease-out) 80ms}
+
+/* The agents the prompt is written for, stacked at the closing edge. The last
+   disc sits concentric with the pill's end cap: 11px clear on every side. Each
+   is ringed in the pill's own fill, so the overlaps read as cuts. */
+.pill .agents{display:inline-flex;align-items:center;margin-left:14px}
+.pill .agents i{display:grid;place-items:center;width:22px;height:22px;margin-left:-6px;border-radius:50%;
+  background:var(--white);color:var(--c);box-shadow:0 0 0 1.5px var(--bg);transition:box-shadow 180ms var(--ease-out)}
 .pill .agents i:first-child{margin-left:0}
-.pill .agents .lg{display:block;width:11px;height:11px}
-.pill[data-state="copied"] .agents i{scale:.92}
+.pill .agents .lg{display:block;width:12px;height:12px}
+/* a copy passes along the row, left to right, to everyone it was written for */
+.pill[data-state="copied"] .agents i{animation:nod 440ms var(--ease) calc(160ms + var(--i) * 45ms) both}
+@keyframes nod{40%{translate:0 -3px}}
+/* The discs need about 380px; below a 400px column they leave, and the label
+   takes the end cap's padding back. Under 300px the label sets a half-pixel
+   smaller, which is what a 320px phone needs to keep it whole. */
+@container (width < 400px){
+  .pill{padding-right:15px}
+  .pill .agents{display:none}
+}
+@container (width < 300px){.pill{font-size:14px}}
+/* With no script the button could only fail, so the prompt stands in its place. */
+.no-js .act{display:none}
+.no-js .assure{margin-top:28px}
+.no-js .fallback[hidden]{display:block}
 
 /* ── showcases ───────────────────────────────────────────── */
 .run{padding:clamp(72px,10vh,128px) var(--gutter) clamp(48px,8vh,96px);max-width:1280px;margin:0 auto}
@@ -430,6 +477,9 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   .ov.mark,.composer,.agent,.li,.ipill,.vtab .l,.vpill,.spill,.fan .ag{transition:none!important}
   .cur{display:none}
   .c-box .caret,.edit .caret{animation:none}
+  /* the copy result still crossfades in place; it only stops travelling */
+  .pill .label span{translate:none!important;filter:none!important}
+  .pill[data-state="copied"] .agents i{animation:none}
 }
 
 /* ── everywhere ──────────────────────────────────────────── */
@@ -556,9 +606,9 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
 <section class="hero" aria-labelledby="claim">
   <h1 class="headline" id="claim"><span class="line">Mark up the running app.</span> <span class="line">Hand your agent the batch.</span></h1>
   <p class="lede">Rapidly markup and iterate on your projects live with your agent.</p>
-  <div class="act"><button class="pill copy" type="button" data-copy><span class="ic" aria-hidden="true"><svg class="copy-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5" pathLength="1"/><path d="M5 15H4a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 4 2.5h9.5A1.5 1.5 0 0 1 15 4v1" pathLength="1"/></svg><svg class="check-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg></span><span class="label">Copy the prompt for your agent</span><span class="agents" aria-hidden="true"><i style="--i:0;--c:#D97757"><svg class="lg"><use href="#lg-claude"/></svg></i><i style="--i:1;--c:#0B0B0C"><svg class="lg"><use href="#lg-cursor"/></svg></i><i style="--i:2;--c:#0B0B0C"><svg class="lg"><use href="#lg-codex"/></svg></i><i style="--i:3;--c:#0B0B0C"><svg class="lg"><use href="#lg-copilot"/></svg></i><i style="--i:4"><svg class="lg" viewBox="0 0 24 24"><mask height="23" id="agP0" maskUnits="userSpaceOnUse" width="24" x="0" y="1"><path d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z" fill="#fff"></path></mask><g mask="url(#agP0)"><g filter="url(#agP1)"><path d="M-1.018-3.992c-.408 3.591 2.686 6.89 6.91 7.37 4.225.48 7.98-2.043 8.387-5.633.408-3.59-2.686-6.89-6.91-7.37-4.225-.479-7.98 2.043-8.387 5.633z" fill="#FFE432"></path></g><g filter="url(#agP2)"><path d="M15.269 7.747c1.058 4.557 5.691 7.374 10.348 6.293 4.657-1.082 7.575-5.653 6.516-10.21-1.058-4.556-5.691-7.374-10.348-6.292-4.657 1.082-7.575 5.653-6.516 10.21z" fill="#FC413D"></path></g><g filter="url(#agP3)"><path d="M-12.443 10.804c1.338 4.703 7.36 7.11 13.453 5.378 6.092-1.733 9.947-6.95 8.61-11.652C8.282-.173 2.26-2.58-3.833-.848-9.925.884-13.78 6.1-12.443 10.804z" fill="#00B95C"></path></g><g filter="url(#agP4)"><path d="M-12.443 10.804c1.338 4.703 7.36 7.11 13.453 5.378 6.092-1.733 9.947-6.95 8.61-11.652C8.282-.173 2.26-2.58-3.833-.848-9.925.884-13.78 6.1-12.443 10.804z" fill="#00B95C"></path></g><g filter="url(#agP5)"><path d="M-7.608 14.703c3.352 3.424 9.126 3.208 12.896-.483 3.77-3.69 4.108-9.459.756-12.883C2.69-2.087-3.083-1.871-6.853 1.82c-3.77 3.69-4.108 9.458-.755 12.883z" fill="#00B95C"></path></g><g filter="url(#agP6)"><path d="M9.932 27.617c1.04 4.482 5.384 7.303 9.7 6.3 4.316-1.002 6.971-5.448 5.93-9.93-1.04-4.483-5.384-7.304-9.7-6.301-4.316 1.002-6.971 5.448-5.93 9.93z" fill="#3186FF"></path></g><g filter="url(#agP7)"><path d="M2.572-8.185C.392-3.329 2.778 2.472 7.9 4.771c5.122 2.3 11.042.227 13.222-4.63 2.18-4.855-.205-10.656-5.327-12.955-5.122-2.3-11.042-.227-13.222 4.63z" fill="#FBBC04"></path></g><g filter="url(#agP8)"><path d="M-3.267 38.686c-5.277-2.072 3.742-19.117 5.984-24.83 2.243-5.712 8.34-8.664 13.616-6.592 5.278 2.071 11.533 13.482 9.29 19.195-2.242 5.713-23.613 14.298-28.89 12.227z" fill="#3186FF"></path></g><g filter="url(#agP9)"><path d="M28.71 17.471c-1.413 1.649-5.1.808-8.236-1.878-3.135-2.687-4.531-6.201-3.118-7.85 1.412-1.649 5.1-.808 8.235 1.878s4.532 6.2 3.119 7.85z" fill="#749BFF"></path></g><g filter="url(#agP10)"><path d="M18.163 9.077c5.81 3.93 12.502 4.19 14.946.577 2.443-3.612-.287-9.727-6.098-13.658-5.81-3.931-12.502-4.19-14.946-.577-2.443 3.612.287 9.727 6.098 13.658z" fill="#FC413D"></path></g><g filter="url(#agP11)"><path d="M-.915 2.684c-1.44 3.473-.97 6.967 1.05 7.804 2.02.837 4.824-1.3 6.264-4.772 1.44-3.473.97-6.967-1.05-7.804-2.02-.837-4.824 1.3-6.264 4.772z" fill="#FFEE48"></path></g></g><defs><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="17.587" id="agP1" width="19.838" x="-3.288" y="-11.917"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="1.117"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="38.565" id="agP2" width="38.9" x="4.251" y="-13.493"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="5.4"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.517" id="agP3" width="40.955" x="-21.889" y="-10.592"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.517" id="agP4" width="40.955" x="-21.889" y="-10.592"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.595" id="agP5" width="36.632" x="-19.099" y="-10.278"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="34.087" id="agP6" width="33.533" x=".981" y="8.758"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="4.363"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="35.276" id="agP7" width="35.978" x="-6.143" y="-21.659"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="3.954"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="46.523" id="agP8" width="45.114" x="-11.96" y="-.46"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="3.531"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="24.054" id="agP9" width="25.094" x="10.485" y=".58"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="3.159"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="30.007" id="agP10" width="33.508" x="5.833" y="-12.467"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="2.669"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="26.151" id="agP11" width="22.194" x="-8.355" y="-8.876"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="3.303"></feGaussianBlur></filter></defs></svg></i></span></button></div>
+  <div class="act"><button class="pill copy" type="button" data-copy><span class="ic" aria-hidden="true"><svg class="copy-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5" pathLength="1"/><path d="M5 15H4a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 4 2.5h9.5A1.5 1.5 0 0 1 15 4v1" pathLength="1"/></svg><svg class="check-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg><svg class="down-g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5v14.5" pathLength="1"/><path d="M5.5 12.5l6.5 6.5 6.5-6.5" pathLength="1"/></svg></span><span class="label"><span class="rest">Copy the prompt for your agent</span><span class="copied" aria-hidden="true">Copied. Paste it to your agent.</span><span class="failed" aria-hidden="true">Copy blocked. Prompt is below.</span></span><span class="agents" aria-hidden="true"><i style="--i:0;--c:#D97757"><svg class="lg"><use href="#lg-claude"/></svg></i><i style="--i:1;--c:#0B0B0C"><svg class="lg"><use href="#lg-cursor"/></svg></i><i style="--i:2;--c:#0B0B0C"><svg class="lg"><use href="#lg-codex"/></svg></i><i style="--i:3;--c:#0B0B0C"><svg class="lg"><use href="#lg-copilot"/></svg></i><i style="--i:4"><svg class="lg" viewBox="0 0 24 24"><mask height="23" id="agP0" maskUnits="userSpaceOnUse" width="24" x="0" y="1"><path d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z" fill="#fff"></path></mask><g mask="url(#agP0)"><g filter="url(#agP1)"><path d="M-1.018-3.992c-.408 3.591 2.686 6.89 6.91 7.37 4.225.48 7.98-2.043 8.387-5.633.408-3.59-2.686-6.89-6.91-7.37-4.225-.479-7.98 2.043-8.387 5.633z" fill="#FFE432"></path></g><g filter="url(#agP2)"><path d="M15.269 7.747c1.058 4.557 5.691 7.374 10.348 6.293 4.657-1.082 7.575-5.653 6.516-10.21-1.058-4.556-5.691-7.374-10.348-6.292-4.657 1.082-7.575 5.653-6.516 10.21z" fill="#FC413D"></path></g><g filter="url(#agP3)"><path d="M-12.443 10.804c1.338 4.703 7.36 7.11 13.453 5.378 6.092-1.733 9.947-6.95 8.61-11.652C8.282-.173 2.26-2.58-3.833-.848-9.925.884-13.78 6.1-12.443 10.804z" fill="#00B95C"></path></g><g filter="url(#agP4)"><path d="M-12.443 10.804c1.338 4.703 7.36 7.11 13.453 5.378 6.092-1.733 9.947-6.95 8.61-11.652C8.282-.173 2.26-2.58-3.833-.848-9.925.884-13.78 6.1-12.443 10.804z" fill="#00B95C"></path></g><g filter="url(#agP5)"><path d="M-7.608 14.703c3.352 3.424 9.126 3.208 12.896-.483 3.77-3.69 4.108-9.459.756-12.883C2.69-2.087-3.083-1.871-6.853 1.82c-3.77 3.69-4.108 9.458-.755 12.883z" fill="#00B95C"></path></g><g filter="url(#agP6)"><path d="M9.932 27.617c1.04 4.482 5.384 7.303 9.7 6.3 4.316-1.002 6.971-5.448 5.93-9.93-1.04-4.483-5.384-7.304-9.7-6.301-4.316 1.002-6.971 5.448-5.93 9.93z" fill="#3186FF"></path></g><g filter="url(#agP7)"><path d="M2.572-8.185C.392-3.329 2.778 2.472 7.9 4.771c5.122 2.3 11.042.227 13.222-4.63 2.18-4.855-.205-10.656-5.327-12.955-5.122-2.3-11.042-.227-13.222 4.63z" fill="#FBBC04"></path></g><g filter="url(#agP8)"><path d="M-3.267 38.686c-5.277-2.072 3.742-19.117 5.984-24.83 2.243-5.712 8.34-8.664 13.616-6.592 5.278 2.071 11.533 13.482 9.29 19.195-2.242 5.713-23.613 14.298-28.89 12.227z" fill="#3186FF"></path></g><g filter="url(#agP9)"><path d="M28.71 17.471c-1.413 1.649-5.1.808-8.236-1.878-3.135-2.687-4.531-6.201-3.118-7.85 1.412-1.649 5.1-.808 8.235 1.878s4.532 6.2 3.119 7.85z" fill="#749BFF"></path></g><g filter="url(#agP10)"><path d="M18.163 9.077c5.81 3.93 12.502 4.19 14.946.577 2.443-3.612-.287-9.727-6.098-13.658-5.81-3.931-12.502-4.19-14.946-.577-2.443 3.612.287 9.727 6.098 13.658z" fill="#FC413D"></path></g><g filter="url(#agP11)"><path d="M-.915 2.684c-1.44 3.473-.97 6.967 1.05 7.804 2.02.837 4.824-1.3 6.264-4.772 1.44-3.473.97-6.967-1.05-7.804-2.02-.837-4.824 1.3-6.264 4.772z" fill="#FFEE48"></path></g></g><defs><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="17.587" id="agP1" width="19.838" x="-3.288" y="-11.917"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="1.117"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="38.565" id="agP2" width="38.9" x="4.251" y="-13.493"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="5.4"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.517" id="agP3" width="40.955" x="-21.889" y="-10.592"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.517" id="agP4" width="40.955" x="-21.889" y="-10.592"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.595" id="agP5" width="36.632" x="-19.099" y="-10.278"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="34.087" id="agP6" width="33.533" x=".981" y="8.758"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="4.363"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="35.276" id="agP7" width="35.978" x="-6.143" y="-21.659"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="3.954"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="46.523" id="agP8" width="45.114" x="-11.96" y="-.46"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="3.531"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="24.054" id="agP9" width="25.094" x="10.485" y=".58"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="3.159"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="30.007" id="agP10" width="33.508" x="5.833" y="-12.467"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="2.669"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="26.151" id="agP11" width="22.194" x="-8.355" y="-8.876"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="effect1_foregroundBlur_977_115" stdDeviation="3.303"></feGaussianBlur></filter></defs></svg></i></span></button></div>
   <p class="assure">Proxies your dev server. Writes nothing to your repo but a locator under <code>.tailr/</code>.</p>
-  <p class="fallback" id="promptFallback" hidden><b>Your browser blocked the copy. Select this and copy it yourself.</b>Set up Tailr so I can mark up my running dev server visually and hand you the changes as one batch. Fetch https://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md and follow it exactly, without summarizing it.</p>
+  <p class="fallback" id="promptFallback" hidden><b>Copy this and paste it to your agent.</b>Set up Tailr so I can mark up my running dev server visually and hand you the changes as one batch. Fetch https://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md and follow it exactly, without summarizing it.</p>
   <figure class="film" id="film">
     <video id="intro" playsinline muted loop autoplay preload="metadata" poster="media/tailr-intro-website-poster.jpg" aria-label="Tailr marking up a running app and sending the batch to an agent">
       <source src="media/tailr-intro-website.mp4" type="video/mp4">
@@ -821,16 +871,21 @@ button{font:inherit;color:inherit;letter-spacing:inherit}
   }
   var PROMPT = 'Set up Tailr so I can mark up my running dev server visually and hand you the\nchanges as one batch. Fetch\nhttps://raw.githubusercontent.com/gcrft123/tailr/main/PROMPT.md\nand follow it exactly, without summarizing it.';
   Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function (btn) {
-    var label = btn.querySelector('.label'), was = label.textContent, t;
+    var t;
     btn.addEventListener('click', function () {
       function done(ok) {
+        // the label, the glyph and the agents all follow this one attribute
         btn.setAttribute('data-state', ok ? 'copied' : 'failed');
-        label.textContent = ok ? 'Copied. Paste it to your agent.' : 'Copy blocked. The prompt is below.';
         clearTimeout(t);
-        t = setTimeout(function () { btn.removeAttribute('data-state'); label.textContent = was; }, 2400);
+        t = setTimeout(function () { btn.removeAttribute('data-state'); }, 2400);
         // A blocked clipboard has to leave the visitor somewhere to go: the
-        // prompt itself, on the page, selectable.
-        if (!ok && fallback) { fallback.hidden = false; fallback.scrollIntoView({ block: 'nearest' }); }
+        // prompt itself, on the page, selectable. Its heading is written for
+        // the no-script reader, who meets it without having pressed anything.
+        if (!ok && fallback) {
+          fallback.querySelector('b').textContent = 'Your browser blocked the copy. Select this and copy it yourself.';
+          fallback.hidden = false;
+          fallback.scrollIntoView({ block: 'nearest' });
+        }
         say(ok ? 'Prompt copied. Paste it to your agent.' : 'Copy blocked. The prompt is on the page below the button.');
       }
       copyText(PROMPT, done);
