@@ -15,7 +15,9 @@ import https from 'node:https';
 import net from 'node:net';
 import tls from 'node:tls';
 import { readFileSync, statSync } from 'node:fs';
-import { brotliDecompressSync, gunzipSync, inflateRawSync, inflateSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { Transform, pipeline } from 'node:stream';
+import { brotliDecompressSync, gunzipSync, gzipSync, inflateRawSync, inflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { defaults, KEYS, SETTINGS, writeConfig } from './config.js';
@@ -106,7 +108,13 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     try { stamp = PARTS.map((p) => statSync(p).mtimeMs).join(':'); } catch {}
     if (bundle && stamp === bundleStamp) return bundle;
     bundleStamp = stamp;
-    bundle = PARTS.map((p) => readFileSync(p, 'utf8')).join('\n');
+    const text = PARTS.map((p) => readFileSync(p, 'utf8')).join('\n');
+    const body = Buffer.from(text);
+    bundle = {
+      body,
+      gz: gzipSync(body),
+      etag: 'W/"' + createHash('sha1').update(body).digest('base64url').slice(0, 20) + '"'
+    };
     return bundle;
   }
 
@@ -125,9 +133,23 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
   }
 
   async function api(req, res, path) {
+    /* Every page load and every hot reload asks for this again. It used to be
+       no-store, so the browser fetched and compiled all of it each time; now
+       it asks whether it changed, and the answer is nearly always a 304 that
+       lets it reuse the script it has, compiled code included. An edit still
+       lands on the next load, because the tag is the content's own. */
     if (path === 'overlay.js') {
-      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });
-      return res.end(overlayBundle());
+      const b = overlayBundle();
+      const headers = {
+        'content-type': 'text/javascript; charset=utf-8',
+        'cache-control': 'no-cache', etag: b.etag, vary: 'accept-encoding'
+      };
+      if (req.headers['if-none-match'] === b.etag) { res.writeHead(304, headers); return res.end(); }
+      const gz = /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
+      if (gz) headers['content-encoding'] = 'gzip';
+      headers['content-length'] = (gz ? b.gz : b.body).length;
+      res.writeHead(200, headers);
+      return res.end(gz ? b.gz : b.body);
     }
 
     if (path === 'events') {
@@ -368,10 +390,27 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     const up = transport.request(opts, (ur) => {
       const type = String(ur.headers['content-type'] || '');
       const encoding = String(ur.headers['content-encoding'] || '').trim().toLowerCase();
-      // Only HTML gets rewritten. Everything else is somebody else's bytes.
-      if (!type.includes('text/html')) {
-        res.writeHead(ur.statusCode || 502, ur.headers);
+      const status = ur.statusCode || 502;
+      // Only HTML gets rewritten, and only a response that has a body. A HEAD,
+      // a 204 or a 304 handed a script tag would be a body where none may be.
+      const bodyless = req.method === 'HEAD' || status === 204 || status === 304 || status < 200;
+      // Everything else is somebody else's bytes.
+      if (!type.includes('text/html') || bodyless) {
+        res.writeHead(status, ur.headers);
         return ur.pipe(res);
+      }
+      /* A dev server that streams its HTML — a framework flushing the shell
+         and then each part as it resolves — sends it without a length. Held
+         until the last byte, the reviewer saw nothing until the slowest part
+         of the page had rendered. It is passed through as it arrives instead,
+         with the tag let in on the way past. */
+      const streamed = (encoding === '' || encoding === 'identity') && ur.headers['content-length'] == null;
+      if (streamed) {
+        const headers = { ...ur.headers };
+        delete headers['transfer-encoding'];
+        delete headers['content-length'];
+        res.writeHead(status, headers);
+        return pipeline(ur, injector(), res, () => {});
       }
       const chunks = [];
       ur.on('data', (c) => chunks.push(c));
@@ -425,12 +464,45 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     return null;
   }
 
+  const TAG = `<script src="${API}overlay.js" defer></script>`;
   function inject(html) {
-    const tag = `<script src="${API}overlay.js" defer></script>`;
     if (html.includes(`${API}overlay.js`)) return html;
-    if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${tag}</head>`);
-    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${tag}</body>`);
-    return html + tag;
+    if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${TAG}</head>`);
+    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${TAG}</body>`);
+    return html + TAG;
+  }
+
+  /* inject(), for a page that is still arriving. Same places in the same
+     order: before </head>, or before </body> once the page is past its head
+     without one, or at the very end. Bytes are read as latin1, so every byte
+     is one character and none is changed by being looked at; the last few
+     are held back each time in case a tag is split across two chunks. */
+  const HOLD = '</head>'.length - 1;
+  function injector() {
+    let done = false, carry = '', inBody = false;
+    return new Transform({
+      transform(chunk, _enc, cb) {
+        if (done) return cb(null, chunk);
+        const text = carry + chunk.toString('latin1');
+        const lower = text.toLowerCase();
+        if (lower.includes(`${API}overlay.js`)) { done = true; carry = ''; return cb(null, Buffer.from(text, 'latin1')); }
+        let at = lower.indexOf('</head>');
+        if (at === -1) {
+          if (!inBody && /<body[\s>]/.test(lower)) inBody = true;
+          if (inBody) at = lower.indexOf('</body>');
+        }
+        if (at !== -1) {
+          done = true; carry = '';
+          return cb(null, Buffer.from(text.slice(0, at) + TAG + text.slice(at), 'latin1'));
+        }
+        const keep = Math.min(text.length, HOLD);
+        carry = text.slice(text.length - keep);
+        cb(null, Buffer.from(text.slice(0, text.length - keep), 'latin1'));
+      },
+      flush(cb) {
+        cb(null, done ? Buffer.from(carry, 'latin1') : Buffer.from(carry + TAG, 'latin1'));
+      }
+    });
   }
 
   const server = http.createServer((req, res) => {
