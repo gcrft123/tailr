@@ -31,6 +31,11 @@ CI also failed now and then with "Unable to deserialize cloned data". It was
 never a flake: the server's terminal lines reached the test runner's stdout,
 which node:test can misread as a result.
 
+Each GitHub Release was this file's section pasted in, every change keyed to
+its commit, which suits a contributor rather than someone deciding whether to
+update. Releases now carry notes of their own, written for the people using
+Tailr.
+
 The overlay also cost the page it sat on more than it had to. With marks on
 the page it re-placed every one of them on every frame, whether or not anything
 had moved, and interleaved reads with writes so each frame forced a style pass
@@ -61,6 +66,10 @@ the pointer and left a stray dot above the check.
 [83acabe] — The operating rules make ending on a reply a rule of its own.
 
 [83acabe] — The wake message Codex receives asks for the same reply.
+
+[247d012] — A GitHub Release takes its title and notes from `RELEASE-NOTES.md` instead of copying its section of this file.
+
+[247d012] — `npm version` refuses a release whose notes or title are missing, and stamps the notes with the version alongside the changelog.
 
 [2c5f173] — Marks, version pills and slider pills on the page scroll with the document instead of being re-placed by script, so they no longer trail their elements while the page scrolls.
 
