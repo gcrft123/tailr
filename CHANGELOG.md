@@ -13,6 +13,8 @@ go out either. See [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [1.4.3] — 2026-10-07
+
 Agents closed a run and went quiet. Under MCP, `done` sent them straight back
 into `tailr_wait`, which holds the turn open, so the account of what changed
 stayed in the agent's thinking or in a line written between tool calls. Clients

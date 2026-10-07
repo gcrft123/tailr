@@ -2,7 +2,9 @@
 
 What each Tailr release changes for the people using it, newest first. Each section is the body of the matching [GitHub Release](https://github.com/gcrft123/tailr/releases), and its heading is that release's title. Every change, including the ones you wouldn't notice, is in [CHANGELOG.md](CHANGELOG.md).
 
-## Unreleased: Your agent tells you what it changed after every batch, and the overlay keeps up with your app
+## Unreleased
+
+## v1.4.3: Your agent tells you what it changed after every batch, and the overlay keeps up with your app
 
 When an agent finished a batch, its account of what changed tended to vanish. Under MCP it went straight back to waiting, which keeps the turn open, so the summary ended up in its reasoning or in a note between tool calls. Apps like T3 Code fold both away and show only the message a turn ends on, so all you saw was "Still waiting for your next batch."
 
