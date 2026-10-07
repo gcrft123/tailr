@@ -162,7 +162,7 @@ export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/'
     /** Shift-click with the key down: a mark on a place rather than a thing. */
     point: (opts = {}) => mouse('click', doc.body, { shiftKey: true, ...opts }),
 
-    /** Click with the key down. The comment waits 260ms for a double-click. */
+    /** Click with the key down. On text the comment waits 260ms for a double-click. */
     async comment(sel) {
       mouse('click', sel);
       await delay(300);
