@@ -191,11 +191,30 @@ test('a comment nobody wrote is not a mark', needsDom, async (t) => {
   assert.equal(o.payload().marks.length, 0,
     'committing an empty comment discards it rather than staging a blank');
 
-  // Its number is spent rather than handed on: within a session a reference
-  // means one thing, and the agent is told 02 for a mark the reviewer is
-  // calling 02 even though 01 never survived.
+  // It was never a mark, so its number goes back: the reviewer's first real
+  // mark is 01, not 02 with nothing on the page that was ever 01.
   o.remove('#row-1');
-  assert.equal(o.payload().marks[0].ref, '02');
+  assert.equal(o.payload().marks[0].ref, '01');
+});
+
+/* A number that has gone out in a batch belongs to the agent from then on.
+   Handing it back would put a second mark under a reference the agent is
+   already working on. */
+test('a number the agent has been given is never handed out again', needsDom, async (t) => {
+  const o = await mountOverlay();
+  t.after(() => o.destroy());
+
+  o.remove('#row-1');
+  o.shadow().querySelector('[data-pill="batch"]').dispatchEvent(
+    new o.window.MouseEvent('click', { bubbles: true, cancelable: true, view: o.window }));
+  assert.equal(o.sent.length, 1, 'the batch carrying 01 went out');
+
+  // A note opened and left empty while that run is open.
+  await o.comment('#cta');
+  o.compose('');
+  o.remove('#row-2');
+  const refs = [...o.state.marks].map((m) => m.n);
+  assert.deepEqual(refs, [1, 3], 'the discarded 02 stays spent while a run is open');
 });
 
 test('the composer can ask for versions and a slider on the one mark', needsDom, async (t) => {
@@ -324,4 +343,75 @@ test('keeping none of the versions is a choice too', needsDom, async (t) => {
   assert.ok(m, 'discarding every version is a mark too — it is what removes the guards');
   assert.equal(m.variant, 0, 'variant 0 tells the agent to put the element back');
   assert.equal(m.label, null);
+});
+
+/* A double-click edits text in place, which is the only reason a click ever
+   waits. Where there is no text to edit, the note opens on the press. */
+test('a click on something with no text opens its note at once', needsDom, async (t) => {
+  const o = await mountOverlay();
+  t.after(() => o.destroy());
+
+  o.mouse('click', '#list', { detail: 1 });
+  assert.ok(o.shadow().querySelector('.composer'), 'open on the press, not a beat later');
+
+  // The second press of a double-click is the same request, not a new one.
+  o.mouse('click', '#list', { detail: 2 });
+  o.mouse('dblclick', '#list', { detail: 2 });
+  assert.equal(o.shadow().querySelectorAll('.composer').length, 1);
+  o.compose('Group these by month');
+
+  const marks = o.payload().marks;
+  assert.equal(marks.length, 1, 'one note for one double-click');
+  assert.equal(marks[0].ref, '01');
+  assert.equal(marks[0].selector, '#list');
+
+  // Text still waits, so a double-click on it can become an edit instead.
+  o.mouse('click', '#cta', { clientX: 40, clientY: 40 });
+  assert.equal(o.shadow().querySelector('.composer'), null, 'text waits to see if it is a double-click');
+  await delay(300);
+  assert.ok(o.shadow().querySelector('.composer'));
+});
+
+/* Windows and Linux repeat a held modifier. Counting the repeats as taps
+   latched the mode half a second into an ordinary hold, so letting go no
+   longer let go. */
+test('holding the key is a hold, however often the keyboard repeats it', needsDom, async (t) => {
+  const o = await mountOverlay();
+  t.after(() => o.destroy());
+  const key = (type, repeat) => o.document.dispatchEvent(new o.window.KeyboardEvent(type, {
+    key: 'Alt', altKey: type === 'keydown', repeat, bubbles: true, cancelable: true
+  }));
+
+  key('keydown', false);
+  key('keydown', true);
+  key('keydown', true);
+  assert.equal(o.state.armed, true, 'held is armed');
+  assert.equal(o.state.latched, false, 'repeats are not a second tap');
+  key('keyup', false);
+  assert.equal(o.state.armed, false, 'and letting go lets go');
+
+  // A real double-tap still latches.
+  key('keydown', false); key('keyup', false); key('keydown', false);
+  assert.equal(o.state.latched, true);
+});
+
+/* A press reports itself twice, as mouseup and then as click. The mouseup is
+   what opens the note, and opening it takes however long it takes, so the
+   click that follows is recognised as the same press rather than by how soon
+   it arrived. */
+test('one press is one note, however long opening the note took', needsDom, async (t) => {
+  const o = await mountOverlay();
+  t.after(() => o.destroy());
+  const realNow = o.window.Date.now.bind(o.window.Date);
+  let skew = 0;
+  o.window.Date.now = () => realNow() + skew;
+
+  o.mouse('mousedown', '#list');
+  o.mouse('mouseup', '#list');
+  assert.ok(o.shadow().querySelector('.composer'), 'the mouseup opened it');
+  skew = 120;                              // a slow page, or a slow machine
+  o.mouse('click', '#list');
+  assert.equal(o.state.marks.length, 1, 'the click did not replace it with a second');
+  o.compose('Group these by month');
+  assert.equal(o.payload().marks[0].ref, '01');
 });
