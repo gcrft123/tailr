@@ -48,6 +48,10 @@ move. On a 6,000-element test page with 40 marks, the overlay's idle cost fell
 from about 4% of the main thread to about 0.1%, and holding the key costs about
 a third of what it did.
 
+The landing page's copy button broke on phones: from 414px down, its label
+wrapped onto two lines inside the pill. A copy also shrank the button under
+the pointer and left a stray dot above the check.
+
 ### Changed
 
 [83acabe] — `done` and `fail` ask the agent to end its turn on a written reply saying what changed for each mark.
@@ -86,6 +90,14 @@ a third of what it did.
 
 [2c5f173] — A comment left empty, or a text edit that never changed the text, gives its number back, so the next mark takes it, unless a batch has gone out from the page.
 
+[c7f2d63] — The landing page's copy button keeps one width through a copy, and the result slides in where the label was.
+
+[c7f2d63] — A blocked copy turns the button's icon into an arrow pointing at the prompt revealed below it.
+
+[c7f2d63] — The agent logos in the copy button are larger, and nod once along the row when the prompt is copied.
+
+[c7f2d63] — With JavaScript off, the landing page shows the prompt in place of the copy button.
+
 ### Fixed
 
 [db6f8a4] — The Delete and Done bar on a reopened text edit stays below the text as it grows, and follows it through a scroll.
@@ -97,6 +109,12 @@ a third of what it did.
 [2c5f173] — Holding the modifier on Windows or Linux no longer latches marking on once the key starts repeating.
 
 [05df45c] — A HEAD request or a 304 for an HTML page is no longer handed a script tag as its body.
+
+[c7f2d63] — The landing page's copy button stays on one line on phones instead of wrapping inside the pill.
+
+[c7f2d63] — The check after a copy no longer has a stray dot above it.
+
+[c7f2d63] — The copy button's hover no longer sticks on touch screens after a tap.
 
 ## [1.4.2] — 2026-09-23
 
