@@ -253,9 +253,14 @@
      other, because in the source — where the agent works — it is one. What it
      has lost is somewhere on screen to pin a badge to. */
   function reconcile() {
+    // A tab nobody is looking at has nothing on screen to judge.
+    if (document.hidden) return;
     // With nothing moving no frame runs, and the island is still on screen
     // when the page changes its own zoom.
     unzoom();
+    // The tracking loop sleeps when nothing moves, and a few things can move
+    // an element without saying so. One look here catches them.
+    nudge();
     var changed = false;
     var settling = document.readyState === 'loading' || Date.now() - enteredAt < SETTLE_MS;
     S.marks.forEach(function (m) {
@@ -390,6 +395,19 @@
     return reactSource(el);
   }
 
+  /* Resolving an address can walk a framework's whole fiber chain, and the
+     hover outline asks for one every time the pointer crosses into a new
+     element. Where an element came from does not change under it, so it is
+     worked out once per element. */
+  var addrCache = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function addressOf(el) {
+    var a = addrCache && addrCache.get(el);
+    if (a) return a;
+    a = sourceAddress(el) || describe(el);
+    if (addrCache) addrCache.set(el, a);
+    return a;
+  }
+
   /* "src/components/Cart.vue:12:3" → "Cart.vue:12". A column is more precision
      than a source address can carry, and it reads as noise in the batch. */
   function fileLine(raw) {
@@ -431,15 +449,30 @@
   /* ── shadow root + styles ──────────────────────────────── */
   var host = document.createElement('div');
   host.setAttribute('data-tailr', '');
-  /* These undo the UA stylesheet for a popover. The attribute itself is added
-     only while a modal is open — a popover that is not showing is display:none,
-     and one that is showing on an ordinary page sits in the top layer, where
-     Chromium can swallow the click that would have made the first mark. */
-  host.style.cssText = 'position:fixed;inset:0;margin:0;padding:0;border:none;width:auto;height:auto;' +
-    'background:transparent;overflow:visible;pointer-events:none;z-index:2147483647';
+  /* The host sits at the document's origin rather than over the viewport, so
+     the marks inside it ride the page's own scroll. The browser scrolls a page
+     off the main thread; anything placed by script over a fixed layer catches
+     up a frame later at best, and on a busy dev build visibly swims behind
+     what it marks. Everything that belongs to the viewport — the island, the
+     composer — is position:fixed inside it, which an untransformed host does
+     not capture.
+
+     It is a viewport wide and no height. Clipping the width keeps a mark on
+     something scrolled sideways out of a carousel from widening the page;
+     nothing Tailr draws may give the host a scrollbar it did not have.
+
+     These also undo the UA stylesheet for a popover. The attribute itself is
+     added only while a modal is open — a popover that is not showing is
+     display:none, and one that is showing on an ordinary page sits in the top
+     layer, where Chromium can swallow the click that would have made the first
+     mark. */
+  host.style.cssText = 'position:absolute;top:0;left:0;right:auto;bottom:auto;margin:0;padding:0;' +
+    'border:none;width:100%;height:0;background:transparent;overflow-x:clip;overflow-y:visible;' +
+    'overflow-anchor:none;pointer-events:none;z-index:2147483647';
   var root = host.attachShadow({ mode: 'open' });
-  root.innerHTML = '<style>' + CSS_TEXT() + '</style><div class="layer"></div><div class="island" part="island"></div>';
-  var layer, island;
+  root.innerHTML = '<style>' + CSS_TEXT() + '</style><div class="doc"></div><div class="layer"></div>' +
+    '<div class="island" part="island"></div>';
+  var layer, docLayer, island;
 
   /* A page that zooms itself with CSS `zoom` on <html> (or on the dialog the
      host is parked in) zooms the host too, by inheritance. The page's rects
@@ -462,63 +495,15 @@
     document.documentElement.appendChild(host);
     unzoom();
     layer = root.querySelector('.layer');
+    docLayer = root.querySelector('.doc');
     island = root.querySelector('.island');
-    // hovering a version shows it on the page, so the comparison is between the
-    // real things rather than between two words about them
-    layer.addEventListener('pointerover', function (e) {
-      var t = e.target.closest && e.target.closest('.vtab');
-      if (!t) return;
-      var id = t.getAttribute('data-set');
-      if (!setFor(id)) return;
-      clearTimeout(vLeaveT);
-      // Every other set goes back to its own choice, so crossing straight from
-      // one pill to another cannot leave the first one previewing.
-      var i = Number(t.getAttribute('data-i'));
-      S.sets.forEach(function (s) { showVariant(s, s.id === id ? i : 0); });
-      renderSets();
+    // A mark lives in whichever layer moves the way its element does, so both
+    // answer the same gestures.
+    [layer, docLayer].forEach(function (l) {
+      l.addEventListener('pointerover', onLayerOver);
+      l.addEventListener('pointerout', onLayerOut);
+      l.addEventListener('click', onLayerClick, true);
     });
-    /* A tab that grows under the pointer hands back a leave and an enter while
-       the pointer has not moved. Reverting on the leave itself made the page
-       flicker between versions, so the revert waits to be contradicted. */
-    layer.addEventListener('pointerout', function (e) {
-      if (!(e.target.closest && e.target.closest('.vtab'))) return;
-      clearTimeout(vLeaveT);
-      vLeaveT = setTimeout(function () {
-        S.sets.forEach(function (s) { showVariant(s); });
-        renderSets();
-      }, 140);
-    });
-    // clicking a reference number reopens that mark for editing or deletion
-    layer.addEventListener('click', function (e) {
-      var tab = e.target.closest && e.target.closest('.vtab');
-      if (tab) {
-        e.preventDefault(); e.stopPropagation();
-        return choose(tab.getAttribute('data-set'), Number(tab.getAttribute('data-i')));
-      }
-      var slideAct = e.target.closest && e.target.closest(
-        '[data-act="keep-slide"], [data-act="drop-slide"], [data-act="reset-slide"], [data-act="open-slide"]');
-      if (slideAct) {
-        e.preventDefault(); e.stopPropagation();
-        var sid = slideAct.getAttribute('data-slide');
-        var act = slideAct.getAttribute('data-act');
-        if (act === 'drop-slide') return keepSlide(sid, null);
-        if (act === 'reset-slide') return resetSlide(sid);
-        if (act === 'open-slide') return openSlide(sid);
-        var sl = slideFor(sid);
-        return keepSlide(sid, sl ? sl.showing : null);
-      }
-      var b = e.target.closest && e.target.closest('[data-mark]');
-      if (!b) return;
-      e.preventDefault(); e.stopPropagation();
-      var m = S.marks.find(function (x) { return x.id === b.getAttribute('data-mark'); });
-      if (!m || m.status === 'served') return;
-      // A text mark has no comment to reopen — the edit is the text itself.
-      if (m.type === 'text') {
-        if (m.el && m.el.isConnected) editText(m.el, m);
-        return;
-      }
-      openComposer(m, markRect(m), true);
-    }, true);
     // Usually the settings have already landed and opened it, and this does
     // nothing. The wait is for the run where they are slow, and for the demo,
     // where there is no stream to carry them.
@@ -526,9 +511,67 @@
     renderIsland();
     renderMarks();
     watchRoute();
+    watchLayout();
     reconcileTimer = setInterval(reconcile, 700);
     park();
     wake();
+  }
+
+  // hovering a version shows it on the page, so the comparison is between the
+  // real things rather than between two words about them
+  function onLayerOver(e) {
+    var t = e.target.closest && e.target.closest('.vtab');
+    if (!t) return;
+    var id = t.getAttribute('data-set');
+    if (!setFor(id)) return;
+    clearTimeout(vLeaveT);
+    // Every other set goes back to its own choice, so crossing straight from
+    // one pill to another cannot leave the first one previewing.
+    var i = Number(t.getAttribute('data-i'));
+    S.sets.forEach(function (s) { showVariant(s, s.id === id ? i : 0); });
+    renderSets();
+  }
+  /* A tab that grows under the pointer hands back a leave and an enter while
+     the pointer has not moved. Reverting on the leave itself made the page
+     flicker between versions, so the revert waits to be contradicted. */
+  function onLayerOut(e) {
+    if (!(e.target.closest && e.target.closest('.vtab'))) return;
+    clearTimeout(vLeaveT);
+    vLeaveT = setTimeout(function () {
+      S.sets.forEach(function (s) { showVariant(s); });
+      renderSets();
+    }, 140);
+  }
+  // clicking a reference number reopens that mark for editing or deletion
+  function onLayerClick(e) {
+    var tab = e.target.closest && e.target.closest('.vtab');
+    if (tab) {
+      e.preventDefault(); e.stopPropagation();
+      return choose(tab.getAttribute('data-set'), Number(tab.getAttribute('data-i')));
+    }
+    var slideAct = e.target.closest && e.target.closest(
+      '[data-act="keep-slide"], [data-act="drop-slide"], [data-act="reset-slide"], [data-act="open-slide"]');
+    if (slideAct) {
+      e.preventDefault(); e.stopPropagation();
+      var sid = slideAct.getAttribute('data-slide');
+      var act = slideAct.getAttribute('data-act');
+      if (act === 'drop-slide') return keepSlide(sid, null);
+      if (act === 'reset-slide') return resetSlide(sid);
+      if (act === 'open-slide') return openSlide(sid);
+      var sl = slideFor(sid);
+      return keepSlide(sid, sl ? sl.showing : null);
+    }
+    var b = e.target.closest && e.target.closest('[data-mark]');
+    if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    var m = S.marks.find(function (x) { return x.id === b.getAttribute('data-mark'); });
+    if (!m || m.status === 'served') return;
+    // A text mark has no comment to reopen — the edit is the text itself.
+    if (m.type === 'text') {
+      if (m.el && m.el.isConnected) editText(m.el, m);
+      return;
+    }
+    openComposer(m, markRect(m), true);
   }
 
   /* ── marks ─────────────────────────────────────────────── */
@@ -540,7 +583,7 @@
       route: routeKey(),
       el: el || null,
       selector: el ? selectorFor(el) : null,
-      address: el ? (sourceAddress(el) || describe(el)) : routeKey(),
+      address: el ? addressOf(el) : routeKey(),
       snippet: el ? snippetOf(el) : '',
       tag: el ? el.tagName : null,
       comment: '',
@@ -551,6 +594,15 @@
     cue('tick');
     save(); renderMarks(); renderIsland();
     return m;
+  }
+  /* A mark that was never made — a note opened and left empty, an edit that
+     never changed the text — gives its number back, so the next mark the
+     reviewer does make is not numbered past one they never saw land. Only
+     while nothing has gone from this page: a number a batch has carried is
+     the agent's to refer to, and must not come back as a different mark. */
+  function discard(m, quiet) {
+    if (m.n === S.seq - 1 && !S.agent && !S.locked) S.seq--;
+    removeMark(m.id, quiet);
   }
   /* `quiet` is for the bookkeeping removal only — the choice mark that goes
      with a version or a slider when the reviewer settles one. That moment has
@@ -855,32 +907,41 @@
       // disappearance, and it holds its place until reconcile rules either way.
       if (!isPoint(m) && !(m.el && m.el.isConnected) && !nodes[m.id]) return;
       seen[m.id] = 1;
-      var n = nodes[m.id];
-      if (!n) {
+      var n = nodes[m.id], fresh = !n;
+      if (fresh) {
         n = document.createElement('div');
         n.className = 'mark';
         n.innerHTML = '<div class="ring"></div><div class="pt"></div>' +
                       '<div class="badge" data-mark="' + m.id + '"></div>';
-        layer.appendChild(n);
+        n.__badge = n.querySelector('.badge');
+        layerFor(m).appendChild(n);
         nodes[m.id] = n;
+        // Added to the transform that puts the node on its element rather
+        // than replacing it, which put every new mark in the corner of the
+        // page for the length of its landing.
         if (!reduced) n.animate(
           [{ transform: 'scale(.94)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
-          { duration: 180, easing: EASE });
+          { duration: 180, easing: EASE, composite: 'add' });
       }
-      n.className = 'mark t-' + m.type + (m.status === 'served' ? ' served' : '') +
+      var cls = 'mark t-' + m.type + (m.status === 'served' ? ' served' : '') +
         (isPoint(m) ? ' point' : '') +
         // the reference number is redundant while its own composer or inline
         // editor is open, where the number is already in the chrome
         (composer && composer.mark.id === m.id ? ' composing' : '') +
         (textEdit && textEdit.mark.id === m.id ? ' composing' : '');
-      n.querySelector('.badge').textContent = pad(m.n);
-      position(n, m);
+      if (n.className !== cls) n.className = cls;
+      var num = pad(m.n);
+      if (n.__badge.textContent !== num) n.__badge.textContent = num;
+      // A new mark is placed before it is painted. One already on the page is
+      // the loop's, which places every mark in one pass of reads then writes.
+      if (fresh) position(n, m);
     });
     Object.keys(nodes).forEach(function (id) {
       if (!seen[id]) { nodes[id].remove(); delete nodes[id]; }
     });
     renderSets();
     renderSlides();
+    observeLayout();
   }
 
   /* The chooser sits on the element it belongs to, because the whole point is
@@ -896,12 +957,12 @@
         n = document.createElement('div');
         n.className = 'vset';
         n.innerHTML = '<div class="ring"></div><div class="pt"></div><div class="vpill"></div>';
-        layer.appendChild(n);
+        layerFor(s).appendChild(n);
         vnodes[s.id] = n;
         n.__pill = n.querySelector('.vpill');
         if (!reduced) n.animate(
           [{ transform: 'scale(.94)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
-          { duration: 200, easing: EASE });
+          { duration: 200, easing: EASE, composite: 'add' });
       }
       // Rewriting the pill under the pointer would tear out the tab being
       // hovered, so which version is lit is a class toggle, never a rebuild.
@@ -938,12 +999,12 @@
         n = document.createElement('div');
         n.className = 'slide';
         n.innerHTML = '<div class="ring"></div><div class="pt"></div><div class="spill"></div>';
-        layer.appendChild(n);
+        layerFor(s).appendChild(n);
         snodes[s.id] = n;
         n.__pill = n.querySelector('.spill');
         if (!reduced) n.animate(
           [{ transform: 'scale(.94)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
-          { duration: 200, easing: EASE });
+          { duration: 200, easing: EASE, composite: 'add' });
         bindSlidePill(n, s);
       }
       /* Only the range the agent reported is structural. Every state the
@@ -1013,11 +1074,19 @@
     n.addEventListener('input', function (e) {
       var t = e.target;
       if (!t || (!t.classList.contains('slide-range') && !t.classList.contains('slide-num'))) return;
-      var cur = n.__slide || s;
       var v = Number(t.value);
       if (!isFinite(v)) return;
-      showSlide(cur, v);
-      syncSlideInputs(n, cur, v);
+      /* A range reports every pixel the thumb crosses, several to a frame, and
+         each value rewrites an attribute on <html> that restyles the page
+         under it. Only the last one a frame is ever seen, so only it is shown. */
+      n.__want = v;
+      if (n.__frame) return;
+      n.__frame = requestAnimationFrame(function () {
+        n.__frame = 0;
+        var cur = n.__slide || s;
+        showSlide(cur, n.__want);
+        syncSlideInputs(n, cur, n.__want);
+      });
     });
     n.addEventListener('change', function (e) {
       var t = e.target;
@@ -1120,28 +1189,99 @@
     return (m.el && m.el.isConnected) ? m.el.getBoundingClientRect() : centerRect();
   }
 
-  function position(n, m) {
-    var hl, ht, hw = 0, hh = 0;
-    if (isPoint(m)) {
-      var p = spotRect(m);
-      hl = p.left; ht = p.top;
-      n.style.width = n.style.height = '0px';
-    } else {
-      if (!m.el || !m.el.isConnected) return;
-      var r = m.el.getBoundingClientRect();
-      hl = r.left; ht = r.top; hw = r.width; hh = r.height;
-      n.style.width = hw + 'px';
-      n.style.height = hh + 'px';
+  /* ── following elements ────────────────────────────────────
+     A mark has to stay on its element through scrolling, reflow, re-renders
+     and zoom, inside somebody else's application, so the work is arranged
+     around doing as little of it as possible.
+
+     A mark on the page itself lives in the document layer and scrolls with
+     the page for free: the browser moves it in the same frame as the content,
+     with no script involved, however busy the app keeps the main thread. Only
+     an element that holds still while the page scrolls under it — inside
+     something fixed or sticky — is drawn over the viewport instead, because
+     the page's own scroll would carry its mark away from it.
+
+     Placing is every read first, then every write, and only the writes that
+     change something. Interleaving them forced a layout per mark per frame.
+     And nothing runs on a frame where nothing moved: the loop wakes on what
+     can move an element, and sleeps once nothing has. */
+  var ZERO = { left: 0, top: 0 };
+  var pinCache = typeof WeakMap === 'function' ? new WeakMap() : null;
+  var rtl = null;
+  function pinned(el) {
+    /* A right-to-left page grows leftward, past the edge the host's clipped
+       width can draw to, so everything on one stays over the viewport. */
+    if (rtl === null) {
+      try { rtl = getComputedStyle(document.documentElement).direction === 'rtl'; } catch (e) { rtl = false; }
     }
-    n.style.transform = 'translate(' + hl + 'px,' + ht + 'px)';
-    if (n.__pill) fitPill(n, hl, ht, hw, hh);
+    if (rtl) return true;
+    if (!el || el.nodeType !== 1) return false;
+    var known = pinCache && pinCache.get(el);
+    if (known !== undefined) return known;
+    var out = false, n = el;
+    try {
+      while (n && n.nodeType === 1) {
+        var pos = getComputedStyle(n).position;
+        if (pos === 'fixed' || pos === 'sticky') { out = true; break; }
+        var r = n.getRootNode && n.getRootNode();
+        n = n.parentElement || (r && r.host) || null;
+      }
+    } catch (e) {}
+    if (pinCache) pinCache.set(el, out);
+    return out;
+  }
+  /* The element a mark is held by: its own, or for a spot the one it was
+     dropped on. A spot held by nothing is a place on the page. */
+  function anchorEl(o) {
+    if (isPoint(o)) return (o.spot && o.anchor && o.anchor.isConnected) ? o.anchor : null;
+    return o.el;
+  }
+  function layerFor(o) { return pinned(anchorEl(o)) ? layer : docLayer; }
+  /* Where an object is this frame, in viewport pixels, or null when there is
+     nothing on screen to hold it. */
+  function rectOf(o) {
+    if (isPoint(o)) return spotRect(o);
+    return (o.el && o.el.isConnected) ? o.el.getBoundingClientRect() : null;
+  }
+  function px(v) { return Math.round(v * 100) / 100; }
+
+  /** Write one node's place. `origin` is where the document layer is on
+      screen, read in the same pass. Returns whether anything moved. */
+  function put(n, o, r, origin, want) {
+    if (n.parentNode !== want) want.appendChild(n);
+    var off = want === docLayer ? origin : ZERO;
+    var point = isPoint(o);
+    var x = px(r.left - off.left), y = px(r.top - off.top);
+    var w = point ? 0 : px(r.width), h = point ? 0 : px(r.height);
+    var moved = false;
+    if (n.__x !== x || n.__y !== y) {
+      n.__x = x; n.__y = y;
+      n.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+      moved = true;
+    }
+    if (n.__w !== w || n.__h !== h) {
+      n.__w = w; n.__h = h;
+      n.style.width = w + 'px'; n.style.height = h + 'px';
+      moved = true;
+    }
+    if (n.__pill && fitPill(n, r.left, r.top, w, h)) moved = true;
+    return moved;
+  }
+  /* One node, now — for a render that has just created or changed it. */
+  function position(n, o) {
+    var r = rectOf(o);
+    if (!r) return;
+    var want = layerFor(o);
+    put(n, o, r, want === docLayer ? docLayer.getBoundingClientRect() : ZERO, want);
   }
 
   /* A pill sits clear above its element; against a viewport edge it flips below
      or slides along, the way the composer does. Its shape is measured once and
      then only arithmetic: measuring every frame costs a forced layout in
      someone else's page, and it would feed the version pill's hover growth back
-     into its own position — the exact loop the width rule exists to prevent. */
+     into its own position — the exact loop the width rule exists to prevent.
+     The edges are the viewport's, so this takes the element's place on screen
+     whichever layer its node is in. */
   var EDGE = 8, GAP = 8;
   function unfit(n) { n.__box = null; n.__l = n.__t = null; }
   function fitPill(n, hl, ht, hw, hh) {
@@ -1157,10 +1297,10 @@
       // the preferred offsets are never painted.
       pill.style.left = ''; pill.style.top = '';
       var w = pill.offsetWidth, h = pill.offsetHeight;
-      if (!w || !h) return;
+      if (!w || !h) return false;
       box = n.__box = { left: pill.offsetLeft, top: pill.offsetTop, w: w, h: h };
     }
-    var left = box.left, top = box.top;
+    var left = box.left, top = box.top, moved = false;
     if (hl + left + box.w > innerWidth - EDGE) left = innerWidth - EDGE - box.w - hl;
     if (hl + left < EDGE) left = EDGE - hl;
     if (ht + top < EDGE) {
@@ -1169,42 +1309,112 @@
     } else if (ht + top + box.h > innerHeight - EDGE) {
       top = Math.max(EDGE - ht, innerHeight - EDGE - box.h - ht);
     }
-    if (n.__l !== left) { n.__l = left; pill.style.left = left + 'px'; }
-    if (n.__t !== top) { n.__t = top; pill.style.top = top + 'px'; }
+    if (n.__l !== left) { n.__l = left; pill.style.left = left + 'px'; moved = true; }
+    if (n.__t !== top) { n.__t = top; pill.style.top = top + 'px'; moved = true; }
+    return moved;
   }
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
-  /* This runs inside somebody else's application, so it must not hold a frame
-     open when there is nothing to draw. */
-  var raf = null;
-  function tick() {
-    unzoom();
-    var live = false;
-    for (var i = 0; i < S.marks.length; i++) {
-      var n = nodes[S.marks[i].id];
-      if (n) { position(n, S.marks[i]); live = true; }
+  /** Every read, then every write. Returns whether anything moved. */
+  function trackAll(now) {
+    var origin = docLayer.getBoundingClientRect();
+    var jobs = [], i, o, n, r;
+    for (i = 0; i < S.marks.length; i++) {
+      o = S.marks[i]; n = nodes[o.id];
+      if (n && (r = rectOf(o))) jobs.push(n, o, r, layerFor(o));
     }
-    for (var j = 0; j < S.sets.length; j++) {
-      var v = vnodes[S.sets[j].id];
-      if (v) { position(v, S.sets[j]); live = true; }
+    for (i = 0; i < S.sets.length; i++) {
+      o = S.sets[i]; n = vnodes[o.id];
+      if (n && (r = rectOf(o))) jobs.push(n, o, r, layerFor(o));
     }
-    for (var k = 0; k < S.slides.length; k++) {
-      var sn = snodes[S.slides[k].id];
-      if (sn) { position(sn, S.slides[k]); live = true; }
+    for (i = 0; i < S.slides.length; i++) {
+      o = S.slides[i]; n = snodes[o.id];
+      if (n && (r = rectOf(o))) jobs.push(n, o, r, layerFor(o));
     }
-    if (S.armed && seenPointer && (PX !== aimedX || PY !== aimedY)) aim(PX, PY);
-    if (S.armed && S.hover) { drawHover(S.hover); live = true; }
-    if (composer) live = true;
+    var hover = S.armed && S.hover && S.hover.isConnected ? S.hover : null;
+    var hr = hover ? hover.getBoundingClientRect() : null;
+    var hl = hover ? (pinned(hover) ? layer : docLayer) : null;
     // The element under a reopened text edit grows as the reviewer types, and
     // a bar placed once under its first line ends up on top of the new ones.
-    if (textEdit && textEdit.bar && textEdit.el.isConnected) {
-      placeTextBar(textEdit.bar, textEdit.el.getBoundingClientRect());
-      live = true;
+    var te = textEdit && textEdit.bar && textEdit.el.isConnected ? textEdit : null;
+    var tr = te ? te.el.getBoundingClientRect() : null;
+
+    var moved = false;
+    for (i = 0; i < jobs.length; i += 4) {
+      if (put(jobs[i], jobs[i + 1], jobs[i + 2], origin, jobs[i + 3])) moved = true;
     }
-    if (!live) { raf = null; return; }
-    raf = requestAnimationFrame(tick);
+    if (hr && drawHover(hover, hr, origin, hl, now)) moved = true;
+    if (tr && placeTextBar(te.bar, tr)) moved = true;
+    return moved;
   }
-  function wake() { if (raf === null) raf = requestAnimationFrame(tick); }
+  function tracking() {
+    if (S.armed || textEdit) return true;
+    for (var a in nodes) return true;
+    for (var b in vnodes) return true;
+    for (var c in snodes) return true;
+    return false;
+  }
+
+  /* This runs inside somebody else's application, so it must not hold a frame
+     open when there is nothing to draw — and with marks on the page, nothing
+     to draw is most frames. A few still frames in a row put it to sleep. */
+  var raf = null, quiet = 0, QUIET = 8;
+  function tick(now) {
+    raf = null;
+    if (typeof now !== 'number') now = performance.now();
+    unzoom();
+    if (S.armed && seenPointer && (PX !== aimedX || PY !== aimedY)) aim(PX, PY);
+    if (!tracking()) return;
+    quiet = trackAll(now) ? 0 : quiet + 1;
+    if (quiet < QUIET) raf = requestAnimationFrame(tick);
+  }
+  function wake() { quiet = 0; if (raf === null) raf = requestAnimationFrame(tick); }
+  /* One look rather than a watch: if something has moved, the loop stays up. */
+  function nudge() { if (raf === null && tracking()) { quiet = QUIET - 1; raf = requestAnimationFrame(tick); } }
+
+  /* What can move an element without anything here hearing about it: the page
+     scrolling (any scroller), a transition or animation, an image or a font
+     arriving, and the application changing its own DOM. Each of these only
+     wakes the loop; the loop finds out what, if anything, moved. Anything that
+     slips past all of them is caught by reconcile, a moment later. */
+  var LAYOUT_EVENTS = ['scroll', 'transitionrun', 'transitionstart', 'transitionend', 'transitioncancel',
+    'animationstart', 'animationiteration', 'animationend', 'load', 'pointerup', 'keyup'];
+  var layoutObs = null, observing = false;
+  function onLayoutEvent() {
+    if (!tracking()) return;
+    // What is under a pointer that has not moved changes as the page moves.
+    if (S.armed) aimedX = NaN;
+    wake();
+  }
+  function watchLayout() {
+    LAYOUT_EVENTS.forEach(function (t) {
+      document.addEventListener(t, onLayoutEvent, { capture: true, passive: true });
+    });
+    try { if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', unfitAll); } catch (e) {}
+    observeLayout();
+  }
+  function unwatchLayout() {
+    LAYOUT_EVENTS.forEach(function (t) {
+      document.removeEventListener(t, onLayoutEvent, { capture: true, passive: true });
+    });
+    try { if (document.fonts && document.fonts.removeEventListener) document.fonts.removeEventListener('loadingdone', unfitAll); } catch (e) {}
+    if (layoutObs) layoutObs.disconnect();
+    layoutObs = null; observing = false;
+  }
+  /* The application's DOM is only watched while there is something on it to
+     follow. A page with nothing marked pays nothing for it. */
+  function observeLayout() {
+    if (typeof MutationObserver !== 'function' || !docLayer) return;
+    var want = tracking();
+    if (want === observing) return;
+    if (!layoutObs) layoutObs = new MutationObserver(onLayoutEvent);
+    if (want) {
+      layoutObs.observe(document.documentElement,
+        { subtree: true, childList: true, attributes: true, characterData: true });
+    } else layoutObs.disconnect();
+    observing = want;
+  }
+
   /* A measured shape is only as good as the layout it was measured in. The
      viewport resizing changes the room the pill has; the page finishing its
      load, or a webfont arriving, changes the pill itself — and Tailr mounts
@@ -1225,17 +1435,95 @@
   try { if (document.fonts) document.fonts.ready.then(unfitAll); } catch (e) {}
 
   /* ── hover inspector ───────────────────────────────────── */
+  /* The outline is drawn in pieces that never change size: four rounded
+     corners, and four one-pixel strips stretched to length by a transform.
+     Resizing a drawn outline repaints, and Chrome answers a repaint anywhere
+     by walking the whole page's paint — about 2ms a frame on a few thousand
+     elements, more on a real app, for as long as the pointer moves. Moved and
+     stretched instead, it is the compositor's work alone, and it paints only
+     when the key goes down. */
   var hoverEl = document.createElement('div');
   hoverEl.className = 'hover';
-  hoverEl.innerHTML = '<div class="ring"></div><div class="addr"></div>';
-  function drawHover(el) {
-    if (!el.isConnected) return;
-    var r = el.getBoundingClientRect();
-    hoverEl.style.transform = 'translate(' + r.left + 'px,' + r.top + 'px)';
-    hoverEl.style.width = r.width + 'px';
-    hoverEl.style.height = r.height + 'px';
-    hoverEl.querySelector('.addr').textContent = sourceAddress(el) || describe(el);
+  hoverEl.innerHTML =
+    '<i class="hc tl"><b></b></i><i class="hc tr"><b></b></i>' +
+    '<i class="hc bl"><b></b></i><i class="hc br"><b></b></i>' +
+    '<i class="he t"></i><i class="he b"></i><i class="he l"></i><i class="he r"></i>' +
+    '<div class="addr"></div>';
+  var addrEl = hoverEl.querySelector('.addr');
+  var ringEls = ['.hc.tl', '.hc.tr', '.hc.bl', '.hc.br', '.he.t', '.he.b', '.he.l', '.he.r']
+    .map(function (q) { return hoverEl.querySelector(q); });
+  var RING_R = 3;   // rounded.ring
+  function snap(v) { var d = window.devicePixelRatio || 1; return Math.round(v * d) / d; }
+  function setT(el, t) { if (el.__t !== t) { el.__t = t; el.style.transform = t; return true; } return false; }
+  /** The outline around a box, in its layer's pixels. Returns whether it moved. */
+  function ring(x, y, w, h) {
+    // The halo pair, normal or pressed: ink then halo, outward from the edge.
+    var T = hoverEl.classList.contains('press') ? 3.5 : 2, R = RING_R;
+    x = snap(x); y = snap(y); w = snap(w); h = snap(h);
+    var sw = Math.max(0, w - 2 * R), sh = Math.max(0, h - 2 * R);
+    var e = ringEls, moved = false;
+    if (setT(e[0], 'translate(' + (x - T) + 'px,' + (y - T) + 'px)')) moved = true;
+    if (setT(e[1], 'translate(' + (x + w - R) + 'px,' + (y - T) + 'px)')) moved = true;
+    if (setT(e[2], 'translate(' + (x - T) + 'px,' + (y + h - R) + 'px)')) moved = true;
+    if (setT(e[3], 'translate(' + (x + w - R) + 'px,' + (y + h - R) + 'px)')) moved = true;
+    if (setT(e[4], 'translate(' + (x + R) + 'px,' + (y - T) + 'px) scale(' + sw + ',1)')) moved = true;
+    if (setT(e[5], 'translate(' + (x + R) + 'px,' + (y + h) + 'px) scale(' + sw + ',1)')) moved = true;
+    if (setT(e[6], 'translate(' + (x - T) + 'px,' + (y + R) + 'px) scale(1,' + sh + ')')) moved = true;
+    if (setT(e[7], 'translate(' + (x + w) + 'px,' + (y + R) + 'px) scale(1,' + sh + ')')) moved = true;
+    if (setT(addrEl, 'translate(' + x + 'px,' + (y - 19) + 'px)')) moved = true;
+    return moved;
   }
+  /* The outline glides from the element it was on to the one under the
+     pointer instead of jumping there, so the eye follows it to the next box
+     rather than finding it again. Short and front-loaded, so it never trails a
+     pointer that has stopped. It travels in viewport pixels, which lets it
+     cross from the page into a fixed header without a seam. */
+  var GLIDE = 110;
+  /* The address is read once the pointer rests, not while it travels, so it
+     steps aside on the way and comes back with the new one on arrival. New
+     text is the one thing in the outline that repaints, and repainting on
+     every element crossed was most of what holding the key still cost. */
+  var SETTLE = 70;
+  var hov = { el: null, from: null, t0: 0, cur: null, addrAt: 0 };
+  function resetHover() { hov.el = null; hov.from = null; hov.cur = null; hov.addrAt = 0; }
+  function drawHover(el, r, origin, want, now) {
+    if (hov.el !== el) {
+      var first = !(hov.cur && hoverEl.isConnected);
+      hov.from = (!first && !reduced) ? hov.cur : null;
+      hov.t0 = now; hov.el = el;
+      if (first) { setAddr(addressOf(el)); hov.addrAt = 0; }
+      else {
+        if (!addrEl.classList.contains('stale')) addrEl.classList.add('stale');
+        hov.addrAt = now + SETTLE;
+      }
+    }
+    var settling = false;
+    if (hov.addrAt) {
+      if (now >= hov.addrAt) {
+        hov.addrAt = 0;
+        setAddr(addressOf(el));
+        addrEl.classList.remove('stale');
+      } else settling = true;
+    }
+    var x = r.left, y = r.top, w = r.width, h = r.height, gliding = false;
+    if (hov.from) {
+      var p = (now - hov.t0) / GLIDE;
+      if (p < 1) {
+        var k = 1 - Math.pow(1 - Math.max(0, p), 3);
+        x = hov.from.l + (x - hov.from.l) * k;
+        y = hov.from.t + (y - hov.from.t) * k;
+        w = hov.from.w + (w - hov.from.w) * k;
+        h = hov.from.h + (h - hov.from.h) * k;
+        gliding = true;
+      } else hov.from = null;
+    }
+    hov.cur = { l: x, t: y, w: w, h: h };
+    if (hoverEl.parentNode !== want) want.appendChild(hoverEl);
+    var off = want === docLayer ? origin : ZERO;
+    var moved = ring(x - off.left, y - off.top, w, h);
+    return gliding || settling || moved;
+  }
+  function setAddr(a) { if (addrEl.textContent !== a) addrEl.textContent = a; }
   var ghostEl = document.createElement('div');
   ghostEl.className = 'pindot';
 
@@ -1377,15 +1665,23 @@
     if (on && S.cfg.tutorial) S.teach = true;
     else if (!on && !S.expanded) S.teach = false;
     if (on) {
+      // Placed by the next frame, in whichever layer its element needs, and
+      // never from wherever it was the last time the key went down.
+      resetHover();
       wake();
-      layer.appendChild(hoverEl);
       document.documentElement.setAttribute('data-tailr-armed', '');
     } else {
       hoverEl.remove(); hideGhost();
+      hoverEl.classList.remove('press');
+      // Redrawn from scratch next time; the cached transforms belong to a
+      // ring that is no longer on the page.
+      ringEls.concat(addrEl).forEach(function (el) { el.__t = null; });
+      resetHover();
       S.hover = null;
       document.documentElement.removeAttribute('data-tailr-armed');
     }
     renderIsland();
+    observeLayout();
   }
 
   function isOurs(el) { return !el || el === host || host.contains(el) || el.closest && el.closest('[data-tailr]'); }
@@ -1407,6 +1703,7 @@
     '<circle cx="8.5" cy="7" r="1.1" fill="#0B0B0C"/></svg>';
 
   function openComposer(m, anchorRect, editing) {
+    unpress();
     closeTextEdit(true);
     closeComposer();
     // Editing is reopening: this mark was already made, and the reviewer has
@@ -1493,13 +1790,17 @@
     // Escape abandons the edit; it never destroys a mark that already existed.
     function cancel() {
       if (editing) { m.comment = original; closeComposer(); }
-      else { removeMark(m.id); closeComposer(); }
+      else { discard(m); closeComposer(); }
     }
     function commit() {
       if (!composer || composer.mark.id !== m.id) return;
       m.comment = ta.value.trim();
       // Committing nothing is discarding it by another route, and sounds like it.
-      if (!m.comment && m.type !== 'remove') { removeMark(m.id); closeComposer(); return; }
+      if (!m.comment && m.type !== 'remove') {
+        if (editing) removeMark(m.id); else discard(m);
+        closeComposer();
+        return;
+      }
       if (canVary(m)) {
         m.variations = want > 1 ? want : undefined;
         m.slider = wantSlide || undefined;
@@ -1636,6 +1937,7 @@
     // Re-opening an edit already in progress on this mark is a no-op, not a
     // second editor stacked on the first.
     if (textEdit && textEdit.mark.el === el) return;
+    unpress();
     closeTextEdit(false);
     closeComposer();
 
@@ -1693,7 +1995,7 @@
       });
     }
 
-    textEdit = { mark: m, el: el, bar: bar, start: start, priorStyle: priorStyle };
+    textEdit = { mark: m, el: el, bar: bar, start: start, priorStyle: priorStyle, fresh: !reopening };
     renderMarks();
 
     function onBlur() {
@@ -1722,8 +2024,10 @@
     var top = r.bottom + gap;
     if (top + 44 > innerHeight) top = Math.max(8, r.top - 44 - gap);
     // Called every frame while the bar is open; most frames nothing moved.
-    if (bar.__l !== left) { bar.__l = left; bar.style.left = left + 'px'; }
-    if (bar.__t !== top) { bar.__t = top; bar.style.top = top + 'px'; }
+    var moved = false;
+    if (bar.__l !== left) { bar.__l = left; bar.style.left = left + 'px'; moved = true; }
+    if (bar.__t !== top) { bar.__t = top; bar.style.top = top + 'px'; moved = true; }
+    return moved;
   }
 
   /** Finish an inline text edit. `keep` false abandons the session without
@@ -1746,13 +2050,13 @@
       // A brand-new mark that never left the original string is not a mark.
       // Quiet because this is the Escape/blur way out, and a key going down is
       // not something Tailr answers.
-      if (te.start === m.before) removeMark(m.id, true);
+      if (te.start === m.before) { if (te.fresh) discard(m, true); else removeMark(m.id, true); }
       else { m.after = te.start; m.snippet = snippetOf(el); save(); renderMarks(); renderIsland(); }
       return;
     }
     m.after = el.textContent;
     // Done pressed on a string that never changed: the mark goes, and says so.
-    if (m.after === m.before) removeMark(m.id);
+    if (m.after === m.before) { if (te.fresh) discard(m); else removeMark(m.id); }
     else { cue('tick'); m.snippet = snippetOf(el); save(); renderMarks(); renderIsland(); }
   }
 
@@ -1863,13 +2167,14 @@
   /* elementFromPoint retargets a shadow hit to the host. Walk past anything
      Tailr painted so the outline tracks the page under the cursor. */
   function underPointer(x, y) {
+    // The top element is nearly always the page's. The whole stack is a
+    // deeper hit test, so it is only asked for when Tailr is what is on top.
+    var top = document.elementFromPoint(x, y);
+    if (!top || !isOurs(top)) return top || null;
     var list;
     try { list = document.elementsFromPoint(x, y); }
     catch (err) { list = null; }
-    if (!list || !list.length) {
-      var one = document.elementFromPoint(x, y);
-      list = one ? [one] : [];
-    }
+    if (!list) return null;
     for (var i = 0; i < list.length; i++) if (!isOurs(list[i])) return list[i];
     return null;
   }
@@ -2489,9 +2794,15 @@
       // Windows and Linux, and the Windows key opens the Start menu. This is the
       // bare modifier's own keydown, so combinations through it still work.
       e.preventDefault();
+      /* Windows and Linux repeat a held modifier. A repeat is the same press,
+         not a second tap: counting it latched the mode half a second into an
+         ordinary hold, and re-armed (re-scanning the page for modals) on every
+         one. */
+      if (e.repeat) return;
       keyHeld = true;
       if (!S.latched) arm(true);
       if (seenPointer) aim(PX, PY);
+      wake();
       var now = Date.now();
       if (now - (onKeyDown._t || 0) < 320) { S.latched = true; arm(true); }
       onKeyDown._t = now;
@@ -2503,7 +2814,7 @@
     if (e.key === 'Escape' && !(into && into.closest('[data-tailr-editing]'))) {
       if (composer) {
         if (composer.editing) composer.mark.comment = composer.original;
-        else removeMark(composer.mark.id);
+        else discard(composer.mark);
         closeComposer();
       }
       // Escape backs out of the question, never out of the answer: once the
@@ -2521,6 +2832,7 @@
     if (k === 'arrowdown' && el.firstElementChild) { S.hover = el.firstElementChild; e.preventDefault(); }
     if (k === 'arrowright' && el.nextElementSibling) { S.hover = el.nextElementSibling; e.preventDefault(); }
     if (k === 'arrowleft' && el.previousElementSibling) { S.hover = el.previousElementSibling; e.preventDefault(); }
+    if (S.hover !== el) wake();
     if (k === 'c') {
       e.preventDefault();
       var existing = markOn(el, 'comment');
@@ -2544,16 +2856,27 @@
     }
     if (e.key === 'Shift') hideGhost();
   }
+  /* The pointer is recorded here and hit-tested once per frame, in tick.
+     mousemove and pointermove both land here for the same motion, and a fast
+     mouse delivers several of each between two frames; testing on every one
+     of them was most of what holding the key cost. */
   function onMove(e) {
     notePointer(e);
     var down = modDown(e) || keyHeld || S.latched;
     if (down && !S.armed) arm(true);
     else if (!down && S.armed && !S.latched) arm(false);
     if (!S.armed) return;
-    if ((modDown(e) || keyHeld) && e.shiftKey) { updateGhost(e.clientX, e.clientY); hoverEl.style.opacity = '0'; return; }
-    hoverEl.style.opacity = '1';
+    if ((modDown(e) || keyHeld) && e.shiftKey) { updateGhost(e.clientX, e.clientY); showHover(false); return; }
+    showHover(true);
     hideGhost();
-    aim(e.clientX, e.clientY);
+    // Asked again next frame even at the same point: a move can be the
+    // browser re-reporting a still pointer after the page scrolled under it.
+    aimedX = NaN;
+    wake();
+  }
+  function showHover(on) {
+    var v = on ? '' : '0';
+    if (hoverEl.style.opacity !== v) hoverEl.style.opacity = v;
   }
   /* Arming derives from the event's own modifier state, not only from a keydown we
      happened to see. A focus change, a swallowed keydown, or a synthetic click
@@ -2578,21 +2901,31 @@
      delivered as contextmenu. Until one of those landed, nothing stuck. */
   var press = null;
   function onDown(e) {
+    upNoted = false;
     if (!guard(e)) { press = null; return; }
     press = { x: e.clientX, y: e.clientY, button: e.button, armed: true };
+    // The outline takes the press at once. On text the note waits to learn
+    // whether this is a double-click, and this is what says it registered.
+    if (e.button === 0 && !hoverEl.classList.contains('press')) { hoverEl.classList.add('press'); wake(); }
+  }
+  function unpress() {
+    if (!hoverEl.classList.contains('press')) return;
+    hoverEl.classList.remove('press');
+    wake();
   }
   function onUp(e) {
     var p = press;
     press = null;
-    if (!p || e.button !== 0 || p.button !== 0) return;
-    if (Math.abs(e.clientX - p.x) > 5 || Math.abs(e.clientY - p.y) > 5) return;
-    if (S.ending || isOurs(e.target)) return;
+    if (!p || e.button !== 0 || p.button !== 0) return unpress();
+    if (Math.abs(e.clientX - p.x) > 5 || Math.abs(e.clientY - p.y) > 5) return unpress();
+    if (S.ending || isOurs(e.target)) return unpress();
     // mouseup can omit altKey even when the mousedown had it. The press is
     // the record of the chord; keyup clears it if they let go first.
-    if (!p.armed && !modDown(e) && !S.latched) return;
+    if (!p.armed && !modDown(e) && !S.latched) return unpress();
     e.preventDefault();
     e.stopPropagation();
     note(e);
+    upNoted = true;
   }
   function onCtx(e) {
     if (!guard(e)) return;
@@ -2628,10 +2961,16 @@
   /* mouseup and click both report one press. The second one, a millisecond
      later and at the same point, must not start a second note. A click
      somewhere else is a new gesture even when it lands inside that window. */
-  var notedAt = 0, notedX = 0, notedY = 0;
+  var notedAt = 0, notedX = 0, notedY = 0, upNoted = false;
   function onClick(e) {
     if (e.button !== 0) return;
     if (!guard(e)) return;
+    /* The press its mouseup already answered. Telling the two apart by time
+       held only while answering took nothing; a note that opens on the press
+       does real work first, and its own click arrived late enough to look
+       like a second gesture and replace it. */
+    if (upNoted && e.clientX === notedX && e.clientY === notedY) { upNoted = false; return; }
+    upNoted = false;
     note(e);
   }
   function note(e) {
@@ -2640,9 +2979,13 @@
     notedAt = now;
     notedX = e.clientX;
     notedY = e.clientY;
+    var el = targetAt(e);
     if (composer) {
       var ta = composer.el.querySelector('textarea');
       var typed = !!(ta && ta.value.trim());
+      // The second press of a double-click on something with no text to edit.
+      // The note the first press opened is still the one being asked for.
+      if (e.detail > 1 && !composer.editing && !typed && composer.mark.el === el) return;
       /* An empty composer is not a note they finished. Committing it here
          deleted the mark and swallowed the click, which is why the first
          one never seemed to stick. A note they actually wrote still commits
@@ -2651,23 +2994,30 @@
         composer.commit();
         return;
       }
-      var lost = composer.mark.id;
+      var lost = composer.mark;
       closeComposer();
-      removeMark(lost, true);
+      discard(lost, true);
     }
     if (textEdit) { closeTextEdit(true); return; }
     if (e.shiftKey) {
       placePoint(e);
       return;
     }
-    var el = targetAt(e), rect = el.getBoundingClientRect();
+    var rect = el.getBoundingClientRect();
     clearTimeout(clickTimer);
-    clickTimer = setTimeout(function () {
+    clickTimer = null;
+    function open() {
       clickTimer = null;
       var existing = markOn(el, 'comment');
       if (existing) openComposer(existing, rect, true);
       else openComposer(addMark('comment', el), rect);
-    }, 260);
+    }
+    /* A double-click on text edits it in place, so a click on text waits a
+       beat to learn whether it was the first half of one; the pressed outline
+       says it landed in the meantime. On anything else a double-click has
+       nothing to mean, and the note opens on the press itself. */
+    if (textHost(el)) clickTimer = setTimeout(open, 260);
+    else open();
   }
   function onDbl(e) {
     if (!guard(e)) return;
@@ -2686,17 +3036,34 @@
     if (!m || m.status === 'served') return;
     setExpanded(null);
     if (m.type === 'text') {
-      if (m.el && m.el.isConnected) {
-        m.el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
-        setTimeout(function () { editText(m.el, m); }, reduced ? 0 : 320);
-      }
+      if (m.el && m.el.isConnected) reveal(m.el, function () { editText(m.el, m); });
       return;
     }
     var open = function () { openComposer(m, markRect(m), true); };
-    if (!isPoint(m) && m.el && m.el.isConnected) {
-      m.el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
-      setTimeout(open, reduced ? 0 : 320);
-    } else open();
+    if (!isPoint(m) && m.el && m.el.isConnected) reveal(m.el, open);
+    else open();
+  }
+  /* Bring an element into view, then act on it. One already on screen is
+     acted on at once; waiting out a scroll that is not going to happen was a
+     third of a second on every row. One that has to travel is acted on when
+     the scroll lands, so the composer opens on the element where it ended up
+     rather than where it was mid-flight. */
+  function reveal(el, then) {
+    var r = el.getBoundingClientRect();
+    if (r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth) return then();
+    if (reduced) { el.scrollIntoView({ block: 'center' }); return then(); }
+    var done = false, timer;
+    function go() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      removeEventListener('scrollend', go, true);
+      then();
+    }
+    addEventListener('scrollend', go, true);
+    // A browser without scrollend, or a scroll that had nowhere to go.
+    timer = setTimeout(go, 700);
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
   /* island interaction */
@@ -2899,6 +3266,7 @@
       document.removeEventListener('beforetoggle', onBeforeToggle, true);
       document.removeEventListener('toggle', onToggle, true);
       if (modalObs) { modalObs.disconnect(); modalObs = null; }
+      unwatchLayout();
       if (parkFrame) { cancelAnimationFrame(parkFrame); parkFrame = 0; }
       try { if (host.matches(':popover-open')) host.hidePopover(); } catch (err) {}
       document.removeEventListener('mousedown', onDown, true);
@@ -2945,14 +3313,45 @@
 .li-c,.bmeta,.composer textarea,.c-addr{unicode-bidi:plaintext}
 *{box-sizing:border-box;margin:0;padding:0;font-family:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif}
 .layer{position:fixed;inset:0;pointer-events:none}
+/* Marks on the page itself, in document pixels: the page's scroll carries them */
+.doc{position:absolute;top:0;left:0;width:0;height:0;pointer-events:none}
 
 /* halo-paired outlines: read on white, black, or a photograph */
-.hover,.mark{position:absolute;top:0;left:0;pointer-events:none;will-change:transform}
-.hover .ring,.mark .ring{position:absolute;inset:0;border-radius:3px;
+.mark{position:absolute;top:0;left:0;pointer-events:none;will-change:transform}
+.mark .ring{position:absolute;inset:0;border-radius:3px;
   box-shadow:0 0 0 1px #0B0B0C, 0 0 0 2px rgba(255, 255, 255, 0.92)}
+/* The hover outline, as pieces that only ever move: see ring(). Each strip is
+   the halo pair one pixel long, stretched; each corner is the same pair round
+   a 3px radius, clipped to the quadrant it turns. */
+.hover{position:absolute;top:0;left:0;width:0;height:0;pointer-events:none}
+.hc,.he{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform;display:block}
+.he.t,.he.b{width:1px;height:2px}
+.he.l,.he.r{width:2px;height:1px}
+.he.t{background:linear-gradient(to bottom,rgba(255, 255, 255, 0.92) 1px,#0B0B0C 1px)}
+.he.b{background:linear-gradient(to top,rgba(255, 255, 255, 0.92) 1px,#0B0B0C 1px)}
+.he.l{background:linear-gradient(to right,rgba(255, 255, 255, 0.92) 1px,#0B0B0C 1px)}
+.he.r{background:linear-gradient(to left,rgba(255, 255, 255, 0.92) 1px,#0B0B0C 1px)}
+.hc{width:5px;height:5px;overflow:hidden}
+.hc b{position:absolute;width:24px;height:24px;border-radius:3px;
+  box-shadow:0 0 0 1px #0B0B0C, 0 0 0 2px rgba(255, 255, 255, 0.92)}
+.hc.tl b{left:2px;top:2px}.hc.tr b{right:2px;top:2px}.hc.bl b{left:2px;bottom:2px}.hc.br b{right:2px;bottom:2px}
+/* the press registered: the outline takes the weight of a finger on it */
+.hover.press .he.t,.hover.press .he.b{height:3.5px}
+.hover.press .he.l,.hover.press .he.r{width:3.5px}
+.hover.press .he.t{background:linear-gradient(to bottom,rgba(255, 255, 255, 0.92) 1.5px,#0B0B0C 1.5px)}
+.hover.press .he.b{background:linear-gradient(to top,rgba(255, 255, 255, 0.92) 1.5px,#0B0B0C 1.5px)}
+.hover.press .he.l{background:linear-gradient(to right,rgba(255, 255, 255, 0.92) 1.5px,#0B0B0C 1.5px)}
+.hover.press .he.r{background:linear-gradient(to left,rgba(255, 255, 255, 0.92) 1.5px,#0B0B0C 1.5px)}
+.hover.press .hc{width:6.5px;height:6.5px}
+.hover.press .hc b{box-shadow:0 0 0 2px #0B0B0C, 0 0 0 3.5px rgba(255, 255, 255, 0.92)}
+.hover.press .hc.tl b{left:3.5px;top:3.5px}.hover.press .hc.tr b{right:3.5px;top:3.5px}
+.hover.press .hc.bl b{left:3.5px;bottom:3.5px}.hover.press .hc.br b{right:3.5px;bottom:3.5px}
 .mark.t-remove .ring{box-shadow:0 0 0 1.5px #E8483C, 0 0 0 2.5px rgba(255, 255, 255, 0.92)}
 .mark.served .ring{box-shadow:0 0 0 1px rgba(11, 11, 12, 0.28), 0 0 0 2px rgba(255, 255, 255, 0.5)}
-.hover .addr{position:absolute;left:0;top:-19px;height:17px;display:flex;align-items:center;
+.hover .addr.stale{opacity:0;transition-duration:60ms}
+.hover .addr{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform,opacity;
+  transition:opacity 90ms ease;
+  height:17px;display:flex;align-items:center;
   padding:0 6px;background:#0B0B0C;color:#fff;border-radius:5px;
   font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10.5px;letter-spacing:-.01em;
   white-space:nowrap;box-shadow:0 0 0 1px rgba(255, 255, 255, 0.5);

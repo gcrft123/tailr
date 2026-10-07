@@ -2,20 +2,30 @@
 
 What each Tailr release changes for the people using it, newest first. Each section is the body of the matching [GitHub Release](https://github.com/gcrft123/tailr/releases), and its heading is that release's title. Every change, including the ones you wouldn't notice, is in [CHANGELOG.md](CHANGELOG.md).
 
-## Unreleased: Your agent tells you what it changed after every batch
+## Unreleased: Your agent tells you what it changed after every batch, and the overlay keeps up with your app
 
 When an agent finished a batch, its account of what changed tended to vanish. Under MCP it went straight back to waiting, which keeps the turn open, so the summary ended up in its reasoning or in a note between tool calls. Apps like T3 Code fold both away and show only the message a turn ends on, so all you saw was "Still waiting for your next batch."
 
 The agent now starts listening for your next batch first, then ends its turn on a written reply: what changed for each mark, and anything it couldn't do.
 
+The overlay is also much lighter on the app it sits on. Marks scroll with the page instead of trailing behind it, nothing runs while nothing on the page moves, and the Alt outline glides from element to element. Comments on anything but text open the moment you click, and pages your dev server streams start showing right away.
+
 ### Changed
 
 * After each batch, your agent ends its turn with a reply saying what it changed for each mark. A Codex agent woken by Send gets the same instruction.
 * Agents that use Tailr's MCP server wait for the next batch in the background, so that reply stays the last message you see.
+* Marks stay on what they mark while you scroll, even on a slow page.
+* The Alt outline glides between elements, shows the source file once you settle on one, and takes your click before anything opens.
+* Alt-clicking something that isn't text opens the comment box right away.
+* Pages that stream from your dev server start showing as soon as the first part arrives.
+* A comment you discard without writing anything no longer uses up a mark number.
+* Other: opening a mark from the list no longer waits when it's already on screen, sliders scrub more smoothly, and reloads reuse the overlay instead of downloading it again.
 
 ### Fixed
 
 * When you reopen a text edit, the Delete and Done buttons stay below the text as you type instead of covering it.
+* New marks no longer flash in the top-left corner of the page before settling.
+* On Windows and Linux, holding Alt no longer locks marking on after a moment.
 
 ## v1.4.2: Steadier Alt-hover, typing inside dialogs, and marks that hold when you zoom
 
