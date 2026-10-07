@@ -39,21 +39,85 @@ test('the overlay is never injected twice', async (t) => {
 });
 
 test('chunked HTML is rewritten without leaving a contradictory content-length', async (t) => {
-  // A dev server streams its HTML, so the upstream response is chunked. The
-  // rewritten body needs its own length and none of the old body's framing.
+  // A dev server streams its HTML, so the upstream response is chunked. It
+  // goes out streamed too, so there is no length to give it — and a stale one
+  // beside the new framing is a response strict clients refuse.
   const up = await startUpstream((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html', 'transfer-encoding': 'chunked' });
-    res.write('<html><head>');
-    res.end('</head><body>streamed</body></html>');
+    res.write('<html><he');
+    res.end('ad></he' + 'ad><body>streamed</body></html>');
   });
   const s = await startTailr(up.url);
   t.after(async () => { await s.close(); await up.close(); });
 
   const res = await fetch(s.base + '/');
   const body = await res.text();
-  assert.match(body, /overlay\.js/);
-  assert.equal(res.headers.get('transfer-encoding'), null, 'the old framing is gone');
-  assert.equal(Number(res.headers.get('content-length')), Buffer.byteLength(body));
+  // The tag lands before </head> even when </head> arrives split in two.
+  assert.match(body, /<head><script src="\/__tailr\/overlay\.js" defer><\/script><\/head><body>streamed/);
+  assert.equal(res.headers.get('content-length'), null, 'no length left over from the old body');
+});
+
+test('a page the dev server streams reaches the browser as it streams', async (t) => {
+  // A framework that flushes its shell and then the rest as it renders must
+  // not be held until the slowest part of the page is done. The shell is
+  // asked for back while the upstream is still holding the rest of the page.
+  let finish;
+  const up = await startUpstream((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.write('<!doctype html><html><head><title>t</title></head><body><h1>Shell</h1>');
+    finish = () => res.end('<p>late</p></body></html>');
+  });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  const res = await fetch(s.base + '/');
+  const reader = res.body.getReader();
+  let early = '';
+  while (!early.includes('Shell')) {
+    const { value } = await reader.read();
+    early += Buffer.from(value).toString();
+  }
+  assert.match(early, /overlay\.js" defer><\/script><\/head><body><h1>Shell/,
+    'the shell, with the overlay in it, before the page has finished');
+  finish();
+  let rest = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    rest += Buffer.from(value).toString();
+  }
+  assert.match(early + rest, /<p>late<\/p><\/body><\/html>$/);
+  assert.equal((early + rest).match(/overlay\.js/g).length, 1);
+});
+
+test('a response with no body is not handed a script tag', async (t) => {
+  const up = await startUpstream((req, res) => {
+    if (req.headers['if-none-match']) { res.writeHead(304, { 'content-type': 'text/html' }); return res.end(); }
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end('<html><head></head><body>hi</body></html>');
+  });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  const head = await fetch(s.base + '/', { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  const notModified = await fetch(s.base + '/', { headers: { 'if-none-match': '"x"' } });
+  assert.equal(notModified.status, 304);
+  assert.equal(await notModified.text(), '');
+});
+
+test('the overlay bundle is revalidated rather than fetched again', async (t) => {
+  const up = await startUpstream((req, res) => { res.end('ok'); });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  const first = await fetch(s.base + '/__tailr/overlay.js');
+  const tag = first.headers.get('etag');
+  assert.ok(tag, 'it names its own version');
+  assert.equal(first.headers.get('cache-control'), 'no-cache', 'and is always asked about, never assumed');
+  await first.arrayBuffer();
+  const again = await fetch(s.base + '/__tailr/overlay.js', { headers: { 'if-none-match': tag } });
+  assert.equal(again.status, 304, 'unchanged, so nothing is sent');
 });
 
 test('a dev server that compresses anyway still gets the overlay', async (t) => {
