@@ -332,6 +332,9 @@ Every interactive part ships default, hover, focus, active, disabled. Focus is a
 - **Every shape change is interruptible.** A new transition cancels the one in flight and starts from the shape currently on screen, so re-hovering half-way through a close reopens from where it is rather than snapping to the closed size first. Two animations must never run on the same pill at once; that is what makes rapid hovering flicker.
 - Content inside a morphing container cross-fades at 120–140ms with a 4px vertical offset, and always starts after the shape has begun moving.
 - Marks land on the page with a fast scale-and-settle, 180ms. They never fade in.
+- **Marks move with the page, not after it.** A mark on the page itself scrolls with the document, in the same frame as the content, however busy the app keeps the main thread. Only a mark on something fixed or sticky is drawn over the viewport, because the page's scroll would carry it off its element.
+- The hover outline glides to the next element over 110ms, front-loaded, rather than jumping to it, so the eye follows it instead of finding it again. The source address steps aside while the outline travels and comes back once the pointer has rested for 70ms: it is read at rest.
+- A press thickens the outline at once. On text, where the note waits out the double-click window, that is what says the press landed; anywhere else the note opens on the press itself.
 - A running indicator is **never re-created by a re-render**. Rewriting the node restarts its animation, and a spinner that restarts every time a result lands reads as stalling rather than working. Update the state around it; leave the node alone.
 - Settling into a corner is a single 460ms `cubic-bezier(0.22, 1, 0.36, 1)` — a longer, softer curve than the morph, because it is travel across the screen rather than a change of shape.
 - The armed state fades in and out at 120ms, because it must feel instantaneous.
@@ -354,6 +357,7 @@ Every interactive part ships default, hover, focus, active, disabled. Focus is a
 - No leader lines, no callout balloons, no technical-drawing apparatus. The reference number is a small corner badge and nothing more.
 - No second bar, dock, sidebar, or persistent panel. If it can't be the island, it doesn't ship.
 - No color that doesn't encode state.
+- Never resize anything on the page frame after frame; move it. Resizing what Tailr draws repaints, and a repaint anywhere has the browser walk the host page's whole paint list — which is why the hover outline is pieces that only move.
 
 ## The landing page
 
