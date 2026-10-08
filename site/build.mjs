@@ -1,6 +1,6 @@
 /* Builds the landing page into site/dist, which is what Cloudflare serves:
-   the page, its favicon, the Tailr mark, and the wide-framed intro with its
-   poster from media/.
+   the page, its favicon, the Tailr mark, robots.txt and the sitemap, and the
+   wide-framed intro with its poster from media/.
 
    `node site/build.mjs --serve [port]` also serves dist for a local look.
 
@@ -29,6 +29,8 @@ export function build() {
   cpSync(join(HERE, 'index.html'), join(DIST, 'index.html'));
   cpSync(join(HERE, 'favicon.svg'), join(DIST, 'favicon.svg'));
   cpSync(join(HERE, 'tailr-mark.svg'), join(DIST, 'tailr-mark.svg'));
+  cpSync(join(HERE, 'robots.txt'), join(DIST, 'robots.txt'));
+  cpSync(join(HERE, 'sitemap.xml'), join(DIST, 'sitemap.xml'));
   for (const f of ['tailr-intro-website.mp4', 'tailr-intro-website-poster.jpg']) {
     cpSync(join(ROOT, 'media', f), join(DIST, 'media', f));
   }
@@ -37,7 +39,8 @@ export function build() {
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
-  '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.css': 'text/css; charset=utf-8'
+  '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.css': 'text/css; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8'
 };
 export function serve(port) {
   return createServer((req, res) => {
