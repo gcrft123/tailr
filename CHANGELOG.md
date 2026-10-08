@@ -52,7 +52,19 @@ The landing page's copy button broke on phones: from 414px down, its label
 wrapped onto two lines inside the pill. A copy also shrank the button under
 the pointer and left a stray dot above the check.
 
+Google also wouldn't index the landing page. It answered at trytailr.app,
+www.trytailr.app, both of those over http, and a workers.dev address, all with
+the same HTML and none naming itself the real one, so Search Console set the
+page aside as a duplicate. The page now names its canonical address, and www and
+http redirect to it through Cloudflare zone settings that live outside this repo.
+
+### New
+
+[b20a147] — The landing page serves a sitemap listing https://trytailr.app/, and a robots.txt that points to it.
+
 ### Changed
+
+[b20a147] — The landing page no longer deploys to a workers.dev address or to a preview URL for each version.
 
 [83acabe] — `done` and `fail` ask the agent to end its turn on a written reply saying what changed for each mark.
 
@@ -115,6 +127,10 @@ the pointer and left a stray dot above the check.
 [c7f2d63] — The check after a copy no longer has a stray dot above it.
 
 [c7f2d63] — The copy button's hover no longer sticks on touch screens after a tap.
+
+[b20a147] — The landing page names https://trytailr.app/ as its canonical address, so Google indexes it instead of filing it as a duplicate.
+
+[b20a147] — The landing page's link preview image is an absolute URL, so previews that can't resolve a relative path still show it.
 
 ## [1.4.2] — 2026-09-23
 
