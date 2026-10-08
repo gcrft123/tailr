@@ -3,7 +3,10 @@
   // Build first (`npm run site`), then `npx wrangler deploy -c site/wrangler.jsonc`.
   "name": "tailr-site",
   "compatibility_date": "2026-09-04",
-  "workers_dev": true,
+  // trytailr.app is the only address. A workers.dev copy, or a preview URL per
+  // version, is a duplicate of the page that Google can index instead of it.
+  "workers_dev": false,
+  "preview_urls": false,
   "assets": {
     "directory": "./dist",
     "not_found_handling": "404-page"
