@@ -115,8 +115,9 @@ const TOOLS = [
       'mark: the attribute data-tailr-var-<ref> on the <html> element, whose value is the version ' +
       'number ("1", "2", …). Style-only versions can key straight off it, e.g. ' +
       '[data-tailr-var-03="2"] .card { … }; anything that has to re-render should read ' +
-      'document.documentElement.dataset["tailrVar<ref>"] and listen for the "tailr:variant" event ' +
-      'on document. Version 1 must also be what renders if the attribute is missing. ' +
+      'document.documentElement.getAttribute("data-tailr-var-<ref>") and listen for the "tailr:variant" ' +
+      'event on document; its detail carries { ref, variant, label }, and the chosen version can be ' +
+      'read from that event. Version 1 must also be what renders if the attribute is missing. ' +
       'Labels are what the reviewer chooses between, so make them 1-3 concrete words ' +
       '("Softer edges", "Full width", "Two columns") and give them in version order. ' +
       'Call this BEFORE tailr_progress for the same ref, and always before tailr_done.',
@@ -146,8 +147,9 @@ const TOOLS = [
       'attribute data-tailr-slide-<ref> on the <html> element, whose value is the number. ' +
       'Style-only parameters can key straight off it, e.g. ' +
       '[data-tailr-slide-03] .glow { --intensity: attr(data-tailr-slide-03 number); }; anything that ' +
-      'has to re-render should read document.documentElement.dataset["tailrSlide<ref>"] and listen ' +
-      'for the "tailr:slide" event on document (detail: { ref, value, label, min, max, unit }). ' +
+      'has to re-render should read document.documentElement.getAttribute("data-tailr-slide-<ref>") and ' +
+      'listen for the "tailr:slide" event on document; its detail carries ' +
+      '{ ref, value, label, min, max, unit }, and the number can be read from that event. ' +
       'The default value must also be what renders if the attribute is missing. ' +
       'Call this BEFORE tailr_progress for the same ref, and always before tailr_done.',
     inputSchema: {
