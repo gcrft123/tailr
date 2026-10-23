@@ -76,9 +76,10 @@ value is the version number.
 
 Version 1 must also be what renders when the attribute is absent, so the page is
 never broken for anyone who isn't looking through Tailr. Anything that has to
-re-render rather than restyle reads `document.documentElement.dataset.tailrVar03`
-and listens for the `tailr:variant` event on `document`; its `detail` carries
-`{ ref, variant, label }`.
+re-render rather than restyle reads
+`document.documentElement.getAttribute("data-tailr-var-03")` and listens for
+the `tailr:variant` event on `document`; its `detail` carries
+`{ ref, variant, label }`, and the chosen version can be read from that event.
 
 Then name them, in order, before you report that mark applied:
 
@@ -101,9 +102,9 @@ the source, guarded on the switch Tailr sets for that mark: the attribute
 
 The default value must also be what renders when the attribute is absent.
 Anything that has to re-render rather than restyle reads
-`document.documentElement.dataset.tailrSlide03` and listens for the
-`tailr:slide` event on `document`; its `detail` carries
-`{ ref, value, label, min, max, unit }`.
+`document.documentElement.getAttribute("data-tailr-slide-03")` and listens for
+the `tailr:slide` event on `document`; its `detail` carries
+`{ ref, value, label, min, max, unit }`, and the number can be read from that event.
 
 Then report the range, before you report that mark applied:
 
