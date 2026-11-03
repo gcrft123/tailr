@@ -53,6 +53,7 @@
     locked: false,
     expanded: null,     // 'batch' | 'agent' | null
     teach: false,       // the key is being shown rather than the staged list
+    hush: false,        // the marks are out of sight so the page can be looked at
     ending: null,       // null | 'confirm' | 'cleaning' | 'ending' | 'ended'
     app: null,          // { target, spawned } — where the application is without Tailr
     dirty: false,       // ended before the cleanup the agent was given finished
@@ -591,6 +592,8 @@
     }, extra || {});
     S.marks.push(m);
     if (S.cfg.tutorial) { tutorialDone(); S.teach = false; }
+    // A mark made while the others are hidden would land out of sight too.
+    hush(false);
     cue('tick');
     save(); renderMarks(); renderIsland();
     return m;
@@ -683,6 +686,7 @@
       labels: labels, choice: null, el: selector ? null : (m.el || null)
     };
     S.sets.push(s);
+    hush(false);
     save(); showVariant(s); renderMarks(); renderIsland();
     return s;
   }
@@ -789,6 +793,7 @@
       el: selector ? null : (m.el || null)
     };
     S.slides.push(s);
+    hush(false);
     save(); showSlide(s); renderMarks(); renderIsland();
     return s;
   }
@@ -893,6 +898,18 @@
   }
 
   /* ── on-page rendering ─────────────────────────────────── */
+  /* Out of sight, not off the page. Every mark, version pill and slider stays
+     where it is and keeps being placed, so showing them again is one class and
+     not a re-render; the hover outline is left alone, so marking still works
+     while they are hidden. Not saved: it lasts as long as the reviewer looks. */
+  function hush(on) {
+    on = !!on;
+    if (S.hush === on) return;
+    S.hush = on;
+    if (layer) [layer, docLayer].forEach(function (l) { l.classList.toggle('hush', on); });
+    announce(on ? 'Marks hidden.' : 'Marks shown.');
+    renderIsland();
+  }
   var nodes = {}, vnodes = {}, snodes = {}, reconcileTimer = null, vLeaveT = null;
   function renderMarks() {
     wake();
@@ -1709,6 +1726,13 @@
     '<circle cx="8.5" cy="7" r="2.75" fill="currentColor"/>' +
     '<circle cx="8.5" cy="7" r="1.1" fill="#0B0B0C"/></svg>';
 
+  /* An eye with a stroke through it: what the pill wears while marks are hidden. */
+  var HIDDEN_ICON = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">' +
+    '<path d="M1.5 7S3.5 3.25 7 3.25 12.5 7 12.5 7 10.5 10.75 7 10.75 1.5 7 1.5 7Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>' +
+    '<circle cx="7" cy="7" r="1.6" fill="currentColor"/>' +
+    '<path d="M2.5 11.5l9-9" stroke="#0B0B0C" stroke-width="3" stroke-linecap="round"/>' +
+    '<path d="M2.5 11.5l9-9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+
   function openComposer(m, anchorRect, editing) {
     unpress();
     closeTextEdit(true);
@@ -2294,7 +2318,7 @@
     var undecided = S.sets.filter(function (s) { return s.choice == null; }).length +
       S.slides.filter(function (s) { return s.kept === undefined; }).length;
     var needsReload = !!(S.agent && S.agent.phase === 'done');
-    var sig = [count, S.locked, S.armed, S.expanded, needsReload, S.teach, S.learn.welcomed,
+    var sig = [count, S.locked, S.armed, S.expanded, needsReload, S.teach, S.learn.welcomed, S.hush,
       S.cfg.tutorial,
       S.ending, S.dirty, S.app && S.app.target, S.cfg.modifier,
       S.agent ? S.agent.phase : '-', S.agent ? S.agent.served.length : 0,
@@ -2341,7 +2365,8 @@
         : count === 1 ? 'Send' : 'Send batch';
       IS.row.innerHTML = dismiss +
         (count ? '<span class="count">' + count + '</span>' : '') +
-        '<span class="send">' + label + '</span>';
+        '<span class="send">' + label + '</span>' +
+        (S.hush ? '<span class="hushed" title="Marks hidden">' + HIDDEN_ICON + '</span>' : '');
     }
 
     // Ending holds the panel open on its own: it is a question being asked, and
@@ -2353,7 +2378,7 @@
       (open ? ' open' : '') + (teaching && !S.ending ? ' teaching' : '');
     IS.list.innerHTML = S.ending ? endingHtml()
       : teaching ? keyHtml(!S.learn.welcomed) + footerHtml()
-      : open ? listHtml() + footerHtml() : '';
+      : open ? listHtml() + footerHtml(true) : '';
 
     if (S.agent && S.ending !== 'ended') {
       var wasHidden = IS.agent.hidden;
@@ -2454,6 +2479,8 @@
       ['Double-click', 'Edit text'],
       [SHIFT + ' Click', 'Comment on a spot']
     ];
+    // ⌘H hides the browser on a Mac before the page ever hears it.
+    if (!(MAC && S.cfg.modifier === 'meta')) rows.push(['H', 'Hide or show marks']);
     var h = '<div class="teach">';
     if (welcome) {
       h += '<div class="t-head">Mark up this page</div>' +
@@ -2471,8 +2498,10 @@
   /* The way out. It sits under the panel rather than on the pill: leaving is
      never the thing a reviewer is reaching for, and a control that ends the
      session has no business being one pixel from the one that sends a batch. */
-  function footerHtml() {
-    return '<div class="pfoot"><button class="ghost" data-act="quit">End session</button></div>';
+  function footerHtml(marks) {
+    return '<div class="pfoot">' +
+      (marks ? '<button class="ghost" data-act="hush">' + (S.hush ? 'Show marks' : 'Hide marks') + '</button>' : '') +
+      '<button class="ghost" data-act="quit">End session</button></div>';
   }
 
   function endingHtml() {
@@ -2749,6 +2778,7 @@
     S.slides.forEach(function (s) { document.documentElement.removeAttribute(slideAttr(s.ref)); });
     S.ending = 'ended';
     S.marks = []; S.sets = []; S.slides = []; S.seq = 1; S.sessionId = null; S.agent = null; S.locked = false; S.expanded = null;
+    hush(false);
     try {
       localStorage.removeItem(ORIGIN_KEY);
       localStorage.removeItem(LEARN_KEY);
@@ -2842,6 +2872,14 @@
       else if (S.ending === 'confirm') { S.ending = null; renderIsland(); }
       else if (S.latched) { S.latched = false; arm(false); }
       else if (S.expanded) { S.expanded = null; renderIsland(); }
+    }
+    // H with the key held, or alone once the mode is latched. By code, because
+    // Alt turns the letter into another one on a Mac.
+    if (e.code === 'KeyH' && !e.repeat && (S.latched || keyHeld || modDown(e)) &&
+        !composer && !textEdit && !into && !S.ending) {
+      e.preventDefault();
+      hush(!S.hush);
+      return;
     }
     if (!S.latched || composer || textEdit || into) return;
     // latched-mode verbs + structural walking
@@ -3110,6 +3148,7 @@
       if (a === 'resend') { cue('bloom'); S.agent = null; S.locked = false; renderIsland(); }
       if (a === 'abandon') { cue('page'); abandon(); }
       if (a === 'gotit') { cue('release'); learned('welcomed'); S.teach = false; S.expanded = null; renderIsland(); }
+      if (a === 'hush') { clearTimeout(leaveT); hush(!S.hush); }
       if (a === 'quit') { cue('scan'); S.ending = 'confirm'; renderIsland(); }
       if (a === 'stay') { cue('release'); S.ending = null; renderIsland(); }
       if (a === 'quit-go') { cue('tick'); endSession(); }
@@ -3333,6 +3372,7 @@
 .li-c,.bmeta,.composer textarea,.c-addr{unicode-bidi:plaintext}
 *{box-sizing:border-box;margin:0;padding:0;font-family:ui-sans-serif,-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif}
 .layer{position:fixed;inset:0;pointer-events:none}
+.hush > .mark,.hush > .vset,.hush > .slide{visibility:hidden}
 /* Marks on the page itself, in document pixels: the page's scroll carries them */
 .doc{position:absolute;top:0;left:0;width:0;height:0;pointer-events:none}
 
@@ -3598,6 +3638,8 @@ button.ghost:hover{color:#fff}
   font-variant-numeric:tabular-nums}
 .row > .count:first-child{margin-left:-5px}
 .send{font-size:13px;font-weight:650;letter-spacing:-.005em}
+.hushed{display:flex;color:rgba(255, 255, 255, 0.56)}
+.hushed svg{display:block}
 .batch.locked{cursor:default}
 .batch.locked .count{background:rgba(255, 255, 255, 0.14);color:rgba(255, 255, 255, 0.56)}
 .batch.locked .send{color:rgba(255, 255, 255, 0.56)}
@@ -3628,6 +3670,9 @@ button.ghost:hover{color:#fff}
   border-top:1px solid rgba(255, 255, 255, 0.10)}
 .pfoot .ghost{font-size:11.5px;padding:5px 8px}
 .island.left .pfoot{justify-content:flex-start}
+/* Hide marks sits across from End session, which keeps the anchored corner */
+.pfoot [data-act="hush"]{margin-right:auto}
+.island.left .pfoot [data-act="hush"]{order:1;margin-right:0;margin-left:auto}
 .qlist{margin:8px 0 2px}
 .qli{position:relative;padding:3px 0 3px 14px;font-size:12.5px;line-height:1.45;
   color:rgba(255, 255, 255, 0.56);overflow-wrap:break-word}

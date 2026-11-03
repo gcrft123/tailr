@@ -395,6 +395,56 @@ test('holding the key is a hold, however often the keyboard repeats it', needsDo
   assert.equal(o.state.latched, true);
 });
 
+/* Marks sit on top of the thing they mark, so the reviewer sometimes needs
+   them gone for a moment to see the page as it is. Hiding them is a view: the
+   batch is untouched, and the next mark brings them all back rather than
+   landing out of sight. */
+test('marks can be hidden for a look at the page and come back', needsDom, async (t) => {
+  const o = await mountOverlay();
+  t.after(() => o.destroy());
+  const key = (type, init) => o.document.dispatchEvent(new o.window.KeyboardEvent(type, {
+    bubbles: true, cancelable: true, ...init
+  }));
+  const hidden = () => ['.doc', '.layer'].map((s) => o.shadow().querySelector(s).classList.contains('hush'));
+
+  await o.comment('#cta');
+  o.compose('This should say Download');
+  assert.deepEqual(hidden(), [false, false]);
+
+  // H on its own is the app's: only with the mark key held is it Tailr's.
+  key('keydown', { key: 'h', code: 'KeyH' });
+  assert.equal(o.state.hush, false, 'a bare H is left to the page');
+
+  // Alt+H on a Mac reports the key as ˙, so it is matched by code.
+  key('keydown', { key: 'Alt', altKey: true });
+  const e = new o.window.KeyboardEvent('keydown', {
+    key: '˙', code: 'KeyH', altKey: true, bubbles: true, cancelable: true
+  });
+  o.document.dispatchEvent(e);
+  key('keyup', { key: 'Alt' });
+  assert.equal(o.state.hush, true);
+  assert.equal(e.defaultPrevented, true, 'and the page does not also get the letter');
+  assert.deepEqual(hidden(), [true, true], 'both layers go, whichever one a mark is in');
+  assert.ok(o.shadow().querySelector('.hushed'), 'the pill says they are hidden');
+  assert.equal(o.payload().marks.length, 1, 'nothing staged is touched');
+
+  // The panel's button answers the same toggle.
+  o.shadow().querySelector('[data-pill="batch"]').dispatchEvent(
+    new o.window.MouseEvent('pointerenter', { bubbles: false }));
+  await delay(20);
+  assert.equal(o.act('[data-act="hush"]').textContent, 'Show marks');
+  assert.equal(o.state.hush, false);
+  assert.equal(o.shadow().querySelector('.hushed'), null);
+  assert.equal(o.shadow().querySelector('[data-act="hush"]').textContent, 'Hide marks');
+
+  // A new mark brings the rest back with it.
+  o.act('[data-act="hush"]');
+  assert.equal(o.state.hush, true);
+  o.remove('#row-1');
+  assert.equal(o.state.hush, false);
+  assert.deepEqual(hidden(), [false, false]);
+});
+
 /* A press reports itself twice, as mouseup and then as click. The mouseup is
    what opens the note, and opening it takes however long it takes, so the
    click that follows is recognised as the same press rather than by how soon
