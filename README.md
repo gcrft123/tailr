@@ -237,13 +237,16 @@ Hold **Alt** to arm — **⌥ Option** on a Mac, or whichever key you have set u
 | Right-click | Stage an element for removal (right-click again to undo) |
 | Double-click text | Edit text in place |
 | Shift-click | Mark a spot rather than an element — to ask for something new there, or to note the place. Middle-click does the same, if you have one |
+| H | Hide or show every mark, version pill and slider, so you can see the page they cover |
 
 Release the key and you can control the application again. Double-tap it to latch
 markup on for keyboard use. Marks persist in the browser across reloads, span
 routes, and survive the reload after the agent has worked.
 
 The island in the corner shows what is staged; hover it for the list. Drag it to
-any corner if it's covering page content.
+any corner if it's covering page content. **Hide marks** under the list does the
+same as H; the island shows a crossed-out eye while they're hidden, and making a
+new mark brings them all back.
 
 ## Versions and sliders
 
