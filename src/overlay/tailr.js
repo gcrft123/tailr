@@ -1027,9 +1027,13 @@
       // about to be placed at is the settled one rather than a frame of the
       // animation it interrupted.
       if (from && n.__pill.__anim) { n.__pill.__anim.cancel(); n.__pill.__anim = null; }
+      var stacked = S.sets.some(function (v) { return v.ref === s.ref && v.route === s.route; });
+      var wasStacked = n.classList.contains('stacked');
       n.className = 'slide' + (s.point ? ' point' : '') + (S.locked ? ' locked' : '') +
-        (mini ? ' mini' : '');
-      if (was !== mini) unfit(n);
+        (mini ? ' mini' : '') + (stacked ? ' stacked' : '');
+      // Flipped under the element, it clears the version pill there as well.
+      n.__stack = stacked ? STACK : 0;
+      if (was !== mini || wasStacked !== stacked) unfit(n);
       syncSlideInputs(n, s, showing);
       // Placed at its final shape first, so the morph grows into a position
       // that is already correct rather than dragging the pill across the page.
@@ -1283,6 +1287,9 @@
      The edges are the viewport's, so this takes the element's place on screen
      whichever layer its node is in. */
   var EDGE = 8, GAP = 8;
+  // A version pill's height and the gap above it: what a slider on the same
+  // element steps over.
+  var STACK = 26;
   function unfit(n) { n.__box = null; n.__l = n.__t = null; }
   function fitPill(n, hl, ht, hw, hh) {
     var pill = n.__pill;
@@ -1304,7 +1311,7 @@
     if (hl + left + box.w > innerWidth - EDGE) left = innerWidth - EDGE - box.w - hl;
     if (hl + left < EDGE) left = EDGE - hl;
     if (ht + top < EDGE) {
-      var below = hh + GAP;
+      var below = hh + GAP + (n.__stack || 0);
       top = (ht + below + box.h <= innerHeight - EDGE) ? below : EDGE - ht;
     } else if (ht + top + box.h > innerHeight - EDGE) {
       top = Math.max(EDGE - ht, innerHeight - EDGE - box.h - ht);
@@ -1714,14 +1721,14 @@
     c.innerHTML =
       '<div class="c-head"><span class="c-badge">' + pad(m.n) + '</span>' +
       '<span class="c-kind">' + kindLabel(m.type) + '</span>' +
-      '<span class="c-addr">' + esc(m.address) + '</span></div>' +
+      (isPoint(m) ? '' : '<span class="c-addr">' + esc(m.address) + '</span>') + '</div>' +
       '<div class="c-ta"><textarea rows="2" placeholder="' + placeholderFor(m.type) + '"></textarea>' +
       '<div class="c-sb"><div class="c-sb-t"></div></div></div>' +
-      '<div class="c-foot"><button class="ghost" data-act="cancel">' +
-      (editing ? 'Delete' : 'Discard') + '</button>' +
+      '<div class="c-foot">' +
       (canVary(m) ? '<button class="mult" data-act="mult" type="button"></button>' +
         '<button class="mult slide-tog" data-act="slide" type="button" aria-pressed="false">' +
         SLIDER_ICON + '</button>' : '') +
+      '<button class="ghost" data-act="cancel">' + (editing ? 'Delete' : 'Discard') + '</button>' +
       '<button class="paper" data-act="save">' + (editing ? 'Save' : 'Add') + '</button></div>';
     // Position before it is in the document, so it never flashes at the origin.
     place(c, anchorRect);
@@ -1965,6 +1972,9 @@
     var priorStyle = el.getAttribute('style');
     el.style.setProperty('user-select', 'text', 'important');
     el.style.setProperty('-webkit-user-select', 'text', 'important');
+    // The mark's own ring already outlines what is being edited; the browser's
+    // focus ring for a contenteditable would draw a second one over it.
+    el.style.setProperty('outline', 'none', 'important');
     el.focus();
     var sel = getSelection(); sel.selectAllChildren(el);
 
@@ -2313,18 +2323,19 @@
     // arriving while a finished run is still on the server must still be able
     // to put the card away.
     var dismiss = welcoming ? '<button class="paper row-dismiss" data-act="gotit">Got it</button>' : '';
-    IS.row.className = 'row' + (welcoming ? ' has-dismiss' : '');
     // Being asked is not the same as having answered: the row only changes once
-    // the session is actually on its way out.
-    if (S.ending && S.ending !== 'confirm') {
-      IS.row.innerHTML = '<span class="dot"></span><span class="hint">' +
-        (S.ending === 'ended' ? 'Ended' : 'Ending') + '</span>';
+    // the session is actually on its way out. From then on the card above it
+    // says everything the row would, so the row steps out of the way.
+    var leaving = !!S.ending && S.ending !== 'confirm';
+    IS.row.className = 'row' + (welcoming ? ' has-dismiss' : '') + (leaving ? ' gone' : '');
+    if (leaving) {
+      IS.row.innerHTML = '';
     } else if (dormant) {
       IS.row.innerHTML = dismiss +
         '<span class="dot ' + (S.armed ? 'live' : '') + '"></span>' +
         '<span class="hint">' + (S.armed ? 'Marking' : 'Hold ' + modLabel() + ' to mark') + '</span>';
     } else {
-      var label = needsReload ? 'Needs refresh'
+      var label = needsReload ? 'Needs reload'
         : S.locked ? 'Sent'
         : count === 0 ? (undecided === 1 ? 'Pick a value' : 'Pick values')
         : count === 1 ? 'Send' : 'Send batch';
@@ -2338,7 +2349,7 @@
     var open = !!S.ending || (S.expanded === 'batch' && (count > 0 || S.sets.length > 0 || S.slides.length > 0)) || teaching;
     IS.batch.className = 'pill batch ' +
       // nothing staged but versions waiting: the pill is a prompt, not a Send
-      (S.ending ? 'locked' : dormant ? 'dormant' : (needsReload || S.locked || count === 0) ? 'locked' : 'ready') +
+      (S.ending ? 'locked ending' : dormant ? 'dormant' : (needsReload || S.locked || count === 0) ? 'locked' : 'ready') +
       (open ? ' open' : '') + (teaching && !S.ending ? ' teaching' : '');
     IS.list.innerHTML = S.ending ? endingHtml()
       : teaching ? keyHtml(!S.learn.welcomed) + footerHtml()
@@ -2425,11 +2436,11 @@
         '<div class="bact"><button class="ghost" data-act="abandon">Cancel</button></div>';
     if (a.phase === 'done')
       return '<div class="btitle">' + a.total + (a.total === 1 ? ' change' : ' changes') + ' applied</div>' +
-        '<div class="bmeta">Reload to see them. Anything you staged since is kept.</div>' +
+        '<div class="bmeta">Reload to see them.</div>' +
         '<div class="bact"><button class="paper" data-act="reload">Reload</button></div>';
     return '<div class="btitle bad">Returned incomplete</div>' +
       '<div class="bmeta">' + (a.error ? esc(a.error) + ' ' : '') +
-        a.served.length + ' of ' + a.total + " applied. Tailr can't say why — check your agent session.</div>" +
+        a.served.length + ' of ' + a.total + ' applied.' + (a.error ? '' : ' Check your agent session.') + '</div>' +
       '<div class="bact"><button class="paper" data-act="resend">Re-send ' + (a.total - a.served.length) + '</button></div>';
   }
   /* The gestures are only usable while Alt is held, so the moment Alt goes down
@@ -2525,15 +2536,20 @@
            'Send before you reload.</div>';
     }
     if (S.sets.length) {
-      h += '<div class="grp">Versions the agent built — keep one</div>';
+      h += '<div class="grp note">Versions — keep one</div>';
       S.sets.forEach(function (s) { h += setRowHtml(s); });
     }
     if (S.slides.length) {
-      h += '<div class="grp">Sliders the agent built — keep a value</div>';
+      h += '<div class="grp note">Sliders — keep a value</div>';
       S.slides.forEach(function (s) { h += slideRowHtml(s); });
     }
-    Object.keys(byRoute).forEach(function (r) {
-      h += '<div class="grp">' + esc(r) + '</div>';
+    /* A route header earns its line by telling routes apart. Every mark on the
+       page being looked at, under nothing else, needs no header to say so. */
+    var routes = Object.keys(byRoute);
+    var headed = routes.length > 1 || S.sets.length || S.slides.length ||
+      (routes.length === 1 && routes[0] !== routeKey());
+    routes.forEach(function (r) {
+      if (headed) h += '<div class="grp">' + esc(r) + '</div>';
       byRoute[r].forEach(function (m) { h += rowHtml(m, false); });
     });
     /* Last, and stated rather than warned about: the element is off screen,
@@ -2564,7 +2580,7 @@
     var showing = s.showing != null ? s.showing : (typeof s.kept === 'number' ? s.kept : s.value);
     return '<div class="li sli">' +
       '<span class="li-n">' + esc(s.ref) + '</span>' +
-      '<span class="li-a">' + esc(s.label || s.address) + '</span>' +
+      '<span class="li-a' + (s.label ? ' lab' : '') + '">' + esc(s.label || s.address) + '</span>' +
       '<span class="slide-row-val">' + esc(formatSlide(s, showing)) + '</span>' +
       '<button class="slide-keep' + (typeof s.kept === 'number' && s.kept === showing ? ' on' : '') +
       '" data-act="keep-slide" data-slide="' + s.id + '" type="button">Keep</button>' +
@@ -2593,13 +2609,17 @@
       ? ' role="button" tabindex="0" data-act="edit" data-id="' + m.id + '" title="Edit mark ' + pad(m.n) + '"'
       : '';
     var flags = (m.variations > 1 ? '<span class="li-v">' + m.variations + '×</span>' : '') +
-      (m.slider ? '<span class="li-v">slider</span>' : '');
+      // The same mark as the composer's toggle that asked for it, named for
+      // anyone not looking.
+      (m.slider ? '<span class="li-v ico" title="Slider">' + SLIDER_ICON +
+        '<span class="sr">slider</span></span>' : '');
     return '<div class="li' + (hidden ? ' dim' : '') + (editable ? ' editable' : '') + '"' + attrs + '>' +
       '<span class="li-n ' + m.type + '">' + pad(m.n) + '</span>' +
       '<span class="li-k">' + kindLabel(m.type) + '</span>' +
-      (flags ? '<span class="li-f">' + flags + '</span>' : '') +
-      '<span class="li-a">' + esc(m.address) + '</span>' +
+      // A spot's address is its route, which the header above already names.
+      '<span class="li-a">' + (isPoint(m) ? '' : esc(m.address)) + '</span>' +
       '<span class="li-c" title="' + text.replace(/"/g, '&quot;') + '">' + text + '</span>' +
+      (flags ? '<span class="li-f">' + flags + '</span>' : '') +
       '<button class="li-x" data-act="drop" data-id="' + m.id +
       '" aria-label="Remove mark ' + pad(m.n) + '">×</button></div>';
   }
@@ -3386,7 +3406,8 @@
   pointer-events:auto;background:#0B0B0C;border-radius:999px;
   box-shadow:0 4px 14px rgba(0, 0, 0, 0.34),0 0 0 1px rgba(255, 255, 255, 0.10)}
 .vset.point .vpill{left:10px;top:-11px}
-.vset.locked .vpill{pointer-events:none;opacity:.5}
+.vset.locked .vpill{pointer-events:none}
+.vset.locked .vpill > *{opacity:.45}
 .vtab,.vt{display:flex;align-items:center;background:transparent;color:rgba(255, 255, 255, 0.56);
   height:18px;padding:0;border-radius:999px;font-size:10px;font-weight:700;
   font-variant-numeric:tabular-nums;overflow:hidden}
@@ -3425,8 +3446,11 @@
   box-shadow:0 4px 14px rgba(0, 0, 0, 0.34),0 0 0 1px rgba(255, 255, 255, 0.10);
   white-space:nowrap}
 .slide.point .spill{left:10px}
-.slide.locked .spill{pointer-events:none;opacity:.5}
-.sfull{display:flex;align-items:center;gap:6px;height:32px;padding:0 6px 0 10px}
+.slide.stacked .spill{top:-62px}
+.slide.point.stacked .spill{top:-47px}
+.slide.locked .spill{pointer-events:none}
+.slide.locked .spill > *{opacity:.45}
+.sfull{display:flex;align-items:center;gap:6px;height:32px;padding:0 5px 0 12px}
 .smini{display:none;align-items:center;gap:6px;height:32px;padding:0 12px 0 8px;
   border:none;border-radius:999px;background:transparent;color:#fff;font:inherit;cursor:pointer}
 .smini:hover{background:rgba(255, 255, 255, 0.06)}
@@ -3456,7 +3480,7 @@
   -moz-appearance:textfield;appearance:textfield}
 .slide-num::-webkit-outer-spin-button,.slide-num::-webkit-inner-spin-button{
   -webkit-appearance:none;margin:0}
-.slide-num:focus{box-shadow:0 0 0 2px rgba(47, 212, 168, 0.55)}
+.slide-num:focus{box-shadow:0 0 0 1px rgba(47, 212, 168, 0.6)}
 .slide-unit{font-size:10px;font-weight:650;color:rgba(255,255,255,0.56)}
 /* Keep goes paper once it is the value being kept, the way the chosen version
    tab does: before that it is an offer, not a commitment. */
@@ -3469,7 +3493,7 @@
   align-items:center;justify-content:center;flex:0 0 auto}
 .slide-reset:hover{color:#fff;background:rgba(255,255,255,0.12)}
 .slide-reset svg{display:block}
-.slide-row-val{font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;min-width:36px}
+.slide-row-val{font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;flex:1 1 0;min-width:36px}
 .sli .slide-keep{flex:0 0 auto}
 .sli .slide-reset{flex:0 0 auto;color:rgba(255, 255, 255, 0.56)}
 .slide-tog{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px;min-width:34px}
@@ -3477,7 +3501,7 @@
 
 /* composer — a textbox ON the element */
 .composer{position:absolute;width:268px;pointer-events:auto;background:#0B0B0C;
-  border-radius:12px;padding:10px;color:#fff;
+  border-radius:16px;padding:10px;color:#fff;
   box-shadow:0 10px 34px rgba(0, 0, 0, 0.34),0 0 0 1px rgba(255, 255, 255, 0.10)}
 .c-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .c-badge{min-width:17px;height:17px;padding:0 4px;display:flex;align-items:center;justify-content:center;
@@ -3487,7 +3511,7 @@
   color:rgba(255, 255, 255, 0.56);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .c-ta{position:relative}
 .composer textarea{display:block;width:100%;background:rgba(255, 255, 255, 0.06);border:none;outline:none;
-  color:#fff;border-radius:9px;padding:8px 14px 8px 8px;font-size:12.5px;line-height:1.45;resize:none;
+  color:#fff;border-radius:6px;padding:8px 14px 8px 8px;font-size:12.5px;line-height:1.45;resize:none;
   max-height:180px;overflow-y:auto;overflow-wrap:break-word;
   scrollbar-width:none;-ms-overflow-style:none}
 .composer textarea::-webkit-scrollbar{width:0;height:0;display:none}
@@ -3503,18 +3527,19 @@
 .c-sb:hover .c-sb-t,.c-sb.grabbing .c-sb-t{background:rgba(255, 255, 255, 0.52)}
 
 .composer textarea::placeholder{color:rgba(255, 255, 255, 0.56)}
-.composer textarea:focus{box-shadow:0 0 0 2px rgba(47, 212, 168, 0.55)}
+.composer textarea:focus{box-shadow:0 0 0 1px rgba(47, 212, 168, 0.6)}
 
 /* text reopen bar — Delete + Done when an existing text mark is reopened.
    A full pill, with the reference number as a corner badge the way a comment
    mark wears it — not an inline chip inside the bar. */
-.text-bar{position:absolute;display:flex;align-items:center;gap:6px;padding:5px 8px 5px 8px;
+.text-bar{position:absolute;display:flex;align-items:center;gap:6px;padding:5px;
   pointer-events:auto;background:#0B0B0C;color:#fff;border-radius:999px;
   box-shadow:0 10px 34px rgba(0, 0, 0, 0.34),0 0 0 1px rgba(255, 255, 255, 0.10)}
 .text-bar .c-badge{position:absolute;left:-1px;top:-9px;margin:0;background:#0B0B0C;color:#fff;
   box-shadow:0 0 0 1px rgba(255, 255, 255, 0.65)}
 .text-bar button{height:26px;padding:0 12px;font-size:12px}
 .c-foot{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+.c-foot .ghost{margin-left:auto}
 /* how many versions to ask for — one tap apart from the send that commits it */
 .mult{background:rgba(255, 255, 255, 0.06);color:rgba(255, 255, 255, 0.56);padding:6px 10px;
   font-variant-numeric:tabular-nums;transition:background .12s,color .12s}
@@ -3564,12 +3589,14 @@ button.ghost:hover{color:#fff}
 .list:empty{display:none}
 .row{display:flex;align-items:center;justify-content:flex-end;gap:8px;height:38px;padding:0 14px;
   white-space:nowrap;flex:0 0 auto;min-width:0}
+.row.gone{display:none}
 .dot{width:7px;height:7px;border-radius:50%;background:rgba(255, 255, 255, 0.28);flex:0 0 auto;transition:background .12s}
 .dot.live{background:#2FD4A8;box-shadow:0 0 8px rgba(47, 212, 168, 0.7)}
 .hint{font-size:12.5px;font-weight:500;color:rgba(255, 255, 255, 0.56);letter-spacing:-.005em}
 .count{min-width:20px;height:20px;padding:0 6px;display:flex;align-items:center;justify-content:center;
   background:#F2EDE1;color:#0B0B0C;border-radius:999px;font-size:11.5px;font-weight:700;
   font-variant-numeric:tabular-nums}
+.row > .count:first-child{margin-left:-5px}
 .send{font-size:13px;font-weight:650;letter-spacing:-.005em}
 .batch.locked{cursor:default}
 .batch.locked .count{background:rgba(255, 255, 255, 0.14);color:rgba(255, 255, 255, 0.56)}
@@ -3580,11 +3607,16 @@ button.ghost:hover{color:#fff}
   scrollbar-width:none;-ms-overflow-style:none}
 .list::-webkit-scrollbar{width:0;height:0;display:none}
 .batch.teaching .list{max-height:min(440px,78vh)}
-.teach{padding:4px 10px 10px;min-width:min(300px,calc(100vw - 56px));max-width:340px}
+.batch.teaching .list,.batch.ending .list{min-width:0}
+/* With the row gone the card meets the pill's edge on every side, so its
+   buttons sit as far in from the corner as the agent pill's do. */
+.island .batch.ending .list{padding:6px 6px 0}
+.teach{padding:4px 10px 10px;width:min(328px,calc(100vw - 68px))}
 .t-head{font-size:13px;font-weight:650;letter-spacing:-.005em;margin:6px 0 4px}
 .t-sub{font-size:12.5px;line-height:1.45;color:rgba(255, 255, 255, 0.56);margin-bottom:14px;
   overflow-wrap:break-word}
 .t-when{font-size:11px;font-weight:650;color:rgba(255, 255, 255, 0.56);margin-bottom:6px}
+.t-when:first-child{margin-top:6px}
 .t-key{margin:0}
 .t-row{display:flex;align-items:baseline;gap:10px;padding:4px 0;min-width:0}
 .t-row dt{flex:0 0 96px;font-size:11.5px;font-weight:650;color:rgba(255, 255, 255, 0.56);
@@ -3592,9 +3624,10 @@ button.ghost:hover{color:#fff}
 .t-row dd{margin:0;font-size:12.5px;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
 /* the way out, under everything else and never beside the Send */
-.pfoot{display:flex;justify-content:flex-end;padding:4px 4px 2px;margin-top:2px;
+.pfoot{display:flex;justify-content:flex-end;padding:4px 0 2px;margin-top:2px;
   border-top:1px solid rgba(255, 255, 255, 0.10)}
-.pfoot .ghost{font-size:11.5px;padding:5px 10px}
+.pfoot .ghost{font-size:11.5px;padding:5px 8px}
+.island.left .pfoot{justify-content:flex-start}
 .qlist{margin:8px 0 2px}
 .qli{position:relative;padding:3px 0 3px 14px;font-size:12.5px;line-height:1.45;
   color:rgba(255, 255, 255, 0.56);overflow-wrap:break-word}
@@ -3621,10 +3654,11 @@ button.ghost:hover{color:#fff}
   background:rgba(255, 255, 255, 0.12);border-radius:5px;font-size:10px;font-weight:700;
   font-variant-numeric:tabular-nums;flex:0 0 auto}
 .li-n.remove{background:#E8483C}
-.li-k{font-size:11px;font-weight:650;flex:0 0 52px;min-width:0;color:rgba(255, 255, 255, 0.56);
+.li-k{font-size:11px;font-weight:650;flex:0 0 58px;min-width:0;color:rgba(255, 255, 255, 0.56);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Its own column. Nested inside .li-k these spilled out of a 52px box that
-   "Comment" already fills and painted over the address beside it. */
+   "Comment" already fills and painted over the address beside it. Trailing,
+   after the comment, so the address and comment columns line up row to row. */
 .li-f{display:flex;align-items:center;gap:4px;flex:0 0 auto;min-width:0}
 .li-a{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10.5px;color:rgba(255, 255, 255, 0.56);
   width:118px;flex:0 1 118px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -3640,10 +3674,14 @@ button.ghost:hover{color:#fff}
   padding:0;border-radius:999px}
 .li-x:hover{background:rgba(255, 255, 255, 0.12);color:#FFFFFF}
 .li-x.on{background:#F2EDE1;color:#0B0B0C}
-.li-v{padding:0 4px;border-radius:5px;background:rgba(255, 255, 255, 0.12);
-  color:#FFFFFF;font-size:9.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.li-v{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;padding:0 6px;
+  border-radius:5px;background:rgba(255, 255, 255, 0.06);color:rgba(255, 255, 255, 0.56);
+  font-size:10.5px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.li-v.ico{padding:0 3px}
+.li-v svg{display:block;width:12px;height:12px}
 /* the same versions as the pill on the page, named rather than hovered */
 .vli .li-a{flex:0 0 118px}
+.li-a.lab{font-family:inherit;font-size:11.5px}
 .vtabs{display:flex;align-items:center;gap:3px;flex:1 1 0;min-width:0;overflow:hidden}
 .vt{flex:0 0 auto;height:20px;background:rgba(255, 255, 255, 0.06)}
 .vt .vt-n{width:20px;flex:0 0 20px;line-height:20px}
@@ -3664,7 +3702,12 @@ button.ghost:hover{color:#fff}
 .btitle{font-size:13px;font-weight:650;letter-spacing:-.005em;margin-bottom:4px;overflow-wrap:break-word}
 .btitle.bad{color:#E8483C}
 .bmeta{font-size:12px;line-height:1.45;color:rgba(255, 255, 255, 0.56);overflow-wrap:break-word}
-.bact{display:flex;margin-top:10px}
+.bact{display:flex;gap:6px;margin-top:10px}
+.island.right .teach .bact{justify-content:flex-end;margin-left:0;margin-right:-6px}
+.island.left .teach .bact{justify-content:flex-start;margin-right:0;margin-left:-6px}
+/* a ghost has no fill to align, so its label meets the text column above it */
+.island.right .body .bact .ghost:first-child{margin-left:-10px}
+.island.left .body .bact .ghost:last-child{margin-right:-10px}
 @media (prefers-reduced-motion:reduce){
   .loader{animation-duration:1.6s}
   .vtab .vt-l,.vt .vt-l{transition:none}

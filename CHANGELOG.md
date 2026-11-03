@@ -13,6 +13,44 @@ go out either. See [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+A pass over every state the overlay can be in, from the welcome card to the ended card, for radii, spacing, alignment and copy. Most of it is small: corners that weren't concentric, a button whose label sat 10px off the text above it, a column too narrow for the word it was sized for. Two were real faults. A slider and a version set on the same element were drawn on top of each other, and while a run was open both pills went half transparent over the page, which the design rules out.
+
+### Changed
+
+[1e423ab] — The composer uses the panel radius (16px), and its text field is 6px so the two corners are concentric; the field's focus ring is 1px instead of 2px.
+
+[1e423ab] — The composer's footer puts the version and slider controls on the left and Discard and Add on the right.
+
+[1e423ab] — A spot's composer and list row no longer show its address, which was only the route.
+
+[1e423ab] — The staged list shows a route header only when it tells something apart, and the version and slider groups are headed `Versions — keep one` and `Sliders — keep a value` in the sans face.
+
+[1e423ab] — A list row's flags (`3×`, `slider`) come after the comment, so the address and comment columns line up across rows, and the kind column is wide enough for `Comment`.
+
+[1e423ab] — A list row's flags are quiet 18px chips in muted text instead of white on the badge fill, and the slider flag is the composer's slider icon instead of the word.
+
+[1e423ab] — The batch pill says `Needs reload` instead of `Needs refresh`, matching the agent pill's Reload button.
+
+[1e423ab] — The finished-run card says "Reload to see them." and the incomplete-run card drops "Tailr can't say why".
+
+[1e423ab] — Once the session is ending, the pill's row gives way to the card, which is 340px wide with its buttons right-aligned 10px from the corner.
+
+[1e423ab] — The count at the front of the batch pill sits concentric with the pill's end cap, End session lines up with the row's text margin, and the agent card's Cancel lines up with its title.
+
+[1e423ab] — The walkthrough and ending cards fill their width, and the gesture key has the same top margin as its side margins.
+
+[1e423ab] — The landing page's staged overlay replicas follow the new composer, list and pill values.
+
+### Fixed
+
+[1e423ab] — A slider on an element that also has versions stacks above the version pill instead of covering it.
+
+[1e423ab] — Version and slider pills stay opaque while a run is open; only their contents dim.
+
+[1e423ab] — Editing text in place no longer shows the browser's focus ring on top of the mark's own outline.
+
+[1e423ab] — The slider row's Keep, reset and × sit at the row's end, and buttons in a card's action row no longer touch.
+
 ## [1.4.3] — 2026-10-07
 
 Agents closed a run and went quiet. Under MCP, `done` sent them straight back
