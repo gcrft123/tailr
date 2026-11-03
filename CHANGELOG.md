@@ -15,6 +15,18 @@ go out either. See [RELEASING.md](RELEASING.md).
 
 A pass over every state the overlay can be in, from the welcome card to the ended card, for radii, spacing, alignment and copy. Most of it is small: corners that weren't concentric, a button whose label sat 10px off the text above it, a column too narrow for the word it was sized for. Two were real faults. A slider and a version set on the same element were drawn on top of each other, and while a run was open both pills went half transparent over the page, which the design rules out.
 
+Marks sit on top of the thing they mark, so judging how a page looks meant sending the batch or deleting marks to get them out of the way. They can now be put out of sight for a moment and brought back.
+
+### New
+
+[e46902a] — ⌥H, or H once marking is latched, hides every mark, version pill and slider on the page, and pressing it again shows them.
+
+[e46902a] — The staged list has a Hide marks button across from End session, which reads Show marks while they're hidden.
+
+[e46902a] — The batch pill shows a crossed-out eye while marks are hidden.
+
+[e46902a] — Making a mark, or the agent adding versions or a slider, shows hidden marks again.
+
 ### Changed
 
 [1e423ab] — The composer uses the panel radius (16px), and its text field is 6px so the two corners are concentric; the field's focus ring is 1px instead of 2px.
