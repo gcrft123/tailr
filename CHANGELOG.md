@@ -13,6 +13,8 @@ go out either. See [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-11-05
+
 A pass over every state the overlay can be in, from the welcome card to the ended card, for radii, spacing, alignment and copy. Most of it is small: corners that weren't concentric, a button whose label sat 10px off the text above it, a column too narrow for the word it was sized for. Two were real faults. A slider and a version set on the same element were drawn on top of each other, and while a run was open both pills went half transparent over the page, which the design rules out.
 
 Marks sit on top of the thing they mark, so judging how a page looks meant sending the batch or deleting marks to get them out of the way. They can now be put out of sight for a moment and brought back.

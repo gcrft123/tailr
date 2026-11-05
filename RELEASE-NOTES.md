@@ -2,7 +2,9 @@
 
 What each Tailr release changes for the people using it, newest first. Each section is the body of the matching [GitHub Release](https://github.com/gcrft123/tailr/releases), and its heading is that release's title. Every change, including the ones you wouldn't notice, is in [CHANGELOG.md](CHANGELOG.md).
 
-## Unreleased: Hide your marks to see the page under them, and a tidier overlay
+## Unreleased
+
+## v1.5.0: Hide your marks to see the page under them, and a tidier overlay
 
 Marks sit on top of what they mark, so checking how a page looked meant sending the batch or deleting marks to clear them away. Now you can hide them for a moment and bring them back.
 
