@@ -2,11 +2,32 @@
 
 What each Tailr release changes for the people using it, newest first. Each section is the body of the matching [GitHub Release](https://github.com/gcrft123/tailr/releases), and its heading is that release's title. Every change, including the ones you wouldn't notice, is in [CHANGELOG.md](CHANGELOG.md).
 
-## Unreleased
+## Unreleased: Hide your marks to see the page under them, and a tidier overlay
+
+Marks sit on top of what they mark, so checking how a page looked meant sending the batch or deleting marks to clear them away. Now you can hide them for a moment and bring them back.
+
+The overlay also got a pass over every state it can be in, from the welcome card to the end-of-session card. Corners, spacing, alignment and wording are more consistent, a slider and a set of versions on the same element no longer cover each other, and pills stay solid while your agent works.
+
+Agents that re-render for a version or slider now see the one you picked. Tailr's instructions told them to read it in a way that always came back empty, so they always showed version 1. The plugin and MCP server pick this up when you update. If you set Tailr up with `tailr init`, run `npx -y @gcrft123/tailr init` again to update the rules in your project.
 
 ### New
 
-* Press ⌥H (or Hide marks under the list) to hide every mark on the page so you can see what's under it. Press it again, or make a new mark, to bring them back.
+* Hold the marking key and press H, or press H alone once marking is latched, to hide every mark, version pill and slider so you can see what's under them. Hide marks under the staged list does the same. Press it again, or make a new mark, to bring them back.
+* The pill shows a crossed-out eye while your marks are hidden.
+
+### Changed
+
+* The comment box keeps Discard and Add on the right, with the version and slider controls on the left.
+* The staged list lines up its columns from row to row, and skips the page heading when every mark is on the page you're looking at.
+* Other: rounder comment box with a thinner focus ring, a slider icon in place of the word "slider" in the list, "Needs reload" instead of "Needs refresh", shorter messages when a run finishes or comes back incomplete, a cleaner card while the session ends.
+
+### Fixed
+
+* Agents that re-render for a version or slider show the one you picked instead of always the first.
+* A slider on an element that also has versions sits above the version pill instead of covering it.
+* Version and slider pills no longer turn see-through over the page while your agent works.
+* Editing text in place no longer draws the browser's focus ring over Tailr's outline.
+* Other: the slider row's buttons sit at the end of the row, and buttons in a card no longer touch.
 
 ## v1.4.3: Your agent tells you what it changed after every batch, and the overlay keeps up with your app
 

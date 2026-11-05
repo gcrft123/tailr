@@ -136,28 +136,17 @@ notes with `gh release edit` from `RELEASE-NOTES.md` once it finishes.
 
 ## The state of the existing tags
 
-The tags predating this flow do not satisfy it, and it is worth knowing why
+Not every tag predating this flow satisfies it, and it is worth knowing why
 rather than being surprised by a failing release later.
 
-- **`v0.3.0` points at the wrong commit.** It points at `4b806b3` — the
-  `tailr 0.2.0` commit, whose `package.json` says `0.2.0`, and which is on no
-  branch at all. It is also already pushed to `origin`. A release cut from it
-  would fail both the manifest check and the `main` check.
-
-  The commit it should point at is `ec0000c` ("Bump to 0.3.0 and read the MCP
-  server version from the manifest"), which is on `main` and whose tree matches
-  the published `@gcrft123/tailr@0.3.0` tarball exactly. Repairing it means
-  force-updating a tag that has already been published:
-
-  ```bash
-  git tag -f -a v0.3.0 ec0000c -m "v0.3.0" && git push --force origin v0.3.0
-  ```
-
-  Leaving it alone is also fine. Nothing is cut from it unless someone re-pushes
-  it, and the flow starts working correctly from the next release either way.
+- **`v0.3.0` was moved once.** It first pointed at the `tailr 0.2.0` commit,
+  which is on no branch and whose `package.json` says `0.2.0`. It now points at
+  `d164b04` ("Bump to 0.3.0 and read the MCP server version from the
+  manifest"), which is on `main` and whose tree matches the published
+  `@gcrft123/tailr@0.3.0` tarball exactly.
 
 - **`v0.2.0` was never pushed**, and points at that same off-branch commit. The
-  0.2.0 source in `main`'s history stops at `a997b4e`; the version bump itself
+  0.2.0 source in `main`'s history stops at `b400430`; the version bump itself
   only ever existed on the detached commit. There is no clean commit on `main`
   to move it to, so it is best left as a local artifact.
 
