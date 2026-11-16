@@ -214,7 +214,7 @@ async function browserLoad(t) {
       expression: `new Promise(r => { const f = () => (${ready}) && performance.getEntriesByType('navigation')[0].loadEventEnd ? r(performance.getEntriesByType('navigation')[0].toJSON()) : setTimeout(f, 5); f(); })`
     });
     const nav = r.result.value;
-    if (process.env.BENCH_DEBUG) process.stdout.write(JSON.stringify({ resp: nav.responseEnd, dcl: nav.domContentLoadedEventEnd, load: nav.loadEventEnd }) + '\n');
+    if (process.env.BENCH_DEBUG) process.stdout.write(JSON.stringify({ resp: nav.responseEnd, dcl: nav.domContentLoadedEventEnd, load: nav.loadEventEnd, res: (await page.send('Runtime.evaluate', { returnByValue: true, expression: 'performance.getEntriesByType("resource").map(e => [e.name.slice(-12), e.startTime, e.responseEnd, e.transferSize])' })).result.value }) + '\n');
     // Wait out anything the overlay scheduled on mount before reading what it cost.
     await page.send('Runtime.evaluate', { awaitPromise: true, expression: 'new Promise(r => setTimeout(r, 50))' });
     const after = metrics(await page.send('Performance.getMetrics'));
