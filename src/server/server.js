@@ -100,20 +100,30 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
      and the bridge needs the overlay it binds to. Three plain scripts glued
      together — there is no bundler here, and none of them is a module. */
   const PARTS = [CUE, OVERLAY, BRIDGE];
-  let bundle = null, bundleStamp = '';
+  /* Cached, but keyed on file mtime so an edit to the overlay is picked up
+     without restarting the session. Every page view asks for the bundle's
+     version, so the files are looked at no more than once every STAT_MS; an
+     edit is saved and then reloaded, which takes longer than that. */
+  const STAT_MS = 250;
+  let bundle = null, bundleStamp = '', checkedAt = 0;
   function overlayBundle() {
-    // Cached, but keyed on file mtime so an edit to the overlay is picked up
-    // without restarting the session.
+    const now = Date.now();
+    if (bundle && now - checkedAt < STAT_MS) return bundle;
+    checkedAt = now;
     let stamp = '';
     try { stamp = PARTS.map((p) => statSync(p).mtimeMs).join(':'); } catch {}
     if (bundle && stamp === bundleStamp) return bundle;
     bundleStamp = stamp;
     const text = PARTS.map((p) => readFileSync(p, 'utf8')).join('\n');
     const body = Buffer.from(text);
+    const version = createHash('sha1').update(body).digest('base64url').slice(0, 20);
     bundle = {
-      body,
+      body, version,
       gz: gzipSync(body),
-      etag: 'W/"' + createHash('sha1').update(body).digest('base64url').slice(0, 20) + '"'
+      etag: 'W/"' + version + '"',
+      /* The page names the version it wants, so that address only ever holds
+         one thing and the browser can keep it without asking again. */
+      tag: Buffer.from(`<script src="${API}overlay.js?v=${version}" defer></script>`)
     };
     return bundle;
   }
@@ -132,7 +142,7 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     });
   }
 
-  async function api(req, res, path) {
+  async function api(req, res, path, query = '') {
     /* Every page load and every hot reload asks for this again. It used to be
        no-store, so the browser fetched and compiled all of it each time; now
        it asks whether it changed, and the answer is nearly always a 304 that
@@ -140,9 +150,15 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
        lands on the next load, because the tag is the content's own. */
     if (path === 'overlay.js') {
       const b = overlayBundle();
+      /* The tag injected into a page carries the bundle's version, so a load
+         after the first one makes no request for it at all. An address with
+         no version, or with one that is no longer current, is still asked
+         about every time. */
+      const pinned = query === `v=${b.version}`;
       const headers = {
         'content-type': 'text/javascript; charset=utf-8',
-        'cache-control': 'no-cache', etag: b.etag, vary: 'accept-encoding'
+        'cache-control': pinned ? 'public, max-age=31536000, immutable' : 'no-cache',
+        etag: b.etag, vary: 'accept-encoding'
       };
       if (req.headers['if-none-match'] === b.etag) { res.writeHead(304, headers); return res.end(); }
       const gz = /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
@@ -467,10 +483,10 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
   /* Both of these work on the bytes as they came. A page is searched far more
      often than it is changed, and decoding it to a string to look for one tag,
      then encoding it again to send, was most of what a page view cost. */
-  const TAG = Buffer.from(`<script src="${API}overlay.js" defer></script>`);
   const MARK = `${API}overlay.js`;
   function inject(html) {
     if (html.includes(MARK)) return html;
+    const TAG = overlayBundle().tag;
     const text = html.toString('latin1');
     let at = text.search(HEAD);
     if (at === -1) at = text.search(BODY);
@@ -485,6 +501,7 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
   const HOLD = '</head>'.length - 1;
   function injector() {
     let done = false, carry = null, inBody = false;
+    const TAG = overlayBundle().tag;
     return new Transform({
       transform(chunk, _enc, cb) {
         if (done) return cb(null, chunk);
@@ -514,8 +531,9 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
   const server = http.createServer((req, res) => {
     const url = req.url || '/';
     if (url.startsWith(API)) {
-      const path = url.slice(API.length).split('?')[0];
-      return api(req, res, path).catch(() => json(res, 500, { error: 'Server error.' }));
+      const rest = url.slice(API.length);
+      const q = rest.indexOf('?');
+      return api(req, res, q === -1 ? rest : rest.slice(0, q), q === -1 ? '' : rest.slice(q + 1)).catch(() => json(res, 500, { error: 'Server error.' }));
     }
     // The review URL staying up is the whole job of this process. A proxy that
     // throws synchronously must surface as one dead page, never as a dead
