@@ -90,6 +90,35 @@ test('a page the dev server streams reaches the browser as it streams', async (t
   assert.equal((early + rest).match(/overlay\.js/g).length, 1);
 });
 
+test('a page with a length is rewritten with a length that counts the tag', async (t) => {
+  const pages = {
+    '/split': ['<html><he', 'ad><title>t</title></he', 'ad><body>split</body></html>'],
+    '/bare': ['<div>no head ', 'and no body</div>'],
+    '/ours': ['<html><head><script src="/__tailr/overlay.js" defer></script></head><body>x</body></html>'],
+    '/wide': ['<html><head><title>caf\u00e9 \u2014 \ud83c\udf70</title></head><body>\u00fcber</body></html>']
+  };
+  const up = await startUpstream((req, res) => {
+    const parts = pages[req.url].map((p) => Buffer.from(p));
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8',
+      'content-length': parts.reduce((n, p) => n + p.length, 0) });
+    let i = 0;
+    const next = () => { if (i < parts.length - 1) { res.write(parts[i++]); setTimeout(next, 5); } else res.end(parts[i]); };
+    next();
+  });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  for (const path of Object.keys(pages)) {
+    const res = await fetch(s.base + path);
+    const body = Buffer.from(await res.arrayBuffer());
+    assert.equal(Number(res.headers.get('content-length')), body.length, `${path} says how long it is`);
+    assert.equal(body.toString().match(/overlay\.js/g).length, 1, `${path} has the overlay once`);
+  }
+  const wide = await (await fetch(s.base + '/wide')).text();
+  assert.match(wide, /caf\u00e9 \u2014 \ud83c\udf70<\/title><script src="\/__tailr\/overlay\.js\?v=[\w-]+" defer><\/script><\/head><body>\u00fcber/,
+    'text outside ASCII comes through as it was sent');
+});
+
 test('a streamed page the dev server drops is cut short, not left hanging', async (t) => {
   const up = await startUpstream((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html' });

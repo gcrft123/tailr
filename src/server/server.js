@@ -428,11 +428,11 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
          and then each part as it resolves — sends it without a length. Held
          until the last byte, the reviewer saw nothing until the slowest part
          of the page had rendered. It is passed through as it arrives instead,
-         with the tag let in on the way past. */
-      const streamed = (encoding === '' || encoding === 'identity') && !header(ur.rawHeaders, 'content-length');
-      if (streamed) {
-        res.writeHead(status, without(ur.rawHeaders, ['transfer-encoding', 'content-length']));
-        return relay(ur, res, injector());
+         with the tag let in on the way past. A page with a length goes the
+         same way, held only until the tag is in, and keeps a length. */
+      if (encoding === '' || encoding === 'identity') {
+        const length = header(ur.rawHeaders, 'content-length');
+        return relay(ur, res, status, injector(), length === '' ? -1 : Number(length));
       }
       const chunks = [];
       ur.on('data', (c) => chunks.push(c));
@@ -503,22 +503,24 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
      time in case a tag is split across two chunks. */
   const HOLD = '</head>'.length - 1;
   function injector() {
-    let done = false, carry = null, inBody = false;
+    let carry = null, inBody = false;
     const TAG = overlayBundle().tag;
-    return {
+    const feed = {
+      // Whether the page's own tag has been seen or ours put in; and which.
+      done: false, added: 0,
       push(chunk) {
-        if (done) return chunk;
+        if (feed.done) return chunk;
         const bytes = carry ? Buffer.concat([carry, chunk]) : chunk;
         const text = bytes.toString('latin1');
         carry = null;
-        if (OURS.test(text)) { done = true; return bytes; }
+        if (OURS.test(text)) { feed.done = true; return bytes; }
         let at = text.search(HEAD);
         if (at === -1) {
           if (!inBody && OPENS_BODY.test(text)) inBody = true;
           if (inBody) at = text.search(BODY);
         }
         if (at !== -1) {
-          done = true;
+          feed.done = true; feed.added = TAG.length;
           return Buffer.concat([bytes.subarray(0, at), TAG, bytes.subarray(at)]);
         }
         const keep = Math.min(bytes.length, HOLD);
@@ -526,21 +528,47 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
         return bytes.subarray(0, bytes.length - keep);
       },
       end() {
-        if (done) return carry;
+        if (feed.done) return carry;
+        feed.done = true; feed.added = TAG.length;
         return carry ? Buffer.concat([carry, TAG]) : TAG;
       }
     };
+    return feed;
   }
 
   /* Upstream to browser through an injector, with the backpressure and
      teardown a pipe gives and without a stream in the middle: a Transform
-     costs more per chunk than the search it would be carrying. */
-  function relay(ur, res, feed) {
+     costs more per chunk than the search it would be carrying.
+
+     `length` is the page's own length, or -1 when it has none. A page with
+     one is held until the injector has decided — on nearly every page that
+     is the first chunk, which has </head> in it — and then goes out with a
+     length that counts the tag. */
+  function relay(ur, res, status, feed, length) {
+    const headers = without(ur.rawHeaders, ['transfer-encoding', 'content-length']);
+    let held = null;
+    if (length < 0) res.writeHead(status, headers);
+    else held = [];
+    const release = () => {
+      headers.push('Content-Length', String(length + feed.added));
+      res.writeHead(status, headers);
+      for (const b of held) res.write(b);
+      held = null;
+    };
     ur.on('data', (chunk) => {
       const out = feed.push(chunk);
-      if (out.length && !res.write(out)) { ur.pause(); res.once('drain', () => ur.resume()); }
+      if (held) {
+        if (out.length) held.push(out);
+        if (!feed.done) return;
+        release();
+      } else if (out.length) res.write(out);
+      if (res.writableNeedDrain) { ur.pause(); res.once('drain', () => ur.resume()); }
     });
-    ur.on('end', () => { const last = feed.end(); last ? res.end(last) : res.end(); });
+    ur.on('end', () => {
+      const last = feed.end();
+      if (held) { if (last) held.push(last); release(); res.end(); }
+      else last ? res.end(last) : res.end();
+    });
     // The dev server dropping the page mid-way leaves it cut short, not hung.
     ur.on('error', () => res.destroy());
     ur.on('close', () => { if (!ur.complete) res.destroy(); });
