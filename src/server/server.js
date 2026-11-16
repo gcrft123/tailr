@@ -394,25 +394,37 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
   }
 
   /* ── proxy ─────────────────────────────────────────────── */
+  /* Headers cross both ways as the raw [name, value, …] lists Node read them
+     into. Building and validating an object of them on each side was most of
+     what an asset cost to pass through, and the list keeps every repeated
+     header, and each name's case, as the other end sent it. */
   function proxy(req, res) {
+    const raw = req.rawHeaders;
+    const headers = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      const name = raw[i].toLowerCase();
+      if (name !== 'host' && name !== 'accept-encoding') headers.push(raw[i], raw[i + 1]);
+    }
+    // ask for plain text so HTML can be rewritten without decompressing
+    headers.push('Host', upstream.host, 'Accept-Encoding', 'identity');
     const opts = {
       protocol: upstream.protocol, hostname: upstream.hostname, port: upstreamPort,
       path: req.url, method: req.method,
       rejectUnauthorized: false,
-      headers: { ...req.headers, host: upstream.host,
-        // ask for plain text so HTML can be rewritten without decompressing
-        'accept-encoding': 'identity' }
+      headers
     };
     const up = transport.request(opts, (ur) => {
-      const type = String(ur.headers['content-type'] || '');
-      const encoding = String(ur.headers['content-encoding'] || '').trim().toLowerCase();
+      // Read off the raw list: touching `ur.headers` builds the whole object,
+      // which a response that is only passed through never needs.
+      const type = header(ur.rawHeaders, 'content-type');
+      const encoding = header(ur.rawHeaders, 'content-encoding').trim().toLowerCase();
       const status = ur.statusCode || 502;
       // Only HTML gets rewritten, and only a response that has a body. A HEAD,
       // a 204 or a 304 handed a script tag would be a body where none may be.
       const bodyless = req.method === 'HEAD' || status === 204 || status === 304 || status < 200;
       // Everything else is somebody else's bytes.
       if (!type.includes('text/html') || bodyless) {
-        res.writeHead(status, ur.headers);
+        res.writeHead(status, ur.rawHeaders);
         return ur.pipe(res);
       }
       /* A dev server that streams its HTML — a framework flushing the shell
@@ -615,4 +627,11 @@ setInterval(async () => {
    in the string is the same offset in the buffer and nothing is decoded. V8's
    regex on a one-byte string beats any search that walks the buffer from JS. */
 const HEAD = /<\/head>/i, BODY = /<\/body>/i, OPENS_BODY = /<body[\s>]/i, OURS = /\/__tailr\/overlay\.js/i;
+/** The first value of a header in a raw [name, value, …] list, or ''. */
+function header(raw, name) {
+  for (let i = 0; i < raw.length; i += 2) {
+    if (raw[i].length === name.length && raw[i].toLowerCase() === name) return raw[i + 1];
+  }
+  return '';
+}
 function escapeHtml(s) { return String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }

@@ -310,7 +310,8 @@ if (opt('base')) {
   for (const [k, v] of Object.entries(results)) {
     if (!(k in base)) continue;
     const s = base[k] / v;
-    logSum += Math.log(s); n++;
+    // A name with a colon is detail on the scenario before it, not a scenario.
+    if (!k.includes(':')) { logSum += Math.log(s); n++; }
     process.stdout.write(`  ${k.padEnd(18)} ${base[k].toFixed(1).padStart(8)}  ${v.toFixed(1).padStart(8)}  ${s.toFixed(2)}x\n`);
   }
   process.stdout.write(`\n  overall            ${Math.exp(logSum / n).toFixed(3)}x (geometric mean of ${n})\n`);
