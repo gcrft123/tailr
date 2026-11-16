@@ -423,7 +423,7 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
           res.writeHead(ur.statusCode || 200, ur.headers);
           return res.end(raw);
         }
-        const html = inject(plain.toString('utf8'));
+        const html = inject(plain);
         const headers = { ...ur.headers };
         // The body is being replaced, so every header describing the old one
         // goes with it. A fresh content-length left beside the upstream's
@@ -432,7 +432,7 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
         delete headers['transfer-encoding'];
         delete headers['content-length'];
         delete headers['content-encoding'];
-        headers['content-length'] = Buffer.byteLength(html);
+        headers['content-length'] = html.length;
         res.writeHead(ur.statusCode || 200, headers);
         res.end(html);
       });
@@ -464,43 +464,49 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     return null;
   }
 
-  const TAG = `<script src="${API}overlay.js" defer></script>`;
+  /* Both of these work on the bytes as they came. A page is searched far more
+     often than it is changed, and decoding it to a string to look for one tag,
+     then encoding it again to send, was most of what a page view cost. */
+  const TAG = Buffer.from(`<script src="${API}overlay.js" defer></script>`);
+  const MARK = `${API}overlay.js`;
   function inject(html) {
-    if (html.includes(`${API}overlay.js`)) return html;
-    if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${TAG}</head>`);
-    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${TAG}</body>`);
-    return html + TAG;
+    if (html.includes(MARK)) return html;
+    const text = html.toString('latin1');
+    let at = text.search(HEAD);
+    if (at === -1) at = text.search(BODY);
+    if (at === -1) return Buffer.concat([html, TAG]);
+    return Buffer.concat([html.subarray(0, at), TAG, html.subarray(at)]);
   }
 
   /* inject(), for a page that is still arriving. Same places in the same
      order: before </head>, or before </body> once the page is past its head
-     without one, or at the very end. Bytes are read as latin1, so every byte
-     is one character and none is changed by being looked at; the last few
-     are held back each time in case a tag is split across two chunks. */
+     without one, or at the very end. The last few bytes are held back each
+     time in case a tag is split across two chunks. */
   const HOLD = '</head>'.length - 1;
   function injector() {
-    let done = false, carry = '', inBody = false;
+    let done = false, carry = null, inBody = false;
     return new Transform({
       transform(chunk, _enc, cb) {
         if (done) return cb(null, chunk);
-        const text = carry + chunk.toString('latin1');
-        const lower = text.toLowerCase();
-        if (lower.includes(`${API}overlay.js`)) { done = true; carry = ''; return cb(null, Buffer.from(text, 'latin1')); }
-        let at = lower.indexOf('</head>');
+        const bytes = carry ? Buffer.concat([carry, chunk]) : chunk;
+        const text = bytes.toString('latin1');
+        carry = null;
+        if (OURS.test(text)) { done = true; return cb(null, bytes); }
+        let at = text.search(HEAD);
         if (at === -1) {
-          if (!inBody && /<body[\s>]/.test(lower)) inBody = true;
-          if (inBody) at = lower.indexOf('</body>');
+          if (!inBody && OPENS_BODY.test(text)) inBody = true;
+          if (inBody) at = text.search(BODY);
         }
         if (at !== -1) {
-          done = true; carry = '';
-          return cb(null, Buffer.from(text.slice(0, at) + TAG + text.slice(at), 'latin1'));
+          done = true;
+          return cb(null, Buffer.concat([bytes.subarray(0, at), TAG, bytes.subarray(at)]));
         }
-        const keep = Math.min(text.length, HOLD);
-        carry = text.slice(text.length - keep);
-        cb(null, Buffer.from(text.slice(0, text.length - keep), 'latin1'));
+        const keep = Math.min(bytes.length, HOLD);
+        carry = Buffer.from(bytes.subarray(bytes.length - keep));
+        cb(null, bytes.subarray(0, bytes.length - keep));
       },
       flush(cb) {
-        cb(null, done ? Buffer.from(carry, 'latin1') : Buffer.from(carry + TAG, 'latin1'));
+        cb(null, done ? carry : (carry ? Buffer.concat([carry, TAG]) : TAG));
       }
     });
   }
@@ -587,4 +593,8 @@ setInterval(async () => {
 }, 2000);
 </script>`;
 }
+/* Pages are searched as latin1, where each byte is one character, so an offset
+   in the string is the same offset in the buffer and nothing is decoded. V8's
+   regex on a one-byte string beats any search that walks the buffer from JS. */
+const HEAD = /<\/head>/i, BODY = /<\/body>/i, OPENS_BODY = /<body[\s>]/i, OURS = /\/__tailr\/overlay\.js/i;
 function escapeHtml(s) { return String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
