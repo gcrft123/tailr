@@ -142,32 +142,30 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     });
   }
 
-  async function api(req, res, path, query = '') {
-    /* Every page load and every hot reload asks for this again. It used to be
-       no-store, so the browser fetched and compiled all of it each time; now
-       it asks whether it changed, and the answer is nearly always a 304 that
-       lets it reuse the script it has, compiled code included. An edit still
-       lands on the next load, because the tag is the content's own. */
-    if (path === 'overlay.js') {
-      const b = overlayBundle();
-      /* The tag injected into a page carries the bundle's version, so a load
-         after the first one makes no request for it at all. An address with
-         no version, or with one that is no longer current, is still asked
-         about every time. */
-      const pinned = query === `v=${b.version}`;
-      const headers = {
-        'content-type': 'text/javascript; charset=utf-8',
-        'cache-control': pinned ? 'public, max-age=31536000, immutable' : 'no-cache',
-        etag: b.etag, vary: 'accept-encoding'
-      };
-      if (req.headers['if-none-match'] === b.etag) { res.writeHead(304, headers); return res.end(); }
-      const gz = /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
-      if (gz) headers['content-encoding'] = 'gzip';
-      headers['content-length'] = (gz ? b.gz : b.body).length;
-      res.writeHead(200, headers);
-      return res.end(gz ? b.gz : b.body);
-    }
+  /* Every page load and every hot reload asks for this. It used to be
+     no-store, so the browser fetched and compiled all of it each time. The
+     tag injected into a page carries the bundle's version, so a load after
+     the first one makes no request for it at all; an address with no
+     version, or one that is no longer current, is asked about every time and
+     nearly always answered with a 304. Either way an edit lands on the next
+     load, because the version is the content's own. */
+  function serveOverlay(req, res, query) {
+    const b = overlayBundle();
+    const headers = [
+      'Content-Type', 'text/javascript; charset=utf-8',
+      'Cache-Control', query === `v=${b.version}` ? 'public, max-age=31536000, immutable' : 'no-cache',
+      'ETag', b.etag, 'Vary', 'Accept-Encoding'
+    ];
+    if (header(req.rawHeaders, 'if-none-match') === b.etag) { res.writeHead(304, headers); return res.end(); }
+    const gz = /\bgzip\b/.test(header(req.rawHeaders, 'accept-encoding'));
+    const body = gz ? b.gz : b.body;
+    if (gz) headers.push('Content-Encoding', 'gzip');
+    headers.push('Content-Length', String(body.length));
+    res.writeHead(200, headers);
+    res.end(body);
+  }
 
+  async function api(req, res, path) {
     if (path === 'events') {
       res.writeHead(200, {
         'content-type': 'text/event-stream', 'cache-control': 'no-store',
@@ -545,7 +543,12 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     if (url.startsWith(API)) {
       const rest = url.slice(API.length);
       const q = rest.indexOf('?');
-      return api(req, res, q === -1 ? rest : rest.slice(0, q), q === -1 ? '' : rest.slice(q + 1)).catch(() => json(res, 500, { error: 'Server error.' }));
+      const path = q === -1 ? rest : rest.slice(0, q);
+      if (path === 'overlay.js') {
+        try { return serveOverlay(req, res, q === -1 ? '' : rest.slice(q + 1)); }
+        catch { return json(res, 500, { error: 'Server error.' }); }
+      }
+      return api(req, res, path).catch(() => json(res, 500, { error: 'Server error.' }));
     }
     // The review URL staying up is the whole job of this process. A proxy that
     // throws synchronously must surface as one dead page, never as a dead
