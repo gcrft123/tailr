@@ -16,7 +16,6 @@ import net from 'node:net';
 import tls from 'node:tls';
 import { readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { Transform, pipeline } from 'node:stream';
 import { brotliDecompressSync, gunzipSync, gzipSync, inflateRawSync, inflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -430,13 +429,10 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
          until the last byte, the reviewer saw nothing until the slowest part
          of the page had rendered. It is passed through as it arrives instead,
          with the tag let in on the way past. */
-      const streamed = (encoding === '' || encoding === 'identity') && ur.headers['content-length'] == null;
+      const streamed = (encoding === '' || encoding === 'identity') && !header(ur.rawHeaders, 'content-length');
       if (streamed) {
-        const headers = { ...ur.headers };
-        delete headers['transfer-encoding'];
-        delete headers['content-length'];
-        res.writeHead(status, headers);
-        return pipeline(ur, injector(), res, () => {});
+        res.writeHead(status, without(ur.rawHeaders, ['transfer-encoding', 'content-length']));
+        return relay(ur, res, injector());
       }
       const chunks = [];
       ur.on('data', (c) => chunks.push(c));
@@ -446,20 +442,17 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
         // An encoding this process cannot undo is passed through whole: a page
         // without the overlay beats a page decoded into nonsense.
         if (plain === null) {
-          res.writeHead(ur.statusCode || 200, ur.headers);
+          res.writeHead(status, ur.rawHeaders);
           return res.end(raw);
         }
         const html = inject(plain);
-        const headers = { ...ur.headers };
         // The body is being replaced, so every header describing the old one
         // goes with it. A fresh content-length left beside the upstream's
         // `transfer-encoding: chunked` is a response strict clients refuse,
         // and the body no longer arrives in whatever encoding it named.
-        delete headers['transfer-encoding'];
-        delete headers['content-length'];
-        delete headers['content-encoding'];
-        headers['content-length'] = html.length;
-        res.writeHead(ur.statusCode || 200, headers);
+        const headers = without(ur.rawHeaders, ['transfer-encoding', 'content-length', 'content-encoding']);
+        headers.push('Content-Length', String(html.length));
+        res.writeHead(status, headers);
         res.end(html);
       });
     });
@@ -512,13 +505,13 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
   function injector() {
     let done = false, carry = null, inBody = false;
     const TAG = overlayBundle().tag;
-    return new Transform({
-      transform(chunk, _enc, cb) {
-        if (done) return cb(null, chunk);
+    return {
+      push(chunk) {
+        if (done) return chunk;
         const bytes = carry ? Buffer.concat([carry, chunk]) : chunk;
         const text = bytes.toString('latin1');
         carry = null;
-        if (OURS.test(text)) { done = true; return cb(null, bytes); }
+        if (OURS.test(text)) { done = true; return bytes; }
         let at = text.search(HEAD);
         if (at === -1) {
           if (!inBody && OPENS_BODY.test(text)) inBody = true;
@@ -526,16 +519,33 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
         }
         if (at !== -1) {
           done = true;
-          return cb(null, Buffer.concat([bytes.subarray(0, at), TAG, bytes.subarray(at)]));
+          return Buffer.concat([bytes.subarray(0, at), TAG, bytes.subarray(at)]);
         }
         const keep = Math.min(bytes.length, HOLD);
         carry = Buffer.from(bytes.subarray(bytes.length - keep));
-        cb(null, bytes.subarray(0, bytes.length - keep));
+        return bytes.subarray(0, bytes.length - keep);
       },
-      flush(cb) {
-        cb(null, done ? carry : (carry ? Buffer.concat([carry, TAG]) : TAG));
+      end() {
+        if (done) return carry;
+        return carry ? Buffer.concat([carry, TAG]) : TAG;
       }
+    };
+  }
+
+  /* Upstream to browser through an injector, with the backpressure and
+     teardown a pipe gives and without a stream in the middle: a Transform
+     costs more per chunk than the search it would be carrying. */
+  function relay(ur, res, feed) {
+    ur.on('data', (chunk) => {
+      const out = feed.push(chunk);
+      if (out.length && !res.write(out)) { ur.pause(); res.once('drain', () => ur.resume()); }
     });
+    ur.on('end', () => { const last = feed.end(); last ? res.end(last) : res.end(); });
+    // The dev server dropping the page mid-way leaves it cut short, not hung.
+    ur.on('error', () => res.destroy());
+    ur.on('close', () => { if (!ur.complete) res.destroy(); });
+    // The browser going away stops the read from the dev server.
+    res.on('close', () => { if (!ur.complete) ur.destroy(); });
   }
 
   const server = http.createServer((req, res) => {
@@ -636,5 +646,13 @@ function header(raw, name) {
     if (raw[i].length === name.length && raw[i].toLowerCase() === name) return raw[i + 1];
   }
   return '';
+}
+/** A raw header list without the named headers (lowercase). */
+function without(raw, names) {
+  const out = [];
+  for (let i = 0; i < raw.length; i += 2) {
+    if (!names.includes(raw[i].toLowerCase())) out.push(raw[i], raw[i + 1]);
+  }
+  return out;
 }
 function escapeHtml(s) { return String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }

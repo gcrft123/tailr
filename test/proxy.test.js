@@ -90,6 +90,43 @@ test('a page the dev server streams reaches the browser as it streams', async (t
   assert.equal((early + rest).match(/overlay\.js/g).length, 1);
 });
 
+test('a streamed page the dev server drops is cut short, not left hanging', async (t) => {
+  const up = await startUpstream((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.write('<!doctype html><html><head></head><body><h1>Shell</h1>');
+    setTimeout(() => res.socket.destroy(), 50);
+  });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  const res = await fetch(s.base + '/');
+  const outcome = await Promise.race([
+    res.text().then(() => 'ended', () => 'ended'),
+    new Promise((r) => setTimeout(() => r('hung'), 2000))
+  ]);
+  assert.equal(outcome, 'ended');
+});
+
+test('a browser that leaves mid-stream stops the read from the dev server', async (t) => {
+  let closed;
+  const gone = new Promise((r) => { closed = r; });
+  const up = await startUpstream((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.write('<!doctype html><html><head></head><body>');
+    const beat = setInterval(() => res.write('<p>more</p>'), 10);
+    res.on('close', () => { clearInterval(beat); closed(); });
+  });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  const ctrl = new AbortController();
+  const res = await fetch(s.base + '/', { signal: ctrl.signal });
+  await res.body.getReader().read();
+  ctrl.abort();
+  const outcome = await Promise.race([gone.then(() => 'closed'), new Promise((r) => setTimeout(() => r('open'), 2000))]);
+  assert.equal(outcome, 'closed');
+});
+
 test('a response with no body is not handed a script tag', async (t) => {
   const up = await startUpstream((req, res) => {
     if (req.headers['if-none-match']) { res.writeHead(304, { 'content-type': 'text/html' }); return res.end(); }
