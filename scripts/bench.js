@@ -201,24 +201,25 @@ async function browserLoad(t) {
   const url = `${direct ? t.upstream : `http://127.0.0.1:${t.port}`}/page.html`;
   const ready = direct ? 'true' : `window.__tailr && document.querySelector('[data-tailr]')`;
 
+  /* Timed by the page's own clock, from navigation start to the end of the
+     load event, which waits for the deferred overlay to have run. Timing it
+     from here instead would end on whichever frame came next, and that
+     quantises every result to 16ms. */
   const once = async () => {
     const loaded = page.wait('Page.loadEventFired');
-    const t0 = performance.now();
     await page.send('Page.navigate', { url });
     await loaded;
-    // The overlay mounts after load; wait for it to be up and idle.
-    await page.send('Runtime.evaluate', {
-      expression: `new Promise(r => { const ok = () => ${ready}; const f = () => ok() ? requestAnimationFrame(() => requestAnimationFrame(r)) : setTimeout(f, 5); f(); })`,
-      awaitPromise: true
+    const r = await page.send('Runtime.evaluate', {
+      awaitPromise: true, returnByValue: true,
+      expression: `new Promise(r => { const f = () => (${ready}) && performance.getEntriesByType('navigation')[0].loadEventEnd ? r(performance.getEntriesByType('navigation')[0].toJSON()) : setTimeout(f, 5); f(); })`
     });
-    const ms = performance.now() - t0;
-    if (process.env.BENCH_DEBUG) {
-      const r = await page.send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const n = performance.getEntriesByType('navigation')[0]; const o = performance.getEntriesByType('resource').map(e => [e.name.slice(-20), Math.round(e.startTime), Math.round(e.responseEnd), e.transferSize]); return { resp: Math.round(n.responseEnd), dcl: Math.round(n.domContentLoadedEventStart), dclEnd: Math.round(n.domContentLoadedEventEnd), load: Math.round(n.loadEventStart), now: Math.round(performance.now()), o }; })()` });
-      process.stdout.write(JSON.stringify(r.result.value) + '\n');
-    }
+    const nav = r.result.value;
+    if (process.env.BENCH_DEBUG) process.stdout.write(JSON.stringify({ resp: nav.responseEnd, dcl: nav.domContentLoadedEventEnd, load: nav.loadEventEnd }) + '\n');
+    // Wait out anything the overlay scheduled on mount before reading what it cost.
+    await page.send('Runtime.evaluate', { awaitPromise: true, expression: 'new Promise(r => setTimeout(r, 50))' });
     const after = metrics(await page.send('Performance.getMetrics'));
     // A navigation starts a new document, and its counters with it.
-    return { ms, script: after.ScriptDuration * 1000, task: after.TaskDuration * 1000 };
+    return { ms: nav.loadEventEnd, script: after.ScriptDuration * 1000, task: after.TaskDuration * 1000 };
   };
   try {
     for (let i = 0; i < 3; i++) await once();
@@ -267,8 +268,19 @@ function cdp(url) {
 
 /* ── run ────────────────────────────────────────────────── */
 
-const up = await upstream();
-const origin = `http://127.0.0.1:${up.address().port}`;
+/* The upstream is a process of its own, as a dev server would be, so it and
+   the load generator are not competing for one event loop with each other. */
+if (argv[0] === '--upstream') {
+  const server = await upstream();
+  process.stdout.write(server.address().port + '\n');
+  process.stdin.resume();
+  process.stdin.on('end', () => process.exit(0));
+} else await main();
+
+async function main() {
+const upChild = spawn(process.execPath, [fileURLToPath(import.meta.url), '--upstream'], { stdio: ['pipe', 'pipe', 'inherit'] });
+const upPort = await new Promise((r) => upChild.stdout.once('data', (c) => r(Number(String(c).trim()))));
+const origin = `http://127.0.0.1:${upPort}`;
 const tailr = { ...await startTailr(origin), upstream: origin };
 const results = {};
 try {
@@ -287,7 +299,7 @@ try {
   }
 } finally {
   await tailr.stop();
-  up.close();
+  upChild.kill();
 }
 
 if (opt('save')) writeFileSync(opt('save'), JSON.stringify(results, null, 2));
@@ -304,3 +316,4 @@ if (opt('base')) {
   process.stdout.write(`\n  overall            ${Math.exp(logSum / n).toFixed(3)}x (geometric mean of ${n})\n`);
 }
 process.exit(0);
+}
