@@ -2,7 +2,15 @@
 
 What each Tailr release changes for the people using it, newest first. Each section is the body of the matching [GitHub Release](https://github.com/gcrft123/tailr/releases), and its heading is that release's title. Every change, including the ones you wouldn't notice, is in [CHANGELOG.md](CHANGELOG.md).
 
-## Unreleased
+## Unreleased: Faster agent commands and page loads
+
+The commands your agent runs while it works through a batch start about a third faster, and pages load faster through Tailr. On a test page of 400 cards, Tailr's cost to the page load fell from about 8ms to about 2ms.
+
+### Changed
+
+* Each `tailr` command your agent runs takes about 33ms instead of 52ms, and Tailr's MCP server starts and answers its first call in the same time.
+* Reloading a page no longer downloads or revalidates the overlay, and the overlay no longer delays the page's load event.
+* HTML reaches the browser sooner, especially pages your dev server streams.
 
 ## v1.5.0: Hide your marks to see the page under them, and a tidier overlay
 
