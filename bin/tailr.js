@@ -24,13 +24,12 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from '../src/server/server.js';
 import { readSession, writeSession, clearSession, isAlive } from '../src/server/session.js';
-import { startDetached, stopSession } from '../src/server/lifecycle.js';
 import { waitForBatch } from '../src/server/watch.js';
 import { applyConfig, configFile, describeConfig, modifierLabel, parseSettings, readConfig } from '../src/server/config.js';
 import { normalizeTarget } from '../src/server/target.js';
 import { afterClosing, drift, resolve as resolveNotify } from '../src/server/notify.js';
+import { call as request } from '../src/server/local.js';
 
 const argv = process.argv.slice(2);
 const AGENT = new Set(['status', 'wait', 'pull', 'variants', 'slider', 'progress', 'done', 'fail', 'reset']);
@@ -82,6 +81,7 @@ function serveArgsFromStart() {
 }
 
 async function startCmd() {
+  const { startDetached } = await import('../src/server/lifecycle.js');
   const result = await startDetached({ bin: SELF, args: serveArgsFromStart() });
   if (!result.ok) {
     process.stderr.write(`\n  ${result.error}\n\n`);
@@ -101,6 +101,7 @@ async function startCmd() {
 }
 
 async function stopCmd() {
+  const { stopSession } = await import('../src/server/lifecycle.js');
   const result = await stopSession();
   if (result.stopped) {
     process.stdout.write(`\n  Tailr stopped (was ${result.session.url}).\n\n`);
@@ -142,6 +143,8 @@ async function serve({ target: only = null, command = null } = {}) {
     child.on('exit', (code) => { shutdown(); process.exit(code ?? 0); });
   }
 
+  // Only a session serves pages, so only a session loads the proxy.
+  const { createServer } = await import('../src/server/server.js');
   const { server } = createServer({
     target,
     notify,
@@ -260,17 +263,7 @@ async function agent(cmd, rest) {
     process.stderr.write('\n  No Tailr session is running in this project. Start one with:  tailr start\n\n');
     process.exit(2);
   }
-  const base = `http://127.0.0.1:${session.port}/__tailr/`;
-
-  const call = async (path, body, method = 'POST') => {
-    const res = await fetch(base + path, {
-      method,
-      headers: body ? { 'content-type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined
-    });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, data };
-  };
+  const call = (path, body, method = 'POST') => request(session.port, path, { method, body: body || undefined });
 
   /* This command is running inside the agent's conversation, so its environment
      names the thread the agent is on right now. That is the only way Tailr ever

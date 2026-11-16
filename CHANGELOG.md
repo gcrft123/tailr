@@ -13,6 +13,36 @@ go out either. See [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+Most of what an agent command cost was Node loading code it never ran. `tailr progress` and the rest imported the whole proxy, with http, https, tls and zlib behind it, and then spent another 13ms setting up `fetch` for one request to a server on the same machine. On the page, the overlay measured itself while its script was running, which made the browser lay out the whole page early and held DOMContentLoaded and load until it had. Its script was revalidated on every reload, and the proxy held each fixed-length page until its last byte before sending any of it.
+
+Measured with the new `scripts/bench.js` against 1.5.0 on an M2 Max, the run is 1.36 times faster overall. An agent command takes 33ms instead of 52ms, and starting the MCP server and answering one call takes 33ms instead of 52ms. A page of 400 cards loads through Tailr in 10.8ms instead of 17.1ms, against 9ms without it. HTML goes through the proxy 24% faster with a length, 19% faster gzipped and 67% faster streamed, and overlay revalidations 33% faster. Other assets go through as fast as before; most of their cost is the socket writes themselves.
+
+### New
+
+[eb1c13f] — `node scripts/bench.js` times assets, HTML and the overlay through the proxy, an agent command, an MCP round trip and a page load in headless Chrome, and compares two runs with `--save` and `--base`.
+
+### Changed
+
+[1661dda] — Agent commands no longer load the proxy, and reach the session over a plain HTTP/1.0 connection instead of `fetch`.
+
+[1661dda] — The MCP server, `tailr wait` and `tailr config` reach a running session the same way.
+
+[d3d1b8c] — The proxy finds where the overlay's tag goes without decoding the page, and splices it into the bytes the dev server sent.
+
+[d112367] — The overlay's script tag names the bundle's version, and that address is cached for good, so a reload makes no request for the overlay.
+
+[d112367] — The overlay's files are checked for edits at most every 250ms instead of on every request for it.
+
+[05cba36] — The overlay draws its island and any restored marks on the page's first frame instead of while its script runs, so it no longer holds up the page's DOMContentLoaded and load events.
+
+[96803c9] — Proxied requests and responses keep each header name's case as it was sent, and every repeat of a header.
+
+[1cede45] — Requests for the overlay are answered directly instead of through the session API's handler.
+
+[b23c999] — Streamed HTML goes through the proxy without a Transform stream in the way.
+
+[88f7f48] — HTML with a content-length is passed on as it arrives, held only until the overlay's tag is in, and still goes out with a content-length.
+
 ## [1.5.0] — 2026-11-05
 
 A pass over every state the overlay can be in, from the welcome card to the ended card, for radii, spacing, alignment and copy. Most of it is small: corners that weren't concentric, a button whose label sat 10px off the text above it, a column too narrow for the word it was sized for. Two were real faults. A slider and a version set on the same element were drawn on top of each other, and while a run was open both pills went half transparent over the page, which the design rules out.

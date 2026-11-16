@@ -16,6 +16,7 @@ import { waitForBatch } from '../server/watch.js';
 import { afterClosing, drift } from '../server/notify.js';
 import { applyConfig, configFile, describeConfig, KEYS, readConfig, SETTINGS } from '../server/config.js';
 import { normalizeTarget } from '../server/target.js';
+import { call as request } from '../server/local.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BIN = join(ROOT, 'bin', 'tailr.js');
@@ -254,13 +255,8 @@ async function call(path, body, method = 'POST') {
     err.noSession = true;
     throw err;
   }
-  const res = await fetch(`http://127.0.0.1:${s.port}/__tailr/${path}`, {
-    method,
-    headers: body ? { 'content-type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined
-  });
-  const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, data, session: s };
+  const res = await request(s.port, path, { method, body: body || undefined });
+  return { ...res, session: s };
 }
 
 /* Most clients give a tool call about a minute. A wait longer than that is not
@@ -289,13 +285,8 @@ async function reregister() {
   const moved = drift(s.notify);
   if (!moved) return;
   try {
-    const res = await fetch(`http://127.0.0.1:${s.port}/__tailr/notify`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(moved)
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) writeSession({ ...s, notify: data.thread ? { agent: moved.agent, thread: data.thread } : null });
+    const { ok, data } = await request(s.port, 'notify', { body: moved });
+    if (ok) writeSession({ ...s, notify: data.thread ? { agent: moved.agent, thread: data.thread } : null });
   } catch { /* the session is going away; the tool call below will say so */ }
 }
 

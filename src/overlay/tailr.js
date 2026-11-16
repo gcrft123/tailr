@@ -492,9 +492,26 @@
     host.style.zoom = z === 1 ? '' : String(1 / z);
   }
 
+  /* Drawing measures the island and every restored mark, and the first
+     measurement on a page that has never been laid out lays out all of it.
+     Run while the overlay loads, that held the page's DOMContentLoaded and
+     load events for as long as the whole page took to lay out. The first
+     frame lays the page out anyway, so the first drawing waits for it and
+     shares its layout. Versions are still applied before then: those change
+     what the page shows, and the page must not paint the wrong one first. */
+  var drawn = false;
+  function firstFrame() {
+    if (drawn || !host.isConnected) return;
+    drawn = true;
+    unzoom();
+    renderIsland();
+    renderMarks();
+    park();
+    wake();
+  }
+
   function mount() {
     document.documentElement.appendChild(host);
-    unzoom();
     layer = root.querySelector('.layer');
     docLayer = root.querySelector('.doc');
     island = root.querySelector('.island');
@@ -509,13 +526,13 @@
     // nothing. The wait is for the run where they are slow, and for the demo,
     // where there is no stream to carry them.
     setTimeout(maybeWelcome, 400);
-    renderIsland();
-    renderMarks();
+    // Built now, drawn on the first frame: whatever reaches for the island
+    // before then finds it there.
+    buildIsland();
     watchRoute();
     watchLayout();
     reconcileTimer = setInterval(reconcile, 700);
-    park();
-    wake();
+    requestAnimationFrame(firstFrame);
   }
 
   // hovering a version shows it on the page, so the comparison is between the
@@ -912,6 +929,7 @@
   }
   var nodes = {}, vnodes = {}, snodes = {}, reconcileTimer = null, vLeaveT = null;
   function renderMarks() {
+    if (!drawn) return;
     wake();
     var seen = {};
     S.marks.forEach(function (m) {
@@ -2313,6 +2331,7 @@
   }
 
   function renderIsland() {
+    if (!drawn) return;
     if (!IS) buildIsland();
     var count = staged().length;
     var undecided = S.sets.filter(function (s) { return s.choice == null; }).length +

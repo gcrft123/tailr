@@ -83,8 +83,7 @@ export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/'
   };
 
   /* The overlay defers mount() to DOMContentLoaded, so it is loaded into a
-     document that has finished parsing — then mount() runs on the spot and a
-     test has an island to click the moment this resolves. */
+     document that has finished parsing — then mount() runs on the spot. */
   await new Promise((done) => {
     if (doc.readyState === 'complete') done();
     else window.addEventListener('load', done, { once: true });
@@ -99,6 +98,9 @@ export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/'
   const plain = (v) => JSON.parse(JSON.stringify(v));
 
   let tailr;
+  /* The overlay draws on the page's first frame after it mounts, so a test
+     waits for one before it looks for the island. */
+  const frame = () => new Promise((r) => window.requestAnimationFrame(() => r()));
   function boot() {
     window.eval(SOURCE);
     tailr = window.__tailr;
@@ -114,6 +116,7 @@ export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/'
     if (!tutorial) tailr.config({ tutorial: false });
   }
   boot();
+  await frame();
 
   const at = (sel) => {
     const el = doc.querySelector(sel);
@@ -147,7 +150,7 @@ export async function mountOverlay({ html = PAGE, url = 'http://localhost:4100/'
     async reload() {
       tailr.destroy();
       boot();
-      await delay(0);
+      await frame();
       return this;
     },
 

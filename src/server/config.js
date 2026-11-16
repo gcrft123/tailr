@@ -14,6 +14,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readSession, isAlive } from './session.js';
+import { call } from './local.js';
 
 /* Overridable so a test never writes to the machine it is running on. */
 export function configDir() {
@@ -158,11 +159,7 @@ export async function applyConfig(patch) {
   const session = readSession();
   if (!session || !isAlive(session)) return { config, live: false };
   try {
-    const res = await fetch(`http://127.0.0.1:${session.port}/__tailr/config`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ config })
-    });
+    const res = await call(session.port, 'config', { body: { config } });
     return { config, live: res.ok };
   } catch {
     return { config, live: false };

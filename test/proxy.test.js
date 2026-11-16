@@ -16,7 +16,7 @@ test('the overlay is injected into HTML, before </head>', async (t) => {
   t.after(async () => { await s.close(); await up.close(); });
 
   const page = await (await fetch(s.base + '/')).text();
-  assert.match(page, /<script src="\/__tailr\/overlay\.js" defer><\/script><\/head>/);
+  assert.match(page, /<script src="\/__tailr\/overlay\.js\?v=[\w-]+" defer><\/script><\/head>/);
   assert.match(page, /hi<\/body>/, 'the rest of the page is left alone');
 });
 
@@ -25,7 +25,7 @@ test('a page with no head takes the tag before </body>, and one with neither sti
   const s = await startTailr(up.url);
   t.after(async () => { await s.close(); await up.close(); });
 
-  assert.match(await (await fetch(s.base + '/')).text(), /overlay\.js" defer><\/script><\/body>/);
+  assert.match(await (await fetch(s.base + '/')).text(), /overlay\.js\?v=[\w-]+" defer><\/script><\/body>/);
 });
 
 test('the overlay is never injected twice', async (t) => {
@@ -53,7 +53,7 @@ test('chunked HTML is rewritten without leaving a contradictory content-length',
   const res = await fetch(s.base + '/');
   const body = await res.text();
   // The tag lands before </head> even when </head> arrives split in two.
-  assert.match(body, /<head><script src="\/__tailr\/overlay\.js" defer><\/script><\/head><body>streamed/);
+  assert.match(body, /<head><script src="\/__tailr\/overlay\.js\?v=[\w-]+" defer><\/script><\/head><body>streamed/);
   assert.equal(res.headers.get('content-length'), null, 'no length left over from the old body');
 });
 
@@ -77,7 +77,7 @@ test('a page the dev server streams reaches the browser as it streams', async (t
     const { value } = await reader.read();
     early += Buffer.from(value).toString();
   }
-  assert.match(early, /overlay\.js" defer><\/script><\/head><body><h1>Shell/,
+  assert.match(early, /overlay\.js\?v=[\w-]+" defer><\/script><\/head><body><h1>Shell/,
     'the shell, with the overlay in it, before the page has finished');
   finish();
   let rest = '';
@@ -88,6 +88,72 @@ test('a page the dev server streams reaches the browser as it streams', async (t
   }
   assert.match(early + rest, /<p>late<\/p><\/body><\/html>$/);
   assert.equal((early + rest).match(/overlay\.js/g).length, 1);
+});
+
+test('a page with a length is rewritten with a length that counts the tag', async (t) => {
+  const pages = {
+    '/split': ['<html><he', 'ad><title>t</title></he', 'ad><body>split</body></html>'],
+    '/bare': ['<div>no head ', 'and no body</div>'],
+    '/ours': ['<html><head><script src="/__tailr/overlay.js" defer></script></head><body>x</body></html>'],
+    '/wide': ['<html><head><title>caf\u00e9 \u2014 \ud83c\udf70</title></head><body>\u00fcber</body></html>']
+  };
+  const up = await startUpstream((req, res) => {
+    const parts = pages[req.url].map((p) => Buffer.from(p));
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8',
+      'content-length': parts.reduce((n, p) => n + p.length, 0) });
+    let i = 0;
+    const next = () => { if (i < parts.length - 1) { res.write(parts[i++]); setTimeout(next, 5); } else res.end(parts[i]); };
+    next();
+  });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  for (const path of Object.keys(pages)) {
+    const res = await fetch(s.base + path);
+    const body = Buffer.from(await res.arrayBuffer());
+    assert.equal(Number(res.headers.get('content-length')), body.length, `${path} says how long it is`);
+    assert.equal(body.toString().match(/overlay\.js/g).length, 1, `${path} has the overlay once`);
+  }
+  const wide = await (await fetch(s.base + '/wide')).text();
+  assert.match(wide, /caf\u00e9 \u2014 \ud83c\udf70<\/title><script src="\/__tailr\/overlay\.js\?v=[\w-]+" defer><\/script><\/head><body>\u00fcber/,
+    'text outside ASCII comes through as it was sent');
+});
+
+test('a streamed page the dev server drops is cut short, not left hanging', async (t) => {
+  const up = await startUpstream((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.write('<!doctype html><html><head></head><body><h1>Shell</h1>');
+    setTimeout(() => res.socket.destroy(), 50);
+  });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  const res = await fetch(s.base + '/');
+  const outcome = await Promise.race([
+    res.text().then(() => 'ended', () => 'ended'),
+    new Promise((r) => setTimeout(() => r('hung'), 2000))
+  ]);
+  assert.equal(outcome, 'ended');
+});
+
+test('a browser that leaves mid-stream stops the read from the dev server', async (t) => {
+  let closed;
+  const gone = new Promise((r) => { closed = r; });
+  const up = await startUpstream((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.write('<!doctype html><html><head></head><body>');
+    const beat = setInterval(() => res.write('<p>more</p>'), 10);
+    res.on('close', () => { clearInterval(beat); closed(); });
+  });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  const ctrl = new AbortController();
+  const res = await fetch(s.base + '/', { signal: ctrl.signal });
+  await res.body.getReader().read();
+  ctrl.abort();
+  const outcome = await Promise.race([gone.then(() => 'closed'), new Promise((r) => setTimeout(() => r('open'), 2000))]);
+  assert.equal(outcome, 'closed');
 });
 
 test('a response with no body is not handed a script tag', async (t) => {
@@ -120,6 +186,23 @@ test('the overlay bundle is revalidated rather than fetched again', async (t) =>
   assert.equal(again.status, 304, 'unchanged, so nothing is sent');
 });
 
+test('the overlay a page asks for is pinned to its version and kept', async (t) => {
+  const up = await startUpstream(html('<html><head></head><body>hi</body></html>'));
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  const page = await (await fetch(s.base + '/')).text();
+  const src = page.match(/src="(\/__tailr\/overlay\.js\?v=[\w-]+)"/)[1];
+  const pinned = await fetch(s.base + src);
+  assert.equal(pinned.status, 200);
+  assert.match(pinned.headers.get('cache-control'), /immutable/, 'that address only ever holds one bundle');
+  assert.equal(await pinned.text(), await (await fetch(s.base + '/__tailr/overlay.js')).text());
+
+  const stale = await fetch(s.base + '/__tailr/overlay.js?v=old');
+  assert.equal(stale.headers.get('cache-control'), 'no-cache', 'a version that is not current is not kept');
+  await stale.arrayBuffer();
+});
+
 test('a dev server that compresses anyway still gets the overlay', async (t) => {
   /* Tailr asks for `identity`; plenty of dev servers compress regardless.
      That used to mean a page with no overlay and nothing anywhere saying so,
@@ -137,7 +220,7 @@ test('a dev server that compresses anyway still gets the overlay', async (t) => 
 
     const res = await fetch(s.base + '/');
     const page = await res.text();
-    assert.match(page, /overlay\.js" defer><\/script><\/head>/, `${encoding} was not injected into`);
+    assert.match(page, /overlay\.js\?v=[\w-]+" defer><\/script><\/head>/, `${encoding} was not injected into`);
     assert.match(page, /zipped<\/body>/, `${encoding} lost the page around the tag`);
     assert.equal(res.headers.get('content-encoding'), null,
       `${encoding} is no longer what the body is in, so it must not still be claimed`);

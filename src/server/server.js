@@ -16,7 +16,6 @@ import net from 'node:net';
 import tls from 'node:tls';
 import { readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { Transform, pipeline } from 'node:stream';
 import { brotliDecompressSync, gunzipSync, gzipSync, inflateRawSync, inflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -100,20 +99,30 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
      and the bridge needs the overlay it binds to. Three plain scripts glued
      together — there is no bundler here, and none of them is a module. */
   const PARTS = [CUE, OVERLAY, BRIDGE];
-  let bundle = null, bundleStamp = '';
+  /* Cached, but keyed on file mtime so an edit to the overlay is picked up
+     without restarting the session. Every page view asks for the bundle's
+     version, so the files are looked at no more than once every STAT_MS; an
+     edit is saved and then reloaded, which takes longer than that. */
+  const STAT_MS = 250;
+  let bundle = null, bundleStamp = '', checkedAt = 0;
   function overlayBundle() {
-    // Cached, but keyed on file mtime so an edit to the overlay is picked up
-    // without restarting the session.
+    const now = Date.now();
+    if (bundle && now - checkedAt < STAT_MS) return bundle;
+    checkedAt = now;
     let stamp = '';
     try { stamp = PARTS.map((p) => statSync(p).mtimeMs).join(':'); } catch {}
     if (bundle && stamp === bundleStamp) return bundle;
     bundleStamp = stamp;
     const text = PARTS.map((p) => readFileSync(p, 'utf8')).join('\n');
     const body = Buffer.from(text);
+    const version = createHash('sha1').update(body).digest('base64url').slice(0, 20);
     bundle = {
-      body,
+      body, version,
       gz: gzipSync(body),
-      etag: 'W/"' + createHash('sha1').update(body).digest('base64url').slice(0, 20) + '"'
+      etag: 'W/"' + version + '"',
+      /* The page names the version it wants, so that address only ever holds
+         one thing and the browser can keep it without asking again. */
+      tag: Buffer.from(`<script src="${API}overlay.js?v=${version}" defer></script>`)
     };
     return bundle;
   }
@@ -132,26 +141,30 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     });
   }
 
-  async function api(req, res, path) {
-    /* Every page load and every hot reload asks for this again. It used to be
-       no-store, so the browser fetched and compiled all of it each time; now
-       it asks whether it changed, and the answer is nearly always a 304 that
-       lets it reuse the script it has, compiled code included. An edit still
-       lands on the next load, because the tag is the content's own. */
-    if (path === 'overlay.js') {
-      const b = overlayBundle();
-      const headers = {
-        'content-type': 'text/javascript; charset=utf-8',
-        'cache-control': 'no-cache', etag: b.etag, vary: 'accept-encoding'
-      };
-      if (req.headers['if-none-match'] === b.etag) { res.writeHead(304, headers); return res.end(); }
-      const gz = /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
-      if (gz) headers['content-encoding'] = 'gzip';
-      headers['content-length'] = (gz ? b.gz : b.body).length;
-      res.writeHead(200, headers);
-      return res.end(gz ? b.gz : b.body);
-    }
+  /* Every page load and every hot reload asks for this. It used to be
+     no-store, so the browser fetched and compiled all of it each time. The
+     tag injected into a page carries the bundle's version, so a load after
+     the first one makes no request for it at all; an address with no
+     version, or one that is no longer current, is asked about every time and
+     nearly always answered with a 304. Either way an edit lands on the next
+     load, because the version is the content's own. */
+  function serveOverlay(req, res, query) {
+    const b = overlayBundle();
+    const headers = [
+      'Content-Type', 'text/javascript; charset=utf-8',
+      'Cache-Control', query === `v=${b.version}` ? 'public, max-age=31536000, immutable' : 'no-cache',
+      'ETag', b.etag, 'Vary', 'Accept-Encoding'
+    ];
+    if (header(req.rawHeaders, 'if-none-match') === b.etag) { res.writeHead(304, headers); return res.end(); }
+    const gz = /\bgzip\b/.test(header(req.rawHeaders, 'accept-encoding'));
+    const body = gz ? b.gz : b.body;
+    if (gz) headers.push('Content-Encoding', 'gzip');
+    headers.push('Content-Length', String(body.length));
+    res.writeHead(200, headers);
+    res.end(body);
+  }
 
+  async function api(req, res, path) {
     if (path === 'events') {
       res.writeHead(200, {
         'content-type': 'text/event-stream', 'cache-control': 'no-store',
@@ -378,39 +391,48 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
   }
 
   /* ── proxy ─────────────────────────────────────────────── */
+  /* Headers cross both ways as the raw [name, value, …] lists Node read them
+     into. Building and validating an object of them on each side was most of
+     what an asset cost to pass through, and the list keeps every repeated
+     header, and each name's case, as the other end sent it. */
   function proxy(req, res) {
+    const raw = req.rawHeaders;
+    const headers = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      const name = raw[i].toLowerCase();
+      if (name !== 'host' && name !== 'accept-encoding') headers.push(raw[i], raw[i + 1]);
+    }
+    // ask for plain text so HTML can be rewritten without decompressing
+    headers.push('Host', upstream.host, 'Accept-Encoding', 'identity');
     const opts = {
       protocol: upstream.protocol, hostname: upstream.hostname, port: upstreamPort,
       path: req.url, method: req.method,
       rejectUnauthorized: false,
-      headers: { ...req.headers, host: upstream.host,
-        // ask for plain text so HTML can be rewritten without decompressing
-        'accept-encoding': 'identity' }
+      headers
     };
     const up = transport.request(opts, (ur) => {
-      const type = String(ur.headers['content-type'] || '');
-      const encoding = String(ur.headers['content-encoding'] || '').trim().toLowerCase();
+      // Read off the raw list: touching `ur.headers` builds the whole object,
+      // which a response that is only passed through never needs.
+      const type = header(ur.rawHeaders, 'content-type');
+      const encoding = header(ur.rawHeaders, 'content-encoding').trim().toLowerCase();
       const status = ur.statusCode || 502;
       // Only HTML gets rewritten, and only a response that has a body. A HEAD,
       // a 204 or a 304 handed a script tag would be a body where none may be.
       const bodyless = req.method === 'HEAD' || status === 204 || status === 304 || status < 200;
       // Everything else is somebody else's bytes.
       if (!type.includes('text/html') || bodyless) {
-        res.writeHead(status, ur.headers);
+        res.writeHead(status, ur.rawHeaders);
         return ur.pipe(res);
       }
       /* A dev server that streams its HTML — a framework flushing the shell
          and then each part as it resolves — sends it without a length. Held
          until the last byte, the reviewer saw nothing until the slowest part
          of the page had rendered. It is passed through as it arrives instead,
-         with the tag let in on the way past. */
-      const streamed = (encoding === '' || encoding === 'identity') && ur.headers['content-length'] == null;
-      if (streamed) {
-        const headers = { ...ur.headers };
-        delete headers['transfer-encoding'];
-        delete headers['content-length'];
-        res.writeHead(status, headers);
-        return pipeline(ur, injector(), res, () => {});
+         with the tag let in on the way past. A page with a length goes the
+         same way, held only until the tag is in, and keeps a length. */
+      if (encoding === '' || encoding === 'identity') {
+        const length = header(ur.rawHeaders, 'content-length');
+        return relay(ur, res, status, injector(), length === '' ? -1 : Number(length));
       }
       const chunks = [];
       ur.on('data', (c) => chunks.push(c));
@@ -420,20 +442,17 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
         // An encoding this process cannot undo is passed through whole: a page
         // without the overlay beats a page decoded into nonsense.
         if (plain === null) {
-          res.writeHead(ur.statusCode || 200, ur.headers);
+          res.writeHead(status, ur.rawHeaders);
           return res.end(raw);
         }
-        const html = inject(plain.toString('utf8'));
-        const headers = { ...ur.headers };
+        const html = inject(plain);
         // The body is being replaced, so every header describing the old one
         // goes with it. A fresh content-length left beside the upstream's
         // `transfer-encoding: chunked` is a response strict clients refuse,
         // and the body no longer arrives in whatever encoding it named.
-        delete headers['transfer-encoding'];
-        delete headers['content-length'];
-        delete headers['content-encoding'];
-        headers['content-length'] = Buffer.byteLength(html);
-        res.writeHead(ur.statusCode || 200, headers);
+        const headers = without(ur.rawHeaders, ['transfer-encoding', 'content-length', 'content-encoding']);
+        headers.push('Content-Length', String(html.length));
+        res.writeHead(status, headers);
         res.end(html);
       });
     });
@@ -464,51 +483,109 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     return null;
   }
 
-  const TAG = `<script src="${API}overlay.js" defer></script>`;
+  /* Both of these work on the bytes as they came. A page is searched far more
+     often than it is changed, and decoding it to a string to look for one tag,
+     then encoding it again to send, was most of what a page view cost. */
+  const MARK = `${API}overlay.js`;
   function inject(html) {
-    if (html.includes(`${API}overlay.js`)) return html;
-    if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${TAG}</head>`);
-    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${TAG}</body>`);
-    return html + TAG;
+    if (html.includes(MARK)) return html;
+    const TAG = overlayBundle().tag;
+    const text = html.toString('latin1');
+    let at = text.search(HEAD);
+    if (at === -1) at = text.search(BODY);
+    if (at === -1) return Buffer.concat([html, TAG]);
+    return Buffer.concat([html.subarray(0, at), TAG, html.subarray(at)]);
   }
 
   /* inject(), for a page that is still arriving. Same places in the same
      order: before </head>, or before </body> once the page is past its head
-     without one, or at the very end. Bytes are read as latin1, so every byte
-     is one character and none is changed by being looked at; the last few
-     are held back each time in case a tag is split across two chunks. */
+     without one, or at the very end. The last few bytes are held back each
+     time in case a tag is split across two chunks. */
   const HOLD = '</head>'.length - 1;
   function injector() {
-    let done = false, carry = '', inBody = false;
-    return new Transform({
-      transform(chunk, _enc, cb) {
-        if (done) return cb(null, chunk);
-        const text = carry + chunk.toString('latin1');
-        const lower = text.toLowerCase();
-        if (lower.includes(`${API}overlay.js`)) { done = true; carry = ''; return cb(null, Buffer.from(text, 'latin1')); }
-        let at = lower.indexOf('</head>');
+    let carry = null, inBody = false;
+    const TAG = overlayBundle().tag;
+    const feed = {
+      // Whether the page's own tag has been seen or ours put in; and which.
+      done: false, added: 0,
+      push(chunk) {
+        if (feed.done) return chunk;
+        const bytes = carry ? Buffer.concat([carry, chunk]) : chunk;
+        const text = bytes.toString('latin1');
+        carry = null;
+        if (OURS.test(text)) { feed.done = true; return bytes; }
+        let at = text.search(HEAD);
         if (at === -1) {
-          if (!inBody && /<body[\s>]/.test(lower)) inBody = true;
-          if (inBody) at = lower.indexOf('</body>');
+          if (!inBody && OPENS_BODY.test(text)) inBody = true;
+          if (inBody) at = text.search(BODY);
         }
         if (at !== -1) {
-          done = true; carry = '';
-          return cb(null, Buffer.from(text.slice(0, at) + TAG + text.slice(at), 'latin1'));
+          feed.done = true; feed.added = TAG.length;
+          return Buffer.concat([bytes.subarray(0, at), TAG, bytes.subarray(at)]);
         }
-        const keep = Math.min(text.length, HOLD);
-        carry = text.slice(text.length - keep);
-        cb(null, Buffer.from(text.slice(0, text.length - keep), 'latin1'));
+        const keep = Math.min(bytes.length, HOLD);
+        carry = Buffer.from(bytes.subarray(bytes.length - keep));
+        return bytes.subarray(0, bytes.length - keep);
       },
-      flush(cb) {
-        cb(null, done ? Buffer.from(carry, 'latin1') : Buffer.from(carry + TAG, 'latin1'));
+      end() {
+        if (feed.done) return carry;
+        feed.done = true; feed.added = TAG.length;
+        return carry ? Buffer.concat([carry, TAG]) : TAG;
       }
+    };
+    return feed;
+  }
+
+  /* Upstream to browser through an injector, with the backpressure and
+     teardown a pipe gives and without a stream in the middle: a Transform
+     costs more per chunk than the search it would be carrying.
+
+     `length` is the page's own length, or -1 when it has none. A page with
+     one is held until the injector has decided — on nearly every page that
+     is the first chunk, which has </head> in it — and then goes out with a
+     length that counts the tag. */
+  function relay(ur, res, status, feed, length) {
+    const headers = without(ur.rawHeaders, ['transfer-encoding', 'content-length']);
+    let held = null;
+    if (length < 0) res.writeHead(status, headers);
+    else held = [];
+    const release = () => {
+      headers.push('Content-Length', String(length + feed.added));
+      res.writeHead(status, headers);
+      for (const b of held) res.write(b);
+      held = null;
+    };
+    ur.on('data', (chunk) => {
+      const out = feed.push(chunk);
+      if (held) {
+        if (out.length) held.push(out);
+        if (!feed.done) return;
+        release();
+      } else if (out.length) res.write(out);
+      if (res.writableNeedDrain) { ur.pause(); res.once('drain', () => ur.resume()); }
     });
+    ur.on('end', () => {
+      const last = feed.end();
+      if (held) { if (last) held.push(last); release(); res.end(); }
+      else last ? res.end(last) : res.end();
+    });
+    // The dev server dropping the page mid-way leaves it cut short, not hung.
+    ur.on('error', () => res.destroy());
+    ur.on('close', () => { if (!ur.complete) res.destroy(); });
+    // The browser going away stops the read from the dev server.
+    res.on('close', () => { if (!ur.complete) ur.destroy(); });
   }
 
   const server = http.createServer((req, res) => {
     const url = req.url || '/';
     if (url.startsWith(API)) {
-      const path = url.slice(API.length).split('?')[0];
+      const rest = url.slice(API.length);
+      const q = rest.indexOf('?');
+      const path = q === -1 ? rest : rest.slice(0, q);
+      if (path === 'overlay.js') {
+        try { return serveOverlay(req, res, q === -1 ? '' : rest.slice(q + 1)); }
+        catch { return json(res, 500, { error: 'Server error.' }); }
+      }
       return api(req, res, path).catch(() => json(res, 500, { error: 'Server error.' }));
     }
     // The review URL staying up is the whole job of this process. A proxy that
@@ -586,5 +663,24 @@ setInterval(async () => {
   } catch {}
 }, 2000);
 </script>`;
+}
+/* Pages are searched as latin1, where each byte is one character, so an offset
+   in the string is the same offset in the buffer and nothing is decoded. V8's
+   regex on a one-byte string beats any search that walks the buffer from JS. */
+const HEAD = /<\/head>/i, BODY = /<\/body>/i, OPENS_BODY = /<body[\s>]/i, OURS = /\/__tailr\/overlay\.js/i;
+/** The first value of a header in a raw [name, value, …] list, or ''. */
+function header(raw, name) {
+  for (let i = 0; i < raw.length; i += 2) {
+    if (raw[i].length === name.length && raw[i].toLowerCase() === name) return raw[i + 1];
+  }
+  return '';
+}
+/** A raw header list without the named headers (lowercase). */
+function without(raw, names) {
+  const out = [];
+  for (let i = 0; i < raw.length; i += 2) {
+    if (!names.includes(raw[i].toLowerCase())) out.push(raw[i], raw[i + 1]);
+  }
+  return out;
 }
 function escapeHtml(s) { return String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
