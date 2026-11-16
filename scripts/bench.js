@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
+import { Worker, isMainThread, parentPort } from 'node:worker_threads';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(ROOT, 'bin', 'tailr.js');
@@ -100,7 +101,29 @@ async function startTailr(target) {
 
 /* ── load generator ─────────────────────────────────────── */
 
-function load(port, path, { total, concurrency, headers = {} }) {
+/* One Node process cannot generate requests as fast as another can proxy
+   them, so the load comes from a few worker threads, each holding its share
+   of the connections, and the time is the wall time until all have finished. */
+const LOADERS = 3;
+let pool = null;
+function load(port, path, opts) {
+  if (!pool) {
+    pool = Array.from({ length: LOADERS }, () => {
+      const w = new Worker(fileURLToPath(import.meta.url), { argv: ['--loader'] });
+      w.unref();
+      w.on('error', (err) => { console.error(err); process.exit(1); });
+      return w;
+    });
+  }
+  const share = { ...opts, port, path, total: Math.ceil(opts.total / LOADERS), concurrency: Math.ceil(opts.concurrency / LOADERS) };
+  const t0 = performance.now();
+  return Promise.all(pool.map((w) => new Promise((resolve) => {
+    w.once('message', resolve);
+    w.postMessage(share);
+  }))).then(() => ({ ms: performance.now() - t0 }));
+}
+
+function loadHere(port, path, { total, concurrency, headers = {} }) {
   const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency });
   let started = 0, finished = 0, bytes = 0;
   return new Promise((resolve, reject) => {
@@ -270,7 +293,9 @@ function cdp(url) {
 
 /* The upstream is a process of its own, as a dev server would be, so it and
    the load generator are not competing for one event loop with each other. */
-if (argv[0] === '--upstream') {
+if (!isMainThread) {
+  parentPort.on('message', async (m) => parentPort.postMessage(await loadHere(m.port, m.path, m)));
+} else if (argv[0] === '--upstream') {
   const server = await upstream();
   process.stdout.write(server.address().port + '\n');
   process.stdin.resume();
