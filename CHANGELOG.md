@@ -17,6 +17,8 @@ Most of what an agent command cost was Node loading code it never ran. `tailr pr
 
 Measured with the new `scripts/bench.js` against 1.5.0 on an M2 Max, the run is 1.36 times faster overall. An agent command takes 33ms instead of 52ms, and starting the MCP server and answering one call takes 33ms instead of 52ms. A page of 400 cards loads through Tailr in 10.8ms instead of 17.1ms, against 9ms without it. HTML goes through the proxy 24% faster with a length, 19% faster gzipped and 67% faster streamed, and overlay revalidations 33% faster. Other assets go through as fast as before; most of their cost is the socket writes themselves.
 
+Only the streamed-HTML relay closed one end of a response when the other went away. A dev server that dropped a script, stylesheet or compressed page partway through left the browser waiting for the rest of it, and every reload left behind the hot-reload event stream that esbuild and webpack-hot-middleware open on each page load, held open at the dev server until the session ended.
+
 ### New
 
 [eb1c13f] — `node scripts/bench.js` times assets, HTML and the overlay through the proxy, an agent command, an MCP round trip and a page load in headless Chrome, and compares two runs with `--save` and `--base`.
@@ -42,6 +44,12 @@ Measured with the new `scripts/bench.js` against 1.5.0 on an M2 Max, the run is 
 [b23c999] — Streamed HTML goes through the proxy without a Transform stream in the way.
 
 [88f7f48] — HTML with a content-length is passed on as it arrives, held only until the overlay's tag is in, and still goes out with a content-length.
+
+### Fixed
+
+[bce4d5f] — A response the dev server drops partway through is cut short in the browser instead of left hanging, whatever it is.
+
+[bce4d5f] — A browser leaving a response early, such as an event stream on reload, closes the request to the dev server.
 
 ## [1.5.0] — 2026-11-05
 
