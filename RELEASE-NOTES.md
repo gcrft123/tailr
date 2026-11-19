@@ -12,6 +12,11 @@ The commands your agent runs while it works through a batch start about a third 
 * Reloading a page no longer downloads or revalidates the overlay, and the overlay no longer delays the page's load event.
 * HTML reaches the browser sooner, especially pages your dev server streams.
 
+### Fixed
+
+* A file your dev server stops sending partway through no longer leaves the page loading forever.
+* Reloading a page on esbuild or webpack-hot-middleware no longer leaves a connection open to your dev server each time.
+
 ## v1.5.0: Hide your marks to see the page under them, and a tidier overlay
 
 Marks sit on top of what they mark, so checking how a page looked meant sending the batch or deleting marks to clear them away. Now you can hide them for a moment and bring them back.

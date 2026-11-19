@@ -156,6 +156,59 @@ test('a browser that leaves mid-stream stops the read from the dev server', asyn
   assert.equal(outcome, 'closed');
 });
 
+test('an asset or compressed page the dev server drops is cut short, not left hanging', async (t) => {
+  // Both promise a length and then stop. The browser waits on the rest of
+  // it for as long as the connection stays open, so the proxy must not.
+  for (const [type, encoding, start] of [
+    ['text/javascript', null, 'export const a = 1;'],
+    ['text/html', 'gzip', null]
+  ]) {
+    const { gzipSync } = await import('node:zlib');
+    const up = await startUpstream((req, res) => {
+      const headers = { 'content-type': type, 'content-length': '100000' };
+      if (encoding) headers['content-encoding'] = encoding;
+      res.writeHead(200, headers);
+      res.write(start ?? gzipSync('<html><head></head><body>').subarray(0, 12));
+      setTimeout(() => res.socket.destroy(), 50);
+    });
+    const s = await startTailr(up.url);
+
+    const outcome = await Promise.race([
+      fetch(s.base + '/x').then((res) => res.arrayBuffer()).then(() => 'ended', () => 'ended'),
+      new Promise((r) => setTimeout(() => r('hung'), 2000))
+    ]);
+    assert.equal(outcome, 'ended', `${type}${encoding ? ' in ' + encoding : ''} was left hanging`);
+
+    await s.close();
+    await up.close();
+  }
+});
+
+test('a browser that leaves an event stream closes it at the dev server', async (t) => {
+  // esbuild and webpack-hot-middleware push reloads over an event stream
+  // that each page load opens. Every reload leaves the last one behind.
+  let open = 0, opened = 0;
+  const up = await startUpstream((req, res) => {
+    open++; opened++;
+    res.on('close', () => { open--; });
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.write('data: hello\n\n');
+  });
+  const s = await startTailr(up.url);
+  t.after(async () => { await s.close(); await up.close(); });
+
+  for (let i = 0; i < 3; i++) {
+    const ctrl = new AbortController();
+    const res = await fetch(s.base + '/esbuild', { signal: ctrl.signal });
+    await res.body.getReader().read();
+    ctrl.abort();
+  }
+  const deadline = Date.now() + 2000;
+  while (open && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(opened, 3);
+  assert.equal(open, 0, `${open} of 3 streams left open at the dev server`);
+});
+
 test('a response with no body is not handed a script tag', async (t) => {
   const up = await startUpstream((req, res) => {
     if (req.headers['if-none-match']) { res.writeHead(304, { 'content-type': 'text/html' }); return res.end(); }

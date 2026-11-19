@@ -411,6 +411,9 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       headers
     };
     const up = transport.request(opts, (ur) => {
+      // The dev server dropping a response mid-way leaves it cut short in the
+      // browser, not hung on a length that will never arrive.
+      ur.on('close', () => { if (!ur.complete) res.destroy(); });
       // Read off the raw list: touching `ur.headers` builds the whole object,
       // which a response that is only passed through never needs.
       const type = header(ur.rawHeaders, 'content-type');
@@ -457,9 +460,15 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       });
     });
     up.on('error', (err) => {
+      if (res.headersSent || res.destroyed) return res.destroy();
       res.writeHead(502, { 'content-type': 'text/html; charset=utf-8' });
       res.end(downPage(target, err));
     });
+    /* The browser going away, by a reload or a closed tab, closes the request
+       to the dev server. A pipe does not: each page load used to leave its hot
+       reload event stream (esbuild's, webpack-hot-middleware's) open upstream
+       for as long as the session ran. */
+    res.on('close', () => { if (!res.writableFinished) up.destroy(); });
     req.pipe(up);
   }
 
@@ -536,8 +545,8 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
     return feed;
   }
 
-  /* Upstream to browser through an injector, with the backpressure and
-     teardown a pipe gives and without a stream in the middle: a Transform
+  /* Upstream to browser through an injector, with the backpressure a pipe
+     gives and without a stream in the middle: a Transform
      costs more per chunk than the search it would be carrying.
 
      `length` is the page's own length, or -1 when it has none. A page with
@@ -569,11 +578,6 @@ export function createServer({ target, onReady, onExit, spawned = false, config 
       if (held) { if (last) held.push(last); release(); res.end(); }
       else last ? res.end(last) : res.end();
     });
-    // The dev server dropping the page mid-way leaves it cut short, not hung.
-    ur.on('error', () => res.destroy());
-    ur.on('close', () => { if (!ur.complete) res.destroy(); });
-    // The browser going away stops the read from the dev server.
-    res.on('close', () => { if (!ur.complete) ur.destroy(); });
   }
 
   const server = http.createServer((req, res) => {
